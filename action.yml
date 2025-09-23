@@ -1,0 +1,165 @@
+name: "Rust Cross Build"
+description: "A configurable GitHub Action to build Rust projects with cross-compilation support"
+
+branding:
+  icon: "package"
+  color: "orange"
+
+inputs:
+  targets:
+    description: "Rust target triple(s) to build for (comma-separated, e.g., x86_64-unknown-linux-musl,aarch64-unknown-linux-musl)"
+    required: false
+    default: ""
+  profile:
+    description: "Build profile (debug or release)"
+    required: false
+    default: "release"
+  features:
+    description: "Comma-separated list of features to activate"
+    required: false
+  no-default-features:
+    description: "Do not activate default features"
+    required: false
+    default: "false"
+  all-features:
+    description: "Activate all available features"
+    required: false
+    default: "false"
+  package:
+    description: "Package to build (workspace member)"
+    required: false
+  bin:
+    description: "Binary target to build"
+    required: false
+  workspace:
+    description: "Build all workspace members"
+    required: false
+    default: "false"
+  manifest-path:
+    description: "Path to Cargo.toml"
+    required: false
+  source-dir:
+    description: "The directory containing the Rust project to build"
+    required: false
+    default: ${{ github.workspace }}
+  result-dir:
+    description: "The directory to store build results"
+    required: false
+  bin-name-no-suffix:
+    description: "Do not append target suffix to binary name"
+    required: false
+    default: "false"
+  github-proxy-mirror:
+    description: "GitHub proxy mirror URL for downloading cross compilers"
+    required: false
+  cross-compiler-dir:
+    description: "Directory to store cross compilers"
+    required: false
+  ndk-version:
+    description: "Android NDK version for Android builds"
+    required: false
+    default: "r27"
+  use-default-linker:
+    description: "Use system default linker (no cross-compiler download)"
+    required: false
+    default: "false"
+  cc:
+    description: "Force set the C compiler"
+    required: false
+  cxx:
+    description: "Force set the C++ compiler"
+    required: false
+  add-rustflags:
+    description: "Additional rustflags"
+    required: false
+  clean-cache:
+    description: "Clean build cache before building"
+    required: false
+    default: "false"
+  no-strip:
+    description: "Do not strip binaries"
+    required: false
+    default: "false"
+  verbose:
+    description: "Use verbose output"
+    required: false
+    default: "false"
+  show-all-targets:
+    description: "Show all supported targets and exit"
+    required: false
+    default: "false"
+  args:
+    description: "Additional arguments to pass to cargo build"
+    required: false
+
+outputs:
+  result-dir:
+    description: "Directory containing built artifacts"
+    value: ${{ steps.build.outputs.result-dir }}
+  targets:
+    description: "Targets that were built"
+    value: ${{ steps.build.outputs.targets }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        profile: minimal
+
+    - name: Show all targets
+      if: ${{ inputs.show-all-targets == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.source-dir }}
+      run: |
+        "${{ github.action_path }}/build.sh" --show-all-targets
+
+    - name: Build
+      id: build
+      if: ${{ inputs.show-all-targets == 'false' }}
+      shell: bash
+      working-directory: ${{ inputs.source-dir }}
+      run: |
+        # Set default result directory if not specified
+        RESULT_DIR="${{ inputs.result-dir }}"
+        if [ -z "$RESULT_DIR" ]; then
+          RESULT_DIR="${{ inputs.source-dir }}/target/cross"
+        fi
+
+        # Set default targets if not specified
+        TARGETS="${{ inputs.targets }}"
+        if [ -z "$TARGETS" ]; then
+          TARGETS="$(rustc -vV | grep host | cut -d' ' -f2)"
+        fi
+
+        # Build command
+        "${{ github.action_path }}/build.sh" \
+          ${{ inputs.targets != '' && format('--targets={0}', inputs.targets) || '' }} \
+          --profile=${{ inputs.profile }} \
+          ${{ inputs.features != '' && format('--features={0}', inputs.features) || '' }} \
+          ${{ inputs.no-default-features == 'true' && '--no-default-features' || '' }} \
+          ${{ inputs.all-features == 'true' && '--all-features' || '' }} \
+          ${{ inputs.package != '' && format('--package={0}', inputs.package) || '' }} \
+          ${{ inputs.bin != '' && format('--bin={0}', inputs.bin) || '' }} \
+          ${{ inputs.workspace == 'true' && '--workspace' || '' }} \
+          ${{ inputs.manifest-path != '' && format('--manifest-path={0}', inputs.manifest-path) || '' }} \
+          --result-dir="$RESULT_DIR" \
+          ${{ inputs.bin-name-no-suffix == 'true' && '--bin-name-no-suffix' || '' }} \
+          ${{ inputs.github-proxy-mirror != '' && format('--github-proxy-mirror={0}', inputs.github-proxy-mirror) || '' }} \
+          ${{ inputs.cross-compiler-dir != '' && format('--cross-compiler-dir={0}', inputs.cross-compiler-dir) || '' }} \
+          --ndk-version=${{ inputs.ndk-version }} \
+          ${{ inputs.use-default-linker == 'true' && '--use-default-linker' || '' }} \
+          ${{ inputs.cc != '' && format('--cc={0}', inputs.cc) || '' }} \
+          ${{ inputs.cxx != '' && format('--cxx={0}', inputs.cxx) || '' }} \
+          ${{ inputs.add-rustflags != '' && format('--add-rustflags={0}', inputs.add-rustflags) || '' }} \
+          ${{ inputs.clean-cache == 'true' && '--clean-cache' || '' }} \
+          ${{ inputs.no-strip == 'true' && '--no-strip' || '' }} \
+          ${{ inputs.verbose == 'true' && '--verbose' || '' }} \
+          ${{ inputs.args != '' && format('--args={0}', inputs.args) || '' }}
+
+        # Set outputs
+        echo "result-dir=$RESULT_DIR" >> $GITHUB_OUTPUT
+        echo "targets=$TARGETS" >> $GITHUB_OUTPUT
