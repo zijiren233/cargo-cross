@@ -1,16 +1,17 @@
 # Rust Cross Build Action
 
-A powerful GitHub Action for building Rust projects with cross-compilation support. This action automatically downloads and configures the necessary cross-compilation toolchains, making it easy to build your Rust projects for multiple platforms.
+A powerful GitHub Action for building, testing, and checking Rust projects with cross-compilation support. This action automatically downloads and configures the necessary cross-compilation toolchains, making it easy to execute various Rust commands for multiple platforms.
 
 ## Features
 
 - 🚀 **Cross-compilation support** for Linux (GNU/musl), Windows, macOS, Android, and iOS
 - 📦 **Automatic toolchain setup** - downloads and configures cross-compilers as needed
-- 🎯 **Multiple target support** - build for multiple targets in a single run
-- 🏗️ **Workspace support** - build entire workspaces or specific packages
+- 🎯 **Multiple target support** - execute commands for multiple targets in a single run
+- 🏗️ **Workspace support** - work with entire workspaces or specific packages
 - ⚡ **Static linking** - produces statically linked binaries for easy distribution
 - 🔧 **Flexible configuration** - extensive customization options
 - 📁 **Organized output** - all artifacts collected in a single directory
+- 🛠️ **Multiple commands** - supports build, test, and check operations
 
 ## Quick Start
 
@@ -30,6 +31,7 @@ jobs:
       - name: Cross compile
         uses: your-username/rust-cross-build@v1
         with:
+          command: build
           targets: x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
 ```
 
@@ -54,6 +56,7 @@ jobs:
       - name: Build Release
         uses: your-username/rust-cross-build@v1
         with:
+          command: build
           targets: |
             x86_64-unknown-linux-musl,
             aarch64-unknown-linux-musl,
@@ -114,6 +117,7 @@ jobs:
 
 | Input | Description | Default |
 |-------|-------------|---------|
+| `command` | Command to execute (`build`, `test`, `check`) | `build` |
 | `targets` | Comma-separated list of Rust target triples | Host target |
 | `profile` | Build profile (`debug` or `release`) | `release` |
 | `features` | Comma-separated list of features to activate | |
@@ -133,7 +137,7 @@ jobs:
 | `cc` | Force set the C compiler | |
 | `cxx` | Force set the C++ compiler | |
 | `add-rustflags` | Additional rustflags | |
-| `args` | Additional arguments to pass to cargo build | |
+| `args` | Additional arguments to pass to cargo command | |
 | `clean-cache` | Clean build cache before building | `false` |
 | `no-strip` | Do not strip binaries | `false` |
 | `verbose` | Use verbose output | `false` |
@@ -143,7 +147,7 @@ jobs:
 | Output | Description |
 |--------|-------------|
 | `result-dir` | Directory containing built artifacts |
-| `targets` | Targets that were built |
+| `targets` | Targets that were processed |
 
 ## Advanced Examples
 
@@ -153,6 +157,7 @@ jobs:
 - name: Build with features
   uses: your-username/rust-cross-build@v1
   with:
+    command: build
     targets: x86_64-unknown-linux-musl
     features: feature1,feature2
     no-default-features: true
@@ -164,6 +169,7 @@ jobs:
 - name: Build specific binary
   uses: your-username/rust-cross-build@v1
   with:
+    command: build
     targets: x86_64-unknown-linux-musl
     package: my-package
     bin: my-binary
@@ -175,6 +181,7 @@ jobs:
 - name: Build for Android
   uses: your-username/rust-cross-build@v1
   with:
+    command: build
     targets: aarch64-linux-android,armv7-linux-androideabi
     ndk-version: r27
 ```
@@ -185,6 +192,7 @@ jobs:
 - name: Build with custom compiler
   uses: your-username/rust-cross-build@v1
   with:
+    command: build
     targets: x86_64-unknown-linux-gnu
     cc: /usr/bin/custom-gcc
     cxx: /usr/bin/custom-g++
@@ -209,6 +217,7 @@ jobs:
       - name: Build
         uses: your-username/rust-cross-build@v1
         with:
+          command: build
           targets: ${{ matrix.target }}
           
       - name: Upload
@@ -218,34 +227,62 @@ jobs:
           path: target/cross/*
 ```
 
+### Test Across Multiple Targets
+
+```yaml
+- name: Test cross-platform
+  uses: your-username/rust-cross-build@v1
+  with:
+    command: test
+    targets: x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
+```
+
+### Check Code Quality
+
+```yaml
+- name: Check code
+  uses: your-username/rust-cross-build@v1
+  with:
+    command: check
+    targets: x86_64-unknown-linux-musl
+    all-features: true
+```
+
 ## Local Usage
 
-You can also use the build script locally:
+You can also use the execution script locally:
 
 ```bash
-# Build for a specific target
-./build.sh --targets=x86_64-unknown-linux-musl
+# Build for a specific target (default command)
+./exec.sh --targets=x86_64-unknown-linux-musl
 
-# Build for multiple targets
-./build.sh --targets=x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
+# Explicitly specify build command
+./exec.sh build --targets=x86_64-unknown-linux-musl
+
+# Test for multiple targets
+./exec.sh test --targets=x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
+
+# Check the project
+./exec.sh check --targets=x86_64-unknown-linux-musl
 
 # Show all supported targets
-./build.sh --show-all-targets
+./exec.sh --show-all-targets
 
 # Build with features
-./build.sh --targets=x86_64-unknown-linux-musl --features=feature1,feature2
+./exec.sh build --targets=x86_64-unknown-linux-musl --features=feature1,feature2
 
 # Build entire workspace
-./build.sh --targets=x86_64-unknown-linux-musl --workspace
+./exec.sh build --targets=x86_64-unknown-linux-musl --workspace
 ```
 
 ## How It Works
 
-1. **Target Detection**: The action detects the requested build targets
-2. **Toolchain Setup**: Automatically downloads and configures the necessary cross-compilation toolchains
-3. **Environment Configuration**: Sets up the correct environment variables for cross-compilation
-4. **Build Execution**: Runs `cargo build` with the appropriate flags and configuration
-5. **Artifact Collection**: Collects all built binaries and libraries in the result directory
+1. **Command Detection**: The action detects the requested command (build, test, or check)
+2. **Target Detection**: The action detects the requested target platforms
+3. **Toolchain Setup**: Automatically downloads and configures the necessary cross-compilation toolchains
+4. **Environment Configuration**: Sets up the correct environment variables for cross-compilation
+5. **Command Execution**: Runs the specified cargo command with the appropriate flags and configuration
+6. **Artifact Collection**: For build commands, collects all built binaries and libraries in the result directory
 
 ## Troubleshooting
 

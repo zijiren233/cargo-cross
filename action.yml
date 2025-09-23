@@ -1,11 +1,15 @@
 name: "Rust Cross Build"
-description: "A configurable GitHub Action to build Rust projects with cross-compilation support"
+description: "A configurable GitHub Action to build, test, and check Rust projects with cross-compilation support"
 
 branding:
   icon: "package"
   color: "orange"
 
 inputs:
+  command:
+    description: "Command to execute (build, test, check)"
+    required: false
+    default: "build"
   targets:
     description: "Rust target triple(s) to build for (comma-separated, e.g., x86_64-unknown-linux-musl,aarch64-unknown-linux-musl)"
     required: false
@@ -95,10 +99,10 @@ inputs:
 outputs:
   result-dir:
     description: "Directory containing built artifacts"
-    value: ${{ steps.build.outputs.result-dir }}
+    value: ${{ steps.execute.outputs.result-dir }}
   targets:
-    description: "Targets that were built"
-    value: ${{ steps.build.outputs.targets }}
+    description: "Targets that were processed"
+    value: ${{ steps.execute.outputs.targets }}
 
 runs:
   using: "composite"
@@ -115,10 +119,10 @@ runs:
       shell: bash
       working-directory: ${{ inputs.source-dir }}
       run: |
-        "${{ github.action_path }}/build.sh" --show-all-targets
+        "${{ github.action_path }}/exec.sh" --show-all-targets
 
-    - name: Build
-      id: build
+    - name: Execute
+      id: execute
       if: ${{ inputs.show-all-targets == 'false' }}
       shell: bash
       working-directory: ${{ inputs.source-dir }}
@@ -135,8 +139,9 @@ runs:
           TARGETS="$(rustc -vV | grep host | cut -d' ' -f2)"
         fi
 
-        # Build command
-        "${{ github.action_path }}/build.sh" \
+        # Execute command
+        "${{ github.action_path }}/exec.sh" \
+          ${{ inputs.command }} \
           ${{ inputs.targets != '' && format('--targets={0}', inputs.targets) || '' }} \
           --profile=${{ inputs.profile }} \
           ${{ inputs.features != '' && format('--features={0}', inputs.features) || '' }} \
