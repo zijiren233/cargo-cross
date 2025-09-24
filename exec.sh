@@ -180,12 +180,14 @@ function printSeparator() {
 }
 
 # Get cross-compilation environment variables
+# Returns environment variables as a string suitable for use with env command
 function getCrossEnv() {
 	local rust_target="$1"
 	local toolchain_info="${TOOLCHAIN_CONFIG[$rust_target]}"
 
-	# Clear previous environment
-	unset TARGET_CC TARGET_CXX TARGET_AR TARGET_LINKER TARGET_RUSTFLAGS
+	# Clear target-specific variables
+	TARGET_CC="" TARGET_CXX="" TARGET_AR="" TARGET_LINKER="" TARGET_RUSTFLAGS=""
+	EXTRA_PATH=""
 
 	if [[ -z "$toolchain_info" ]]; then
 		echo -e "${COLOR_LIGHT_YELLOW}No specific toolchain configuration for $rust_target, using default${COLOR_RESET}"
@@ -276,11 +278,13 @@ function getLinuxMuslEnv() {
 			if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${gcc_name}" ]]; then
 				local unamespacer="${HOST_OS}-${HOST_ARCH}"
 				[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-arm32v7"
+				[[ "${HOST_ARCH}" == "x86_64" ]] && unamespacer="${HOST_OS}-amd64"
 
 				downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CGO_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
 					"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
 			fi
-			export PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin:$PATH"
+			# Store the additional path needed for this target
+			EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
 		fi
 
 		TARGET_CC="${gcc_name}"
@@ -347,11 +351,13 @@ function getWindowsEnv() {
 			if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${gcc_name}" ]]; then
 				local unamespacer="${HOST_OS}-${HOST_ARCH}"
 				[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-arm32v7"
+				[[ "${HOST_ARCH}" == "x86_64" ]] && unamespacer="${HOST_OS}-amd64"
 
 				downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CGO_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
 					"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
 			fi
-			export PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin:$PATH"
+			# Store the additional path needed for this target
+			EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
 		fi
 
 		TARGET_CC="${gcc_name}"
@@ -366,6 +372,7 @@ function getWindowsEnv() {
 }
 
 # Get Darwin (macOS) environment
+# Need install patchelf
 function getDarwinEnv() {
 	local arch="$1"
 	local rust_target="$2"
@@ -380,28 +387,37 @@ function getDarwinEnv() {
 		case "${HOST_ARCH}" in
 		"x86_64" | "amd64")
 			if command -v o64-clang >/dev/null 2>&1; then
+				patchelf --set-rpath "${CROSS_COMPILER_DIR}/osxcross-amd64/lib" \
+                    ${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin*-ld || return 2
+
 				TARGET_CC="o64-clang"
 				TARGET_CXX="o64-clang++"
-				TARGET_AR="x86_64-apple-darwin-ar"
+				TARGET_AR="x86_64-apple-darwin23.5-ar"
 				TARGET_LINKER="o64-clang"
 			elif [[ -x "${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang" ]]; then
+				patchelf --set-rpath "${CROSS_COMPILER_DIR}/osxcross-amd64/lib" \
+                    ${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin*-ld || return 2
+
 				TARGET_CC="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang"
 				TARGET_CXX="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang++"
-				TARGET_AR="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin-ar"
+				TARGET_AR="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin23.5-ar"
 				TARGET_LINKER="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang"
-				export PATH="${CROSS_COMPILER_DIR}/osxcross-amd64/bin:$PATH"
+				EXTRA_PATH="${CROSS_COMPILER_DIR}/osxcross-amd64/bin"
 			else
 				local ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "20.04")
 				[[ "$ubuntu_version" != *"."* ]] && ubuntu_version="20.04"
 
 				downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.0/osxcross-14-5-linux-x86_64-gnu-ubuntu-${ubuntu_version}.tar.gz" \
 					"${CROSS_COMPILER_DIR}/osxcross-amd64" || return 2
+				
+				patchelf --set-rpath "${CROSS_COMPILER_DIR}/osxcross-amd64/lib" \
+                    ${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin*-ld || return 2
 
 				TARGET_CC="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang"
 				TARGET_CXX="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang++"
-				TARGET_AR="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin-ar"
+				TARGET_AR="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin23.5-ar"
 				TARGET_LINKER="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang"
-				export PATH="${CROSS_COMPILER_DIR}/osxcross-amd64/bin:$PATH"
+				EXTRA_PATH="${CROSS_COMPILER_DIR}/osxcross-amd64/bin"
 			fi
 
 			echo -e "${COLOR_LIGHT_GREEN}Configured osxcross toolchain for $rust_target${COLOR_RESET}"
@@ -527,13 +543,20 @@ function executeTarget() {
 	echo -e "${COLOR_LIGHT_MAGENTA}Executing ${command} for ${rust_target}...${COLOR_RESET}"
 
 	# Clean cache if requested
-	cleanCache "$rust_target"
+	cleanCache "$rust_target" || return $?
 
-	# Get cross-compilation environment
+	# Get cross-compilation environment and capture variables
 	getCrossEnv "$rust_target" || return $?
 
 	# Prepare environment variables
 	local build_env=()
+
+	# Set up PATH with target-specific tools if needed
+	local target_path="$PATH"
+	if [[ -n "$EXTRA_PATH" ]]; then
+		target_path="${EXTRA_PATH}:${PATH}"
+		build_env+=("PATH=${target_path}")
+	fi
 
 	# Set up environment based on target
 	local target_upper=$(echo "$rust_target" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
@@ -755,14 +778,26 @@ while [[ $# -gt 0 ]]; do
 	--profile=*)
 		PROFILE="${1#*=}"
 		;;
+	--profile)
+		shift
+		PROFILE="$1"
+		;;
 	--bin-name=*)
 		BIN_NAME="${1#*=}"
+		;;
+	--bin-name)
+		shift
+		BIN_NAME="$1"
 		;;
 	--bin-name-no-suffix)
 		BIN_NAME_NO_SUFFIX="true"
 		;;
 	--features=*)
 		FEATURES="${1#*=}"
+		;;
+	--features)
+		shift
+		FEATURES="$1"
 		;;
 	--no-default-features)
 		NO_DEFAULT_FEATURES="true"
@@ -773,8 +808,16 @@ while [[ $# -gt 0 ]]; do
 	-t=* | --targets=*)
 		TARGETS="${1#*=}"
 		;;
+	-t | --targets)
+		shift
+		TARGETS="$1"
+		;;
 	--result-dir=*)
 		RESULT_DIR="${1#*=}"
+		;;
+	--result-dir)
+		shift
+		RESULT_DIR="$1"
 		;;
 	--show-all-targets)
 		echo -e "${COLOR_LIGHT_GREEN}Supported Rust targets:${COLOR_RESET}"
@@ -786,17 +829,37 @@ while [[ $# -gt 0 ]]; do
 	--github-proxy-mirror=*)
 		GH_PROXY="${1#*=}"
 		;;
+	--github-proxy-mirror)
+		shift
+		GH_PROXY="$1"
+		;;
 	--cross-compiler-dir=*)
 		CROSS_COMPILER_DIR="${1#*=}"
+		;;
+	--cross-compiler-dir)
+		shift
+		CROSS_COMPILER_DIR="$1"
 		;;
 	--ndk-version=*)
 		NDK_VERSION="${1#*=}"
 		;;
+	--ndk-version)
+		shift
+		NDK_VERSION="$1"
+		;;
 	--package=*)
 		PACKAGE="${1#*=}"
 		;;
+	--package)
+		shift
+		PACKAGE="$1"
+		;;
 	--bin=*)
 		BIN_TARGET="${1#*=}"
+		;;
+	--bin)
+		shift
+		BIN_TARGET="$1"
 		;;
 	--workspace)
 		WORKSPACE="true"
@@ -804,20 +867,40 @@ while [[ $# -gt 0 ]]; do
 	--manifest-path=*)
 		MANIFEST_PATH="${1#*=}"
 		;;
+	--manifest-path)
+		shift
+		MANIFEST_PATH="$1"
+		;;
 	--use-default-linker)
 		USE_DEFAULT_LINKER="true"
 		;;
 	--cc=*)
 		CC="${1#*=}"
 		;;
+	--cc)
+		shift
+		CC="$1"
+		;;
 	--cxx=*)
 		CXX="${1#*=}"
+		;;
+	--cxx)
+		shift
+		CXX="$1"
 		;;
 	--add-rustflags=*)
 		ADDITIONAL_RUSTFLAGS="${1#*=}"
 		;;
+	--add-rustflags)
+		shift
+		ADDITIONAL_RUSTFLAGS="$1"
+		;;
 	--args=*)
 		ADDITIONAL_ARGS="${1#*=}"
+		;;
+	--args)
+		shift
+		ADDITIONAL_ARGS="$1"
 		;;
 	--clean-cache)
 		CLEAN_CACHE="true"
