@@ -138,6 +138,7 @@ jobs:
 | `cxx` | Force set the C++ compiler | |
 | `add-rustflags` | Additional rustflags | |
 | `args` | Additional arguments to pass to cargo command | |
+| `toolchain` | Rust toolchain to use (stable, nightly, etc.) | `stable` |
 | `clean-cache` | Clean build cache before building | `false` |
 | `no-strip` | Do not strip binaries | `false` |
 | `verbose` | Use verbose output | `false` |
@@ -248,6 +249,17 @@ jobs:
     all-features: true
 ```
 
+### Use Nightly Toolchain
+
+```yaml
+- name: Build with nightly
+  uses: your-username/rust-cross-build@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-musl
+    toolchain: nightly
+```
+
 ## Local Usage
 
 You can also use the execution script locally:
@@ -273,6 +285,12 @@ You can also use the execution script locally:
 
 # Build entire workspace
 ./exec.sh build --targets=x86_64-unknown-linux-musl --workspace
+
+# Build with nightly toolchain
+./exec.sh build --targets=x86_64-unknown-linux-musl --toolchain=nightly
+
+# Test with stable toolchain (explicitly)
+./exec.sh test --targets=x86_64-unknown-linux-musl --toolchain=stable
 ```
 
 ## How It Works

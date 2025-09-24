@@ -19,10 +19,11 @@ readonly DEFAULT_RESULT_DIR="${DEFAULT_SOURCE_DIR}/target/cross"
 readonly DEFAULT_BUILD_CONFIG="${DEFAULT_SOURCE_DIR}/build.config.sh"
 readonly DEFAULT_PROFILE="release"
 readonly DEFAULT_CROSS_COMPILER_DIR="$(dirname $(mktemp -u))/rust-cross-compiler"
-readonly DEFAULT_CGO_DEPS_VERSION="v0.5.17"
+readonly DEFAULT_CROSS_DEPS_VERSION="v0.5.17"
 readonly DEFAULT_TTY_WIDTH="40"
 readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
+readonly DEFAULT_TOOLCHAIN=""
 
 # Host environment
 readonly HOST_OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -122,6 +123,7 @@ function printHelp() {
 	echo -e "  ${COLOR_LIGHT_BLUE}--cxx=<path>${COLOR_RESET}                      - Force set the C++ compiler for target"
 	echo -e "  ${COLOR_LIGHT_BLUE}--add-rustflags=<flags>${COLOR_RESET}           - Additional rustflags"
 	echo -e "  ${COLOR_LIGHT_BLUE}--args=<args>${COLOR_RESET}                     - Additional arguments to pass to cargo build"
+	echo -e "  ${COLOR_LIGHT_BLUE}--toolchain=<toolchain>${COLOR_RESET}           - Rust toolchain to use (stable, nightly, etc.)"
 	echo -e "  ${COLOR_LIGHT_BLUE}-v, --verbose${COLOR_RESET}                     - Use verbose output"
 	echo -e "  ${COLOR_LIGHT_BLUE}-h, --help${COLOR_RESET}                        - Display this help message"
 }
@@ -195,9 +197,16 @@ function getCrossEnv() {
 	fi
 
 	# Install Rust target if not already installed
-	if ! rustup target list --installed | grep -q "^$rust_target$"; then
-		echo -e "${COLOR_LIGHT_BLUE}Installing Rust target: $rust_target${COLOR_RESET}"
-		rustup target add "$rust_target" || return $?
+	if [[ -n "$TOOLCHAIN" ]]; then
+		if ! rustup target list --installed --toolchain="$TOOLCHAIN" | grep -q "^$rust_target$"; then
+			echo -e "${COLOR_LIGHT_BLUE}Installing Rust target: $rust_target for toolchain: $TOOLCHAIN${COLOR_RESET}"
+			rustup target add "$rust_target" --toolchain="$TOOLCHAIN" || return $?
+		fi
+	else
+		if ! rustup target list --installed | grep -q "^$rust_target$"; then
+			echo -e "${COLOR_LIGHT_BLUE}Installing Rust target: $rust_target${COLOR_RESET}"
+			rustup target add "$rust_target" || return $?
+		fi
 	fi
 
 	# Skip toolchain setup if using default linker
@@ -280,7 +289,7 @@ function getLinuxMuslEnv() {
 				[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-arm32v7"
 				[[ "${HOST_ARCH}" == "x86_64" ]] && unamespacer="${HOST_OS}-amd64"
 
-				downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CGO_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
+				downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
 					"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
 			fi
 			# Store the additional path needed for this target
@@ -353,7 +362,7 @@ function getWindowsEnv() {
 				[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-arm32v7"
 				[[ "${HOST_ARCH}" == "x86_64" ]] && unamespacer="${HOST_OS}-amd64"
 
-				downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CGO_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
+				downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
 					"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
 			fi
 			# Store the additional path needed for this target
@@ -653,7 +662,11 @@ function executeTarget() {
 	fi
 
 	# Prepare command
-	local cargo_cmd="cargo $command --target $rust_target"
+	local cargo_cmd="cargo"
+	if [[ -n "$TOOLCHAIN" ]]; then
+		cargo_cmd="cargo +$TOOLCHAIN"
+	fi
+	cargo_cmd="$cargo_cmd $command --target $rust_target"
 
 	# Only add profile for build command
 	[[ "$command" == "build" && "$PROFILE" == "release" ]] && cargo_cmd="$cargo_cmd --release"
@@ -811,9 +824,10 @@ setDefault "BUILD_CONFIG" "${SOURCE_DIR}/build.config.sh"
 setDefault "RESULT_DIR" "${DEFAULT_RESULT_DIR}"
 setDefault "PROFILE" "${DEFAULT_PROFILE}"
 setDefault "CROSS_COMPILER_DIR" "${DEFAULT_CROSS_COMPILER_DIR}"
-setDefault "CGO_DEPS_VERSION" "${DEFAULT_CGO_DEPS_VERSION}"
+setDefault "CROSS_DEPS_VERSION" "${DEFAULT_CROSS_DEPS_VERSION}"
 setDefault "NDK_VERSION" "${DEFAULT_NDK_VERSION}"
 setDefault "COMMAND" "${DEFAULT_COMMAND}"
+setDefault "TOOLCHAIN" "${DEFAULT_TOOLCHAIN}"
 
 # Load build configuration if exists
 if [[ -f "${BUILD_CONFIG}" ]]; then
@@ -961,6 +975,13 @@ while [[ $# -gt 0 ]]; do
 		shift
 		ADDITIONAL_ARGS="$1"
 		;;
+	--toolchain=*)
+		TOOLCHAIN="${1#*=}"
+		;;
+	--toolchain)
+		shift
+		TOOLCHAIN="$1"
+		;;
 	--clean-cache)
 		CLEAN_CACHE="true"
 		;;
@@ -996,6 +1017,7 @@ echo -e "  Result directory: ${RESULT_DIR}"
 [[ -n "$BIN_TARGET" ]] && echo -e "  Binary target: ${BIN_TARGET}"
 [[ "$WORKSPACE" == "true" ]] && echo -e "  Building workspace: true"
 echo -e "  Profile: ${PROFILE}"
+[[ -n "$TOOLCHAIN" ]] && echo -e "  Toolchain: ${TOOLCHAIN}"
 echo -e "  Targets: ${TARGETS}"
 [[ -n "$FEATURES" ]] && echo -e "  Features: ${FEATURES}"
 [[ "$NO_DEFAULT_FEATURES" == "true" ]] && echo -e "  No default features: true"

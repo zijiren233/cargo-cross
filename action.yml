@@ -95,6 +95,9 @@ inputs:
   args:
     description: "Additional arguments to pass to cargo build"
     required: false
+  toolchain:
+    description: "Rust toolchain to use (stable, nightly, etc.)"
+    required: false
 
 outputs:
   result-dir:
@@ -110,7 +113,7 @@ runs:
     - name: Setup Rust
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: stable
+        toolchain: ${{ inputs.toolchain || 'stable' }}
         override: true
         profile: minimal
 
@@ -163,7 +166,8 @@ runs:
           ${{ inputs.clean-cache == 'true' && '--clean-cache' || '' }} \
           ${{ inputs.no-strip == 'true' && '--no-strip' || '' }} \
           ${{ inputs.verbose == 'true' && '--verbose' || '' }} \
-          ${{ inputs.args != '' && format('--args={0}', inputs.args) || '' }}
+          ${{ inputs.args != '' && format('--args={0}', inputs.args) || '' }} \
+          ${{ inputs.toolchain != '' && format('--toolchain={0}', inputs.toolchain) || '' }}
 
         # Set outputs
         echo "result-dir=$RESULT_DIR" >> $GITHUB_OUTPUT
