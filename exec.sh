@@ -188,7 +188,7 @@ function getCrossEnv() {
 	local toolchain_info="${TOOLCHAIN_CONFIG[$rust_target]}"
 
 	# Clear target-specific variables
-	TARGET_CC="" TARGET_CXX="" TARGET_AR="" TARGET_LINKER="" TARGET_RUSTFLAGS=""
+	TARGET_CC="" TARGET_CXX="" TARGET_AR="" TARGET_LINKER="" TARGET_RUSTFLAGS="" SDKROOT=""
 	EXTRA_PATH=""
 
 	if [[ -z "$toolchain_info" ]]; then
@@ -283,32 +283,24 @@ function getLinuxMuslEnv() {
 	local gcc_name="${arch_prefix}-linux-musl${abi}-gcc"
 	local ar_name="${arch_prefix}-linux-musl${abi}-ar"
 
-	# Use custom CC/CXX if provided
-	if [[ -n "$CC" ]] && [[ -n "$CXX" ]]; then
-		TARGET_CC="$CC"
-		TARGET_CXX="$CXX"
-		TARGET_AR="${CC%-gcc}-ar"
-		TARGET_LINKER="$CC"
-	else
-		# Check if cross-compiler exists or download it
-		if ! command -v "$gcc_name" >/dev/null 2>&1; then
-			if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${gcc_name}" ]]; then
-				local unamespacer="${HOST_OS}-${HOST_ARCH}"
-				[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-arm32v7"
-				[[ "${HOST_ARCH}" == "x86_64" ]] && unamespacer="${HOST_OS}-amd64"
+	# Check if cross-compiler exists or download it
+	if ! command -v "$gcc_name" >/dev/null 2>&1; then
+		if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${gcc_name}" ]]; then
+			local unamespacer="${HOST_OS}-${HOST_ARCH}"
+			[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-arm32v7"
+			[[ "${HOST_ARCH}" == "x86_64" ]] && unamespacer="${HOST_OS}-amd64"
 
-				downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
-					"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
-			fi
-			# Store the additional path needed for this target
-			EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
+			downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
+				"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
 		fi
-
-		TARGET_CC="${gcc_name}"
-		TARGET_CXX="${arch_prefix}-linux-musl${abi}-g++"
-		TARGET_AR="${ar_name}"
-		TARGET_LINKER="${gcc_name}"
+		# Store the additional path needed for this target
+		EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
 	fi
+
+	TARGET_CC="${gcc_name}"
+	TARGET_CXX="${arch_prefix}-linux-musl${abi}-g++"
+	TARGET_AR="${ar_name}"
+	TARGET_LINKER="${arch_prefix}-linux-musl${abi}-ld"
 
 	TARGET_RUSTFLAGS="-C target-feature=+crt-static"
 
@@ -343,32 +335,24 @@ function getWindowsEnv() {
 	local gcc_name="${arch_prefix}-w64-mingw32-gcc"
 	local ar_name="${arch_prefix}-w64-mingw32-ar"
 
-	# Use custom CC/CXX if provided
-	if [[ -n "$CC" ]] && [[ -n "$CXX" ]]; then
-		TARGET_CC="$CC"
-		TARGET_CXX="$CXX"
-		TARGET_AR="${CC%-gcc}-ar"
-		TARGET_LINKER="$CC"
-	else
-		# Check if cross-compiler exists or download it
-		if ! command -v "$gcc_name" >/dev/null 2>&1; then
-			if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${gcc_name}" ]]; then
-				local unamespacer="${HOST_OS}-${HOST_ARCH}"
-				[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-arm32v7"
-				[[ "${HOST_ARCH}" == "x86_64" ]] && unamespacer="${HOST_OS}-amd64"
+	# Check if cross-compiler exists or download it
+	if ! command -v "$gcc_name" >/dev/null 2>&1; then
+		if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${gcc_name}" ]]; then
+			local unamespacer="${HOST_OS}-${HOST_ARCH}"
+			[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-arm32v7"
+			[[ "${HOST_ARCH}" == "x86_64" ]] && unamespacer="${HOST_OS}-amd64"
 
-				downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
-					"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
-			fi
-			# Store the additional path needed for this target
-			EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
+			downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
+				"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
 		fi
-
-		TARGET_CC="${gcc_name}"
-		TARGET_CXX="${arch_prefix}-w64-mingw32-g++"
-		TARGET_AR="${ar_name}"
-		TARGET_LINKER="${gcc_name}"
+		# Store the additional path needed for this target
+		EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
 	fi
+
+	TARGET_CC="${gcc_name}"
+	TARGET_CXX="${arch_prefix}-w64-mingw32-g++"
+	TARGET_AR="${arch_prefix}-w64-mingw32-ld"
+	TARGET_LINKER="${gcc_name}"
 
 	TARGET_RUSTFLAGS="-C target-feature=+crt-static"
 
@@ -412,12 +396,12 @@ function getDarwinEnv() {
 				TARGET_CC="x86_64-apple-darwin23.5-clang"
 				TARGET_CXX="x86_64-apple-darwin23.5-clang++"
 				TARGET_AR="x86_64-apple-darwin23.5-ar"
-				TARGET_LINKER="x86_64-apple-darwin23.5-clang"
+				TARGET_LINKER="x86_64-apple-darwin23.5-ld"
 			else
 				TARGET_CC="aarch64-apple-darwin23.5-clang"
 				TARGET_CXX="aarch64-apple-darwin23.5-clang++"
 				TARGET_AR="aarch64-apple-darwin23.5-ar"
-				TARGET_LINKER="aarch64-apple-darwin23.5-clang"
+				TARGET_LINKER="aarch64-apple-darwin23.5-ld"
 			fi
 		elif [[ -x "${osxcross_dir}/bin/o64-clang" ]]; then
 			patchelf --set-rpath "${osxcross_dir}/lib" \
@@ -535,43 +519,87 @@ function getIosEnv() {
 		if [[ "${arch}" == "x86_64" ]]; then
 			cross_compiler_name="${cross_compiler_name}-simulator"
 		fi
-		local clang_name="arm64-apple-darwin11-clang"
-		local clangxx_name="arm64-apple-darwin11-clang++"
 
-		# Check if cross-compiler exists or download it
-		if ! command -v "$clang_name" >/dev/null 2>&1; then
-			if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${clang_name}" ]]; then
-				local unamespacer="${HOST_OS}-${HOST_ARCH}"
+		# Set architecture-specific compiler names
+		local clang_name="${arch_prefix}-apple-darwin11-clang"
+		local clangxx_name="${arch_prefix}-apple-darwin11-clang++"
+		local ar_name="${arch_prefix}-apple-darwin11-ar"
 
-				local ubuntu_version=""
-				if [[ "${HOST_OS}" == "linux" ]]; then
-					ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "20.04")
-					[[ "$ubuntu_version" != *"."* ]] && ubuntu_version="20.04"
-				fi
-
-				local download_url=""
-				if [[ "${arch}" == "x86_64" ]]; then
-					download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.4/ioscross-iPhoneSimulator18-5-arm64-${unamespacer}-gnu-ubuntu-${ubuntu_version}.tar.gz"
-				else
-					download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.4/ioscross-iPhoneOS18-5-arm64-${unamespacer}-gnu-ubuntu-${ubuntu_version}.tar.gz"
-				fi
-
-				downloadAndUnzip "$download_url" "${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
-
-				# Fix rpath if on Linux
-				if [[ "${HOST_OS}" == "linux" ]]; then
-					patchelf --set-rpath "${CROSS_COMPILER_DIR}/${cross_compiler_name}/lib" \
-						${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/arm64-apple-darwin*-ld || return 2
+		if command -v "$clang_name" >/dev/null 2>&1; then
+			# Cross-compiler already available in PATH
+			# Get CC directory and set SDKROOT to ../SDK/ first folder
+			local cc_dir="$(dirname "$(command -v "$clang_name")")"
+			local sdk_dir="${cc_dir}/../SDK"
+			if [[ -d "$sdk_dir" ]]; then
+				local first_sdk="$(find "$sdk_dir" -maxdepth 1 -type d ! -path "$sdk_dir" | head -n 1)"
+				if [[ -n "$first_sdk" ]]; then
+					SDKROOT="$first_sdk"
 				fi
 			fi
-			# Store the additional path needed for this target
+
+			TARGET_CC="${clang_name}"
+			TARGET_CXX="${clangxx_name}"
+			TARGET_AR="${ar_name}"
+			TARGET_LINKER="${clang_name}"
+		elif [[ -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${clang_name}" ]]; then
+			# Cross-compiler already downloaded
+			# Fix rpath if on Linux
+			patchelf --set-rpath "${CROSS_COMPILER_DIR}/${cross_compiler_name}/lib" \
+				${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${arch_prefix}-apple-darwin*-ld || return 2
+
 			EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
+			# Set SDKROOT to first folder in SDK directory
+			local sdk_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}/SDK"
+			if [[ -d "$sdk_dir" ]]; then
+				local first_sdk="$(find "$sdk_dir" -maxdepth 1 -type d ! -path "$sdk_dir" | head -n 1)"
+				if [[ -n "$first_sdk" ]]; then
+					SDKROOT="$first_sdk"
+				fi
+			fi
+		else
+			# Download cross-compiler
+			local unamespacer="${HOST_OS}-${HOST_ARCH}"
+
+			local ubuntu_version=""
+			ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "20.04")
+			[[ "$ubuntu_version" != *"."* ]] && ubuntu_version="20.04"
+
+			local download_url=""
+			if [[ "${arch}" == "x86_64" ]]; then
+				download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.4/ioscross-iPhoneSimulator18-5-arm64-${unamespacer}-gnu-ubuntu-${ubuntu_version}.tar.gz"
+			else
+				download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.4/ioscross-iPhoneOS18-5-arm64-${unamespacer}-gnu-ubuntu-${ubuntu_version}.tar.gz"
+			fi
+
+			downloadAndUnzip "$download_url" "${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
+
+			# Fix rpath if on Linux
+			patchelf --set-rpath "${CROSS_COMPILER_DIR}/${cross_compiler_name}/lib" \
+				${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${arch_prefix}-apple-darwin*-ld || return 2
+
+			EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
+			# Set SDKROOT to first folder in SDK directory
+			local sdk_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}/SDK"
+			if [[ -d "$sdk_dir" ]]; then
+				local first_sdk="$(find "$sdk_dir" -maxdepth 1 -type d ! -path "$sdk_dir" | head -n 1)"
+				if [[ -n "$first_sdk" ]]; then
+					SDKROOT="$first_sdk"
+				fi
+			fi
 		fi
 
-		TARGET_CC="${clang_name}"
-		TARGET_CXX="${clangxx_name}"
-		TARGET_AR="arm64-apple-darwin11-ar"
-		TARGET_LINKER="${clang_name}"
+		# Set compiler paths based on target architecture
+		if [[ "${arch}" == "x86_64" ]]; then
+			TARGET_CC="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/x86_64-apple-darwin11-clang"
+			TARGET_CXX="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/x86_64-apple-darwin11-clang++"
+			TARGET_AR="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/x86_64-apple-darwin11-ar"
+			TARGET_LINKER="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/x86_64-apple-darwin11-ld"
+		else
+			TARGET_CC="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/arm64-apple-darwin11-clang"
+			TARGET_CXX="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/arm64-apple-darwin11-clang++"
+			TARGET_AR="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/arm64-apple-darwin11-ar"
+			TARGET_LINKER="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/arm64-apple-darwin11-ld"
+		fi
 
 		echo -e "${COLOR_LIGHT_GREEN}Configured iOS toolchain for $rust_target${COLOR_RESET}"
 		;;
@@ -667,6 +695,10 @@ function executeTarget() {
 
 	if [[ -n "$TARGET_LINKER" ]]; then
 		build_env+=("CARGO_TARGET_${target_upper}_LINKER=${TARGET_LINKER}")
+	fi
+
+	if [[ -n "$SDKROOT" ]]; then
+		build_env+=("SDKROOT=${SDKROOT}")
 	fi
 
 	# Prepare rustflags
