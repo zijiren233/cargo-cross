@@ -388,7 +388,7 @@ function getDarwinEnv() {
 		"x86_64" | "amd64")
 			if command -v o64-clang >/dev/null 2>&1; then
 				patchelf --set-rpath "${CROSS_COMPILER_DIR}/osxcross-amd64/lib" \
-                    ${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin*-ld || return 2
+					${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin*-ld || return 2
 
 				TARGET_CC="o64-clang"
 				TARGET_CXX="o64-clang++"
@@ -396,7 +396,7 @@ function getDarwinEnv() {
 				TARGET_LINKER="o64-clang"
 			elif [[ -x "${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang" ]]; then
 				patchelf --set-rpath "${CROSS_COMPILER_DIR}/osxcross-amd64/lib" \
-                    ${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin*-ld || return 2
+					${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin*-ld || return 2
 
 				TARGET_CC="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang"
 				TARGET_CXX="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang++"
@@ -409,9 +409,9 @@ function getDarwinEnv() {
 
 				downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.0/osxcross-14-5-linux-x86_64-gnu-ubuntu-${ubuntu_version}.tar.gz" \
 					"${CROSS_COMPILER_DIR}/osxcross-amd64" || return 2
-				
+
 				patchelf --set-rpath "${CROSS_COMPILER_DIR}/osxcross-amd64/lib" \
-                    ${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin*-ld || return 2
+					${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin*-ld || return 2
 
 				TARGET_CC="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang"
 				TARGET_CXX="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang++"
@@ -483,11 +483,70 @@ function getIosEnv() {
 
 	case "${HOST_OS}" in
 	"darwin")
-		# Native compilation on macOS for iOS
-		echo -e "${COLOR_LIGHT_GREEN}Using native iOS toolchain for $rust_target${COLOR_RESET}"
+		# Native compilation on macOS
+		echo -e "${COLOR_LIGHT_GREEN}Using native macOS toolchain for $rust_target${COLOR_RESET}"
+		;;
+	"linux")
+		# Map architecture to cross-compiler prefix
+		case "$arch" in
+		"aarch64")
+			local arch_prefix="arm64"
+			;;
+		"x86_64")
+			local arch_prefix="x86_64"
+			;;
+		*)
+			echo -e "${COLOR_LIGHT_YELLOW}Unknown iOS architecture: ${arch}${COLOR_RESET}"
+			return 2
+			;;
+		esac
+
+		local cross_compiler_name="ios-${arch_prefix}-cross"
+		if [[ "${arch}" == "x86_64" ]]; then
+			cross_compiler_name="${cross_compiler_name}-simulator"
+		fi
+		local clang_name="arm64-apple-darwin11-clang"
+		local clangxx_name="arm64-apple-darwin11-clang++"
+
+		# Check if cross-compiler exists or download it
+		if ! command -v "$clang_name" >/dev/null 2>&1; then
+			if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${clang_name}" ]]; then
+				local unamespacer="${HOST_OS}-${HOST_ARCH}"
+
+				local ubuntu_version=""
+				if [[ "${HOST_OS}" == "linux" ]]; then
+					ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "20.04")
+					[[ "$ubuntu_version" != *"."* ]] && ubuntu_version="20.04"
+				fi
+
+				local download_url=""
+				if [[ "${arch}" == "x86_64" ]]; then
+					download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.4/ioscross-iPhoneSimulator18-5-arm64-${unamespacer}-gnu-ubuntu-${ubuntu_version}.tar.gz"
+				else
+					download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.4/ioscross-iPhoneOS18-5-arm64-${unamespacer}-gnu-ubuntu-${ubuntu_version}.tar.gz"
+				fi
+
+				downloadAndUnzip "$download_url" "${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
+
+				# Fix rpath if on Linux
+				if [[ "${HOST_OS}" == "linux" ]]; then
+					patchelf --set-rpath "${CROSS_COMPILER_DIR}/${cross_compiler_name}/lib" \
+						${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/arm64-apple-darwin*-ld || return 2
+				fi
+			fi
+			# Store the additional path needed for this target
+			EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
+		fi
+
+		TARGET_CC="${clang_name}"
+		TARGET_CXX="${clangxx_name}"
+		TARGET_AR="arm64-apple-darwin11-ar"
+		TARGET_LINKER="${clang_name}"
+
+		echo -e "${COLOR_LIGHT_GREEN}Configured iOS toolchain for $rust_target${COLOR_RESET}"
 		;;
 	*)
-		echo -e "${COLOR_LIGHT_YELLOW}iOS cross-compilation only supported on macOS${COLOR_RESET}"
+		echo -e "${COLOR_LIGHT_YELLOW}Cross-compilation to macOS not supported on ${HOST_OS}${COLOR_RESET}"
 		return 1
 		;;
 	esac
