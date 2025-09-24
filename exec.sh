@@ -215,6 +215,14 @@ function getCrossEnv() {
 		return 0
 	fi
 
+	if [[ -n "$CC" ]] && [[ -n "$CXX" ]]; then
+		TARGET_CC="$CC"
+		TARGET_CXX="$CXX"
+		TARGET_AR="${CC%-gcc}-ar"
+		TARGET_LINKER="$CC"
+		return 0
+	fi
+
 	# Parse toolchain configuration
 	IFS=':' read -ra CONFIG <<<"$toolchain_info"
 	local os="${CONFIG[0]}"
@@ -309,20 +317,7 @@ function getLinuxMuslEnv() {
 
 # Get Linux GNU cross-compilation environment
 function getLinuxGnuEnv() {
-	local arch="$1"
-	local abi="$2"
-	local rust_target="$3"
-
-	# For GNU targets, typically use system compilers or user-provided ones
-	if [[ -n "$CC" ]] && [[ -n "$CXX" ]]; then
-		TARGET_CC="$CC"
-		TARGET_CXX="$CXX"
-		TARGET_AR="${CC%-gcc}-ar"
-		TARGET_LINKER="$CC"
-		echo -e "${COLOR_LIGHT_GREEN}Configured Linux GNU toolchain for $rust_target with custom compiler${COLOR_RESET}"
-	else
-		echo -e "${COLOR_LIGHT_YELLOW}Using default GNU toolchain for $rust_target${COLOR_RESET}"
-	fi
+	echo -e "${COLOR_LIGHT_YELLOW}Using default GNU toolchain for $rust_target${COLOR_RESET}"
 }
 
 # Get Windows cross-compilation environment
@@ -393,49 +388,75 @@ function getDarwinEnv() {
 		;;
 	"linux")
 		# Cross-compilation from Linux to macOS using osxcross
+		export OSXCROSS_MP_INC=1
+
+		# Map host architecture to osxcross directory name
+		local host_arch_name=""
 		case "${HOST_ARCH}" in
 		"x86_64" | "amd64")
-			if command -v o64-clang >/dev/null 2>&1; then
-				patchelf --set-rpath "${CROSS_COMPILER_DIR}/osxcross-amd64/lib" \
-					${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin*-ld || return 2
-
-				TARGET_CC="o64-clang"
-				TARGET_CXX="o64-clang++"
-				TARGET_AR="x86_64-apple-darwin23.5-ar"
-				TARGET_LINKER="o64-clang"
-			elif [[ -x "${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang" ]]; then
-				patchelf --set-rpath "${CROSS_COMPILER_DIR}/osxcross-amd64/lib" \
-					${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin*-ld || return 2
-
-				TARGET_CC="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang"
-				TARGET_CXX="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang++"
-				TARGET_AR="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin23.5-ar"
-				TARGET_LINKER="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang"
-				EXTRA_PATH="${CROSS_COMPILER_DIR}/osxcross-amd64/bin"
-			else
-				local ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "20.04")
-				[[ "$ubuntu_version" != *"."* ]] && ubuntu_version="20.04"
-
-				downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.0/osxcross-14-5-linux-x86_64-gnu-ubuntu-${ubuntu_version}.tar.gz" \
-					"${CROSS_COMPILER_DIR}/osxcross-amd64" || return 2
-
-				patchelf --set-rpath "${CROSS_COMPILER_DIR}/osxcross-amd64/lib" \
-					${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin*-ld || return 2
-
-				TARGET_CC="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang"
-				TARGET_CXX="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang++"
-				TARGET_AR="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/x86_64-apple-darwin23.5-ar"
-				TARGET_LINKER="${CROSS_COMPILER_DIR}/osxcross-amd64/bin/o64-clang"
-				EXTRA_PATH="${CROSS_COMPILER_DIR}/osxcross-amd64/bin"
-			fi
-
-			echo -e "${COLOR_LIGHT_GREEN}Configured osxcross toolchain for $rust_target${COLOR_RESET}"
+			host_arch_name="amd64"
+			;;
+		"aarch64" | "arm64")
+			host_arch_name="aarch64"
 			;;
 		*)
 			echo -e "${COLOR_LIGHT_YELLOW}Cross-compilation to macOS not supported on ${HOST_OS}/${HOST_ARCH}${COLOR_RESET}"
 			return 1
 			;;
 		esac
+
+		local osxcross_dir="${CROSS_COMPILER_DIR}/osxcross-${host_arch_name}"
+
+		if command -v o64-clang >/dev/null 2>&1; then
+			if [[ "${arch}" == "x86_64" ]]; then
+				TARGET_CC="x86_64-apple-darwin23.5-clang"
+				TARGET_CXX="x86_64-apple-darwin23.5-clang++"
+				TARGET_AR="x86_64-apple-darwin23.5-ar"
+				TARGET_LINKER="x86_64-apple-darwin23.5-clang"
+			else
+				TARGET_CC="aarch64-apple-darwin23.5-clang"
+				TARGET_CXX="aarch64-apple-darwin23.5-clang++"
+				TARGET_AR="aarch64-apple-darwin23.5-ar"
+				TARGET_LINKER="aarch64-apple-darwin23.5-clang"
+			fi
+		elif [[ -x "${osxcross_dir}/bin/o64-clang" ]]; then
+			patchelf --set-rpath "${osxcross_dir}/lib" \
+				${osxcross_dir}/bin/x86_64-apple-darwin*-ld || return 2
+
+			EXTRA_PATH="${osxcross_dir}/bin"
+		else
+			# Determine download URL based on host architecture
+			local download_url=""
+			if [[ "${host_arch_name}" == "amd64" ]]; then
+				local ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "20.04")
+				[[ "$ubuntu_version" != *"."* ]] && ubuntu_version="20.04"
+				download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.0/osxcross-14-5-linux-x86_64-gnu-ubuntu-${ubuntu_version}.tar.gz"
+			else
+				download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.0/osxcross-14-5-linux-aarch64-gnu-ubuntu-20.04.tar.gz"
+			fi
+
+			downloadAndUnzip "${download_url}" "${osxcross_dir}" || return 2
+
+			patchelf --set-rpath "${osxcross_dir}/lib" \
+				${osxcross_dir}/bin/x86_64-apple-darwin*-ld || return 2
+
+			EXTRA_PATH="${osxcross_dir}/bin"
+		fi
+
+		# Set compiler paths based on target architecture
+		if [[ "${arch}" == "x86_64" ]]; then
+			TARGET_CC="${osxcross_dir}/bin/x86_64-apple-darwin23.5-clang"
+			TARGET_CXX="${osxcross_dir}/bin/x86_64-apple-darwin23.5-clang++"
+			TARGET_AR="${osxcross_dir}/bin/x86_64-apple-darwin23.5-ar"
+			TARGET_LINKER="${osxcross_dir}/bin/x86_64-apple-darwin23.5-clang"
+		else
+			TARGET_CC="${osxcross_dir}/bin/aarch64-apple-darwin23.5-clang"
+			TARGET_CXX="${osxcross_dir}/bin/aarch64-apple-darwin23.5-clang++"
+			TARGET_AR="${osxcross_dir}/bin/aarch64-apple-darwin23.5-ar"
+			TARGET_LINKER="${osxcross_dir}/bin/aarch64-apple-darwin23.5-clang"
+		fi
+
+		echo -e "${COLOR_LIGHT_GREEN}Configured osxcross toolchain for $rust_target${COLOR_RESET}"
 		;;
 	*)
 		echo -e "${COLOR_LIGHT_YELLOW}Cross-compilation to macOS not supported on ${HOST_OS}${COLOR_RESET}"
