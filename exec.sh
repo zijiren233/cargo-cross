@@ -197,6 +197,7 @@ function getCrossEnv() {
 	fi
 
 	# Install Rust target if not already installed
+	# curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 	if [[ -n "$TOOLCHAIN" ]]; then
 		if ! rustup target list --installed --toolchain="$TOOLCHAIN" | grep -q "^$rust_target$"; then
 			echo -e "${COLOR_LIGHT_BLUE}Installing Rust target: $rust_target for toolchain: $TOOLCHAIN${COLOR_RESET}"
@@ -373,6 +374,7 @@ function getDarwinEnv() {
 	"linux")
 		# Cross-compilation from Linux to macOS using osxcross
 		export OSXCROSS_MP_INC=1
+		export MACOSX_DEPLOYMENT_TARGET=10.7
 
 		# Map host architecture to osxcross directory name
 		local host_arch_name=""
@@ -396,27 +398,27 @@ function getDarwinEnv() {
 				TARGET_CC="x86_64-apple-darwin23.5-clang"
 				TARGET_CXX="x86_64-apple-darwin23.5-clang++"
 				TARGET_AR="x86_64-apple-darwin23.5-ar"
-				TARGET_LINKER="x86_64-apple-darwin23.5-ld"
+				TARGET_LINKER="x86_64-apple-darwin23.5-clang"
 			else
 				TARGET_CC="aarch64-apple-darwin23.5-clang"
 				TARGET_CXX="aarch64-apple-darwin23.5-clang++"
 				TARGET_AR="aarch64-apple-darwin23.5-ar"
-				TARGET_LINKER="aarch64-apple-darwin23.5-ld"
+				TARGET_LINKER="aarch64-apple-darwin23.5-clang"
 			fi
 		elif [[ -x "${osxcross_dir}/bin/o64-clang" ]]; then
 			patchelf --set-rpath "${osxcross_dir}/lib" \
 				${osxcross_dir}/bin/x86_64-apple-darwin*-ld || return 2
 
-			EXTRA_PATH="${osxcross_dir}/bin"
+			EXTRA_PATH="${osxcross_dir}/bin:${osxcross_dir}/clang/bin"
 		else
 			# Determine download URL based on host architecture
 			local download_url=""
 			if [[ "${host_arch_name}" == "amd64" ]]; then
 				local ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "20.04")
 				[[ "$ubuntu_version" != *"."* ]] && ubuntu_version="20.04"
-				download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.0/osxcross-14-5-linux-x86_64-gnu-ubuntu-${ubuntu_version}.tar.gz"
+				download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.2/osxcross-14-5-linux-x86_64-gnu-ubuntu-${ubuntu_version}.tar.gz"
 			else
-				download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.0/osxcross-14-5-linux-aarch64-gnu-ubuntu-20.04.tar.gz"
+				download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.2/osxcross-14-5-linux-aarch64-gnu-ubuntu-20.04.tar.gz"
 			fi
 
 			downloadAndUnzip "${download_url}" "${osxcross_dir}" || return 2
@@ -424,7 +426,7 @@ function getDarwinEnv() {
 			patchelf --set-rpath "${osxcross_dir}/lib" \
 				${osxcross_dir}/bin/x86_64-apple-darwin*-ld || return 2
 
-			EXTRA_PATH="${osxcross_dir}/bin"
+			EXTRA_PATH="${osxcross_dir}/bin:${osxcross_dir}/clang/bin"
 		fi
 
 		# Set compiler paths based on target architecture
