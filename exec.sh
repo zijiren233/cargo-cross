@@ -413,12 +413,12 @@ function getDarwinEnv() {
 		else
 			# Determine download URL based on host architecture
 			local download_url=""
+			local ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "20.04")
+			[[ "$ubuntu_version" != *"."* ]] && ubuntu_version="20.04"
 			if [[ "${host_arch_name}" == "amd64" ]]; then
-				local ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "20.04")
-				[[ "$ubuntu_version" != *"."* ]] && ubuntu_version="20.04"
 				download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.2/osxcross-14-5-linux-x86_64-gnu-ubuntu-${ubuntu_version}.tar.gz"
 			else
-				download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.2/osxcross-14-5-linux-aarch64-gnu-ubuntu-20.04.tar.gz"
+				download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.2/osxcross-14-5-linux-aarch64-gnu-ubuntu-${ubuntu_version}.tar.gz"
 			fi
 
 			downloadAndUnzip "${download_url}" "${osxcross_dir}" || return 2
