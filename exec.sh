@@ -526,6 +526,7 @@ function getIosEnv() {
 		local clang_name="${arch_prefix}-apple-darwin11-clang"
 		local clangxx_name="${arch_prefix}-apple-darwin11-clang++"
 		local ar_name="${arch_prefix}-apple-darwin11-ar"
+		local linker_name="${arch_prefix}-apple-darwin11-ld"
 
 		if command -v "$clang_name" >/dev/null 2>&1; then
 			# Cross-compiler already available in PATH
@@ -542,7 +543,7 @@ function getIosEnv() {
 			TARGET_CC="${clang_name}"
 			TARGET_CXX="${clangxx_name}"
 			TARGET_AR="${ar_name}"
-			TARGET_LINKER="${clang_name}"
+			TARGET_LINKER="${linker_name}"
 		elif [[ -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${clang_name}" ]]; then
 			# Cross-compiler already downloaded
 			# Fix rpath if on Linux
@@ -568,9 +569,9 @@ function getIosEnv() {
 
 			local download_url=""
 			if [[ "${arch}" == "x86_64" ]]; then
-				download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.4/ioscross-iPhoneSimulator18-5-arm64-${unamespacer}-gnu-ubuntu-${ubuntu_version}.tar.gz"
+				download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.6/ioscross-iPhoneSimulator18-5-x86_64-${unamespacer}-gnu-ubuntu-${ubuntu_version}.tar.gz"
 			else
-				download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.4/ioscross-iPhoneOS18-5-arm64-${unamespacer}-gnu-ubuntu-${ubuntu_version}.tar.gz"
+				download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.6/ioscross-iPhoneOS18-5-arm64-${unamespacer}-gnu-ubuntu-${ubuntu_version}.tar.gz"
 			fi
 
 			downloadAndUnzip "$download_url" "${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
@@ -579,7 +580,7 @@ function getIosEnv() {
 			patchelf --set-rpath "${CROSS_COMPILER_DIR}/${cross_compiler_name}/lib" \
 				${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${arch_prefix}-apple-darwin*-ld || return 2
 
-			EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
+			EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin:${CROSS_COMPILER_DIR}/${cross_compiler_name}/clang/bin"
 			# Set SDKROOT to first folder in SDK directory
 			local sdk_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}/SDK"
 			if [[ -d "$sdk_dir" ]]; then
