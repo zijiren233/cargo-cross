@@ -289,7 +289,7 @@ function getLinuxMuslEnv() {
 	TARGET_CC="${gcc_name}"
 	TARGET_CXX="${arch_prefix}-linux-musl${abi}-g++"
 	TARGET_AR="${ar_name}"
-	TARGET_LINKER="${arch_prefix}-linux-musl${abi}-ld"
+	TARGET_LINKER="${gcc_name}"
 
 	TARGET_RUSTFLAGS="-C target-feature=+crt-static"
 
@@ -745,89 +745,91 @@ function executeTarget() {
 	local end_time=$(date +%s)
 
 	# Only handle binary output for build command
-	if [[ "$command" == "build" ]]; then
-		# Find and copy built binaries
-		echo -e "${COLOR_LIGHT_BLUE}Looking for built binaries...${COLOR_RESET}"
-
-		local found_binaries=()
-		readarray -t found_binaries < <(findBuiltBinaries "${SOURCE_DIR}/target" "$rust_target" "$PROFILE")
-
-		if [[ ${#found_binaries[@]} -eq 0 ]]; then
-			echo -e "${COLOR_LIGHT_YELLOW}No binaries found, checking for libraries...${COLOR_RESET}"
-
-			# Check for library outputs
-			for lib_ext in ".a" ".so" ".dylib" ".dll" ".rlib"; do
-				for lib_file in "${SOURCE_DIR}/target/${rust_target}/${PROFILE}/"*"${lib_ext}"; do
-					if [[ -f "$lib_file" ]]; then
-						local lib_name=$(basename "$lib_file")
-						local dest_lib="${RESULT_DIR}/${lib_name%.${lib_ext}}"
-
-						# Add target suffix unless disabled
-						if [[ -z "$BIN_NAME_NO_SUFFIX" ]]; then
-							local suffix=$(echo "$rust_target" | sed 's/-unknown//g')
-							dest_lib="${dest_lib}-${suffix}"
-						fi
-						dest_lib="${dest_lib}${lib_ext}"
-
-						mkdir -p "${RESULT_DIR}"
-						cp "$lib_file" "$dest_lib"
-						echo -e "${COLOR_LIGHT_GREEN}Library copied: ${dest_lib}${COLOR_RESET}"
-					fi
-				done
-			done
-		else
-			# Copy found binaries
-			for binary in "${found_binaries[@]}"; do
-				local binary_name=$(basename "$binary")
-				# Remove .exe extension for naming
-				local base_name="${binary_name%.exe}"
-
-				# Determine destination name
-				local dest_binary="${RESULT_DIR}/${base_name}"
-
-				# Add target suffix unless disabled
-				if [[ -z "$BIN_NAME_NO_SUFFIX" ]]; then
-					local suffix=$(echo "$rust_target" | sed 's/-unknown//g')
-					dest_binary="${dest_binary}-${suffix}"
-				fi
-
-				# Add back extension if needed
-				[[ "$binary_name" == *.exe ]] && dest_binary="${dest_binary}.exe"
-
-				mkdir -p "${RESULT_DIR}"
-				cp "$binary" "$dest_binary"
-
-				# Strip binary in release mode
-				if [[ "$PROFILE" == "release" ]] && [[ "$NO_STRIP" != "true" ]]; then
-					# Try to find appropriate strip tool
-					local strip_cmd=""
-					if [[ -n "$TARGET_LINKER" ]]; then
-						# Try to find strip based on linker
-						local strip_tool="${TARGET_LINKER%-gcc}-strip"
-						if command -v "$strip_tool" >/dev/null 2>&1; then
-							strip_cmd="$strip_tool"
-						fi
-					fi
-
-					# Fallback to default strip for native builds
-					if [[ -z "$strip_cmd" ]] && [[ "$rust_target" == "$HOST_TRIPLE" ]]; then
-						strip_cmd="strip"
-					fi
-
-					if [[ -n "$strip_cmd" ]] && command -v "$strip_cmd" >/dev/null 2>&1; then
-						echo -e "${COLOR_LIGHT_BLUE}Stripping binary with: ${strip_cmd}${COLOR_RESET}"
-						"$strip_cmd" "$dest_binary" 2>/dev/null || true
-					fi
-				fi
-
-				echo -e "${COLOR_LIGHT_GREEN}Binary copied: ${dest_binary} (size: $(du -sh "${dest_binary}" | cut -f1))${COLOR_RESET}"
-			done
-
-			echo -e "${COLOR_LIGHT_GREEN}Build successful: ${rust_target} (took $((end_time - start_time))s)${COLOR_RESET}"
-		fi
-	else
+	if [[ "$command" != "build" ]]; then
 		echo -e "${COLOR_LIGHT_GREEN}${command^} successful: ${rust_target} (took $((end_time - start_time))s)${COLOR_RESET}"
+		return
 	fi
+
+	# Find and copy built binaries
+	echo -e "${COLOR_LIGHT_BLUE}Looking for built binaries...${COLOR_RESET}"
+
+	local found_binaries=()
+	readarray -t found_binaries < <(findBuiltBinaries "${SOURCE_DIR}/target" "$rust_target" "$PROFILE")
+
+	if [[ ${#found_binaries[@]} -eq 0 ]]; then
+		echo -e "${COLOR_LIGHT_YELLOW}No binaries found, checking for libraries...${COLOR_RESET}"
+
+		# Check for library outputs
+		for lib_ext in ".a" ".so" ".dylib" ".dll" ".rlib"; do
+			for lib_file in "${SOURCE_DIR}/target/${rust_target}/${PROFILE}/"*"${lib_ext}"; do
+				if [[ -f "$lib_file" ]]; then
+					local lib_name=$(basename "$lib_file")
+					local dest_lib="${RESULT_DIR}/${lib_name%.${lib_ext}}"
+
+					# Add target suffix unless disabled
+					if [[ -z "$BIN_NAME_NO_SUFFIX" ]]; then
+						local suffix=$(echo "$rust_target" | sed 's/-unknown//g')
+						dest_lib="${dest_lib}-${suffix}"
+					fi
+					dest_lib="${dest_lib}${lib_ext}"
+
+					mkdir -p "${RESULT_DIR}"
+					cp "$lib_file" "$dest_lib"
+					echo -e "${COLOR_LIGHT_GREEN}Library copied: ${dest_lib}${COLOR_RESET}"
+				fi
+			done
+		done
+		return
+	fi
+
+	# Copy found binaries
+	for binary in "${found_binaries[@]}"; do
+		local binary_name=$(basename "$binary")
+		# Remove .exe extension for naming
+		local base_name="${binary_name%.exe}"
+
+		# Determine destination name
+		local dest_binary="${RESULT_DIR}/${base_name}"
+
+		# Add target suffix unless disabled
+		if [[ -z "$BIN_NAME_NO_SUFFIX" ]]; then
+			local suffix=$(echo "$rust_target" | sed 's/-unknown//g')
+			dest_binary="${dest_binary}-${suffix}"
+		fi
+
+		# Add back extension if needed
+		[[ "$binary_name" == *.exe ]] && dest_binary="${dest_binary}.exe"
+
+		mkdir -p "${RESULT_DIR}"
+		cp "$binary" "$dest_binary"
+
+		# Strip binary in release mode
+		if [[ "$PROFILE" == "release" ]] && [[ "$NO_STRIP" != "true" ]]; then
+			# Try to find appropriate strip tool
+			local strip_cmd=""
+			if [[ -n "$TARGET_LINKER" ]]; then
+				# Try to find strip based on linker
+				local strip_tool="${TARGET_LINKER%-gcc}-strip"
+				if command -v "$strip_tool" >/dev/null 2>&1; then
+					strip_cmd="$strip_tool"
+				fi
+			fi
+
+			# Fallback to default strip for native builds
+			if [[ -z "$strip_cmd" ]] && [[ "$rust_target" == "$HOST_TRIPLE" ]]; then
+				strip_cmd="strip"
+			fi
+
+			if [[ -n "$strip_cmd" ]] && command -v "$strip_cmd" >/dev/null 2>&1; then
+				echo -e "${COLOR_LIGHT_BLUE}Stripping binary with: ${strip_cmd}${COLOR_RESET}"
+				"$strip_cmd" "$dest_binary" 2>/dev/null || true
+			fi
+		fi
+
+		echo -e "${COLOR_LIGHT_GREEN}Binary copied: ${dest_binary} (size: $(du -sh "${dest_binary}" | cut -f1))${COLOR_RESET}"
+	done
+
+	echo -e "${COLOR_LIGHT_GREEN}Build successful: ${rust_target} (took $((end_time - start_time))s)${COLOR_RESET}"
 }
 
 # Expand target patterns (e.g., "linux/*" or "all")
