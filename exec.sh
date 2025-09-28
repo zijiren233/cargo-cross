@@ -179,6 +179,53 @@ function printSeparator() {
 	printf '%*s\n' "$width" '' | tr ' ' -
 }
 
+# Helper function to add rust-src component
+function addRustSrc() {
+	local toolchain="$1"
+	if [[ -n "$toolchain" ]]; then
+		echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component for toolchain: $toolchain${COLOR_RESET}"
+		rustup component add rust-src --toolchain="$toolchain" || return $?
+	else
+		echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component${COLOR_RESET}"
+		rustup component add rust-src || return $?
+	fi
+}
+
+# Helper function to install target
+function installTarget() {
+	local rust_target="$1"
+	local toolchain="$2"
+	if [[ -n "$toolchain" ]]; then
+		echo -e "${COLOR_LIGHT_BLUE}Installing Rust target: $rust_target for toolchain: $toolchain${COLOR_RESET}"
+		rustup target add "$rust_target" --toolchain="$toolchain" || return $?
+	else
+		echo -e "${COLOR_LIGHT_BLUE}Installing Rust target: $rust_target${COLOR_RESET}"
+		rustup target add "$rust_target" || return $?
+	fi
+}
+
+# Helper function to check if target is installed
+function isTargetInstalled() {
+	local rust_target="$1"
+	local toolchain="$2"
+	if [[ -n "$toolchain" ]]; then
+		rustup target list --installed --toolchain="$toolchain" | grep -q "^$rust_target$"
+	else
+		rustup target list --installed | grep -q "^$rust_target$"
+	fi
+}
+
+# Helper function to check if target is available in rustup
+function isTargetAvailable() {
+	local rust_target="$1"
+	local toolchain="$2"
+	if [[ -n "$toolchain" ]]; then
+		rustup target list --toolchain="$toolchain" | grep -q "^$rust_target$"
+	else
+		rustup target list | grep -q "^$rust_target$"
+	fi
+}
+
 # Get cross-compilation environment variables
 # Returns environment variables as a string suitable for use with env command
 function getCrossEnv() {
@@ -199,53 +246,24 @@ function getCrossEnv() {
 
 	# Add rust-src component when build-std is explicitly requested
 	if [[ "$BUILD_STD" == "true" ]]; then
-		if [[ -n "$TOOLCHAIN" ]]; then
-			echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component for toolchain: $TOOLCHAIN (required for --build-std)${COLOR_RESET}"
-			rustup component add rust-src --toolchain="$TOOLCHAIN" || return $?
-		else
-			echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component (required for --build-std)${COLOR_RESET}"
-			rustup component add rust-src || return $?
-		fi
+		addRustSrc "$TOOLCHAIN" || return $?
 	fi
 
-	if [[ -n "$TOOLCHAIN" ]]; then
-		if ! rustup target list --installed --toolchain="$TOOLCHAIN" | grep -q "^$rust_target$"; then
-			# Check if target is available for installation in rustup
-			if rustup target list --toolchain="$TOOLCHAIN" | grep -q "^$rust_target$"; then
-				echo -e "${COLOR_LIGHT_BLUE}Installing Rust target: $rust_target for toolchain: $TOOLCHAIN${COLOR_RESET}"
-				rustup target add "$rust_target" --toolchain="$TOOLCHAIN" || return $?
+	# Install target if not already installed, or use build-std if target not available in rustup
+	if ! isTargetInstalled "$rust_target" "$TOOLCHAIN"; then
+		# Check if target is available for installation in rustup
+		if isTargetAvailable "$rust_target" "$TOOLCHAIN"; then
+			installTarget "$rust_target" "$TOOLCHAIN" || return $?
+		else
+			# Check if target exists in rustc --print=target-list
+			if rustc --print=target-list | grep -q "^$rust_target$"; then
+				echo -e "${COLOR_LIGHT_YELLOW}Target $rust_target not available in rustup but exists in rustc, using build-std${COLOR_RESET}"
+				TARGET_BUILD_STD=true
+				# Add rust-src component for build-std
+				addRustSrc "$TOOLCHAIN" || return $?
 			else
-				# Check if target exists in rustc --print=target-list
-				if rustc --print=target-list | grep -q "^$rust_target$"; then
-					echo -e "${COLOR_LIGHT_YELLOW}Target $rust_target not available in rustup but exists in rustc, using build-std${COLOR_RESET}"
-					TARGET_BUILD_STD=true
-					# Add rust-src component for build-std
-					echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component for toolchain: $TOOLCHAIN${COLOR_RESET}"
-					rustup component add rust-src --toolchain="$TOOLCHAIN" || return $?
-				else
-					echo -e "${COLOR_LIGHT_RED}Target $rust_target not found in rustup or rustc target list${COLOR_RESET}"
-					return 1
-				fi
-			fi
-		fi
-	else
-		if ! rustup target list --installed | grep -q "^$rust_target$"; then
-			# Check if target is available for installation in rustup
-			if rustup target list | grep -q "^$rust_target$"; then
-				echo -e "${COLOR_LIGHT_BLUE}Installing Rust target: $rust_target${COLOR_RESET}"
-				rustup target add "$rust_target" || return $?
-			else
-				# Check if target exists in rustc --print=target-list
-				if rustc --print=target-list | grep -q "^$rust_target$"; then
-					echo -e "${COLOR_LIGHT_YELLOW}Target $rust_target not available in rustup but exists in rustc, using build-std${COLOR_RESET}"
-					TARGET_BUILD_STD=true
-					# Add rust-src component for build-std
-					echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component${COLOR_RESET}"
-					rustup component add rust-src || return $?
-				else
-					echo -e "${COLOR_LIGHT_RED}Target $rust_target not found in rustup or rustc target list${COLOR_RESET}"
-					return 1
-				fi
+				echo -e "${COLOR_LIGHT_RED}Target $rust_target not found in rustup or rustc target list${COLOR_RESET}"
+				return 1
 			fi
 		fi
 	fi
