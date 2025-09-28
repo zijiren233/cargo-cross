@@ -42,8 +42,16 @@ declare -A TOOLCHAIN_CONFIG=(
 	["i586-unknown-linux-musl"]="linux:i586:musl"
 	["i686-unknown-linux-musl"]="linux:i686:musl"
 	["loongarch64-unknown-linux-musl"]="linux:loongarch64:musl"
+	["mips-unknown-linux-musl"]="linux:mips:musl"
+	["mipsel-unknown-linux-musl"]="linux:mipsel:musl"
+	["mips64-unknown-linux-muslabi64"]="linux:mips64:musl"
+	["mips64-openwrt-linux-musl"]="linux:mips64:musl"
+	["mips64el-unknown-linux-muslabi64"]="linux:mips64el:musl"
+	["powerpc64-unknown-linux-musl"]="linux:powerpc64:musl"
 	["powerpc64le-unknown-linux-musl"]="linux:powerpc64le:musl"
+	["riscv32gc-unknown-linux-musl"]="linux:riscv32:musl"
 	["riscv64gc-unknown-linux-musl"]="linux:riscv64:musl"
+	["s390x-unknown-linux-musl"]="linux:s390x:musl"
 	["x86_64-unknown-linux-musl"]="linux:x86_64:musl"
 
 	# Linux GNU targets
@@ -109,7 +117,9 @@ function printHelp() {
 	echo -e "  ${COLOR_LIGHT_BLUE}--use-default-linker${COLOR_RESET}              - Use system default linker (no cross-compiler download)"
 	echo -e "  ${COLOR_LIGHT_BLUE}--cc=<path>${COLOR_RESET}                       - Force set the C compiler for target"
 	echo -e "  ${COLOR_LIGHT_BLUE}--cxx=<path>${COLOR_RESET}                      - Force set the C++ compiler for target"
-	echo -e "  ${COLOR_LIGHT_BLUE}--add-rustflags=<flags>${COLOR_RESET}           - Additional rustflags"
+	echo -e "  ${COLOR_LIGHT_BLUE}--rustflags=<flags>${COLOR_RESET}               - Additional rustflags"
+	echo -e "  ${COLOR_LIGHT_BLUE}--static-crt${COLOR_RESET}                      - Add -C target-feature=+crt-static to rustflags"
+	echo -e "  ${COLOR_LIGHT_BLUE}--build-std${COLOR_RESET}                       - Use -Zbuild-std for building standard library from source"
 	echo -e "  ${COLOR_LIGHT_BLUE}--args=<args>${COLOR_RESET}                     - Additional arguments to pass to cargo build"
 	echo -e "  ${COLOR_LIGHT_BLUE}--toolchain=<toolchain>${COLOR_RESET}           - Rust toolchain to use (stable, nightly, etc.)"
 	echo -e "  ${COLOR_LIGHT_BLUE}-v, --verbose${COLOR_RESET}                     - Use verbose output"
@@ -176,25 +186,67 @@ function getCrossEnv() {
 	local toolchain_info="${TOOLCHAIN_CONFIG[$rust_target]}"
 
 	# Clear target-specific variables
-	TARGET_CC="" TARGET_CXX="" TARGET_AR="" TARGET_LINKER="" TARGET_RUSTFLAGS="" SDKROOT=""
-	EXTRA_PATH=""
+	TARGET_CC="" TARGET_CXX="" TARGET_AR="" TARGET_LINKER="" TARGET_RUSTFLAGS="" TARGET_BUILD_STD=""
+	EXTRA_PATH="" SDKROOT=""
 
 	if [[ -z "$toolchain_info" ]]; then
 		echo -e "${COLOR_LIGHT_YELLOW}No specific toolchain configuration for $rust_target, using default${COLOR_RESET}"
 		return 0
 	fi
 
-	# Install Rust target if not already installed
+	# Install Rust target if not already installed, or use build-std if target not available in rustup
 	# curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+	# Add rust-src component when build-std is explicitly requested
+	if [[ "$BUILD_STD" == "true" ]]; then
+		if [[ -n "$TOOLCHAIN" ]]; then
+			echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component for toolchain: $TOOLCHAIN (required for --build-std)${COLOR_RESET}"
+			rustup component add rust-src --toolchain="$TOOLCHAIN" || return $?
+		else
+			echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component (required for --build-std)${COLOR_RESET}"
+			rustup component add rust-src || return $?
+		fi
+	fi
+
 	if [[ -n "$TOOLCHAIN" ]]; then
 		if ! rustup target list --installed --toolchain="$TOOLCHAIN" | grep -q "^$rust_target$"; then
-			echo -e "${COLOR_LIGHT_BLUE}Installing Rust target: $rust_target for toolchain: $TOOLCHAIN${COLOR_RESET}"
-			rustup target add "$rust_target" --toolchain="$TOOLCHAIN" || return $?
+			# Check if target is available for installation in rustup
+			if rustup target list --toolchain="$TOOLCHAIN" | grep -q "^$rust_target$"; then
+				echo -e "${COLOR_LIGHT_BLUE}Installing Rust target: $rust_target for toolchain: $TOOLCHAIN${COLOR_RESET}"
+				rustup target add "$rust_target" --toolchain="$TOOLCHAIN" || return $?
+			else
+				# Check if target exists in rustc --print=target-list
+				if rustc --print=target-list | grep -q "^$rust_target$"; then
+					echo -e "${COLOR_LIGHT_YELLOW}Target $rust_target not available in rustup but exists in rustc, using build-std${COLOR_RESET}"
+					TARGET_BUILD_STD=true
+					# Add rust-src component for build-std
+					echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component for toolchain: $TOOLCHAIN${COLOR_RESET}"
+					rustup component add rust-src --toolchain="$TOOLCHAIN" || return $?
+				else
+					echo -e "${COLOR_LIGHT_RED}Target $rust_target not found in rustup or rustc target list${COLOR_RESET}"
+					return 1
+				fi
+			fi
 		fi
 	else
 		if ! rustup target list --installed | grep -q "^$rust_target$"; then
-			echo -e "${COLOR_LIGHT_BLUE}Installing Rust target: $rust_target${COLOR_RESET}"
-			rustup target add "$rust_target" || return $?
+			# Check if target is available for installation in rustup
+			if rustup target list | grep -q "^$rust_target$"; then
+				echo -e "${COLOR_LIGHT_BLUE}Installing Rust target: $rust_target${COLOR_RESET}"
+				rustup target add "$rust_target" || return $?
+			else
+				# Check if target exists in rustc --print=target-list
+				if rustc --print=target-list | grep -q "^$rust_target$"; then
+					echo -e "${COLOR_LIGHT_YELLOW}Target $rust_target not available in rustup but exists in rustc, using build-std${COLOR_RESET}"
+					TARGET_BUILD_STD=true
+					# Add rust-src component for build-std
+					echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component${COLOR_RESET}"
+					rustup component add rust-src || return $?
+				else
+					echo -e "${COLOR_LIGHT_RED}Target $rust_target not found in rustup or rustc target list${COLOR_RESET}"
+					return 1
+				fi
+			fi
 		fi
 	fi
 
@@ -291,8 +343,6 @@ function getLinuxMuslEnv() {
 	TARGET_AR="${ar_name}"
 	TARGET_LINKER="${gcc_name}"
 
-	TARGET_RUSTFLAGS="-C target-feature=+crt-static"
-
 	echo -e "${COLOR_LIGHT_GREEN}Configured Linux musl toolchain for $rust_target${COLOR_RESET}"
 }
 
@@ -343,8 +393,6 @@ function getWindowsEnv() {
 	TARGET_CXX="${arch_prefix}-w64-mingw32-g++"
 	TARGET_AR="${ar_name}"
 	TARGET_LINKER="${linker_name}"
-
-	TARGET_RUSTFLAGS="-C target-feature=+crt-static"
 
 	echo -e "${COLOR_LIGHT_GREEN}Configured Windows toolchain for $rust_target${COLOR_RESET}"
 }
@@ -644,6 +692,7 @@ function findBuiltBinaries() {
 }
 
 # Execute command for a specific target
+# https://doc.rust-lang.org/cargo/reference/config.html
 function executeTarget() {
 	local rust_target="$1"
 	local command="$2"
@@ -653,6 +702,9 @@ function executeTarget() {
 
 	# Clean cache if requested
 	cleanCache "$rust_target" || return $?
+
+	# Initialize build-std flags
+	TARGET_BUILD_STD=""
 
 	# Get cross-compilation environment and capture variables
 	getCrossEnv "$rust_target" || return $?
@@ -698,11 +750,13 @@ function executeTarget() {
 	if [[ -n "$TARGET_RUSTFLAGS" ]]; then
 		rustflags="$TARGET_RUSTFLAGS"
 	fi
+	if [[ "$STATIC_CRT" == "true" ]]; then
+		rustflags="${rustflags:+$rustflags }-C target-feature=+crt-static"
+	fi
 	if [[ -n "$ADDITIONAL_RUSTFLAGS" ]]; then
 		rustflags="${rustflags:+$rustflags }$ADDITIONAL_RUSTFLAGS"
 	fi
 	if [[ -n "$rustflags" ]]; then
-		build_env+=("CARGO_TARGET_${target_upper}_RUSTFLAGS=${rustflags}")
 		build_env+=("RUSTFLAGS=${rustflags}")
 	fi
 
@@ -722,6 +776,10 @@ function executeTarget() {
 	[[ -n "$BIN_TARGET" ]] && cargo_cmd="$cargo_cmd --bin $BIN_TARGET"
 	[[ "$WORKSPACE" == "true" ]] && cargo_cmd="$cargo_cmd --workspace"
 	[[ -n "$MANIFEST_PATH" ]] && cargo_cmd="$cargo_cmd --manifest-path $MANIFEST_PATH"
+	# Add build-std flag if needed (either from args or target requirements)
+	if [[ "$BUILD_STD" == "true" ]] || [[ "$TARGET_BUILD_STD" == "true" ]]; then
+		cargo_cmd="$cargo_cmd -Zbuild-std"
+	fi
 	[[ "$VERBOSE" == "true" ]] && cargo_cmd="$cargo_cmd --verbose"
 	[[ -n "$ADDITIONAL_ARGS" ]] && cargo_cmd="$cargo_cmd $ADDITIONAL_ARGS"
 
@@ -1008,12 +1066,18 @@ while [[ $# -gt 0 ]]; do
 		shift
 		CXX="$1"
 		;;
-	--add-rustflags=*)
+	--rustflags=*)
 		ADDITIONAL_RUSTFLAGS="${1#*=}"
 		;;
-	--add-rustflags)
+	--rustflags)
 		shift
 		ADDITIONAL_RUSTFLAGS="$1"
+		;;
+	--static-crt)
+		STATIC_CRT="true"
+		;;
+	--build-std)
+		BUILD_STD="true"
 		;;
 	--args=*)
 		ADDITIONAL_ARGS="${1#*=}"

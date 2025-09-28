@@ -136,7 +136,9 @@ jobs:
 | `use-default-linker` | Use system default linker | `false` |
 | `cc` | Force set the C compiler | |
 | `cxx` | Force set the C++ compiler | |
-| `add-rustflags` | Additional rustflags | |
+| `rustflags` | Additional rustflags | |
+| `static-crt` | Add -C target-feature=+crt-static to rustflags for static CRT linking | `false` |
+| `build-std` | Use -Zbuild-std for building standard library from source | `false` |
 | `args` | Additional arguments to pass to cargo command | |
 | `toolchain` | Rust toolchain to use (stable, nightly, etc.) | `stable` |
 | `clean-cache` | Clean build cache before building | `false` |
@@ -197,6 +199,40 @@ jobs:
     targets: x86_64-unknown-linux-gnu
     cc: /usr/bin/custom-gcc
     cxx: /usr/bin/custom-g++
+```
+
+### Static CRT Linking
+
+```yaml
+- name: Build with static CRT
+  uses: your-username/rust-cross-build@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-musl
+    static-crt: true
+```
+
+### Custom Rustflags
+
+```yaml
+- name: Build with custom rustflags
+  uses: your-username/rust-cross-build@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-musl
+    rustflags: "-C opt-level=3 -C codegen-units=1"
+```
+
+### Build Standard Library from Source
+
+```yaml
+- name: Build with build-std
+  uses: your-username/rust-cross-build@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-musl
+    build-std: true
+    toolchain: nightly
 ```
 
 ### Matrix Build
@@ -291,6 +327,15 @@ You can also use the execution script locally:
 
 # Test with stable toolchain (explicitly)
 ./exec.sh test --targets=x86_64-unknown-linux-musl --toolchain=stable
+
+# Build with static CRT linking
+./exec.sh build --targets=x86_64-unknown-linux-musl --static-crt
+
+# Build with custom rustflags
+./exec.sh build --targets=x86_64-unknown-linux-musl --rustflags="-C opt-level=3 -C codegen-units=1"
+
+# Build with build-std (build standard library from source)
+./exec.sh build --targets=x86_64-unknown-linux-musl --build-std
 ```
 
 ## How It Works

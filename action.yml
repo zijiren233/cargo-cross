@@ -73,9 +73,17 @@ inputs:
   cxx:
     description: "Force set the C++ compiler"
     required: false
-  add-rustflags:
+  rustflags:
     description: "Additional rustflags"
     required: false
+  static-crt:
+    description: "Add -C target-feature=+crt-static to rustflags for static CRT linking"
+    required: false
+    default: "false"
+  build-std:
+    description: "Use -Zbuild-std for building standard library from source"
+    required: false
+    default: "false"
   clean-cache:
     description: "Clean build cache before building"
     required: false
@@ -162,7 +170,9 @@ runs:
           ${{ inputs.use-default-linker == 'true' && '--use-default-linker' || '' }} \
           ${{ inputs.cc != '' && format('--cc={0}', inputs.cc) || '' }} \
           ${{ inputs.cxx != '' && format('--cxx={0}', inputs.cxx) || '' }} \
-          ${{ inputs.add-rustflags != '' && format('--add-rustflags={0}', inputs.add-rustflags) || '' }} \
+          ${{ inputs.rustflags != '' && format('--rustflags={0}', inputs.rustflags) || '' }} \
+          ${{ inputs.static-crt == 'true' && '--static-crt' || '' }} \
+          ${{ inputs.build-std == 'true' && '--build-std' || '' }} \
           ${{ inputs.clean-cache == 'true' && '--clean-cache' || '' }} \
           ${{ inputs.no-strip == 'true' && '--no-strip' || '' }} \
           ${{ inputs.verbose == 'true' && '--verbose' || '' }} \
