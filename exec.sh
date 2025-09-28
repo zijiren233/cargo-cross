@@ -42,16 +42,8 @@ declare -A TOOLCHAIN_CONFIG=(
 	["i586-unknown-linux-musl"]="linux:i586:musl"
 	["i686-unknown-linux-musl"]="linux:i686:musl"
 	["loongarch64-unknown-linux-musl"]="linux:loongarch64:musl"
-	["mips-unknown-linux-musl"]="linux:mips:musl"
-	["mipsel-unknown-linux-musl"]="linux:mipsel:musl"
-	["mips64-unknown-linux-muslabi64"]="linux:mips64:musl"
-	["mips64-openwrt-linux-musl"]="linux:mips64:musl"
-	["mips64el-unknown-linux-muslabi64"]="linux:mips64el:musl"
-	["powerpc64-unknown-linux-musl"]="linux:powerpc64:musl"
 	["powerpc64le-unknown-linux-musl"]="linux:powerpc64le:musl"
-	["riscv32gc-unknown-linux-musl"]="linux:riscv32:musl"
 	["riscv64gc-unknown-linux-musl"]="linux:riscv64:musl"
-	["s390x-unknown-linux-musl"]="linux:s390x:musl"
 	["x86_64-unknown-linux-musl"]="linux:x86_64:musl"
 
 	# Linux GNU targets
