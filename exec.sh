@@ -181,13 +181,14 @@ function printSeparator() {
 
 # Helper function to add rust-src component
 function addRustSrc() {
-	local toolchain="$1"
+	local target="$1"
+	local toolchain="$2"
 	if [[ -n "$toolchain" ]]; then
-		echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component for toolchain: $toolchain${COLOR_RESET}"
-		rustup component add rust-src --toolchain="$toolchain" || return $?
+		echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component for target: $target and toolchain: $toolchain${COLOR_RESET}"
+		rustup component add rust-src --target="$target" --toolchain="$toolchain" || return $?
 	else
-		echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component${COLOR_RESET}"
-		rustup component add rust-src || return $?
+		echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component for target: $target${COLOR_RESET}"
+		rustup component add rust-src --target="$target" || return $?
 	fi
 }
 
@@ -244,11 +245,6 @@ function getCrossEnv() {
 	# Install Rust target if not already installed, or use build-std if target not available in rustup
 	# curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-	# Add rust-src component when build-std is explicitly requested
-	if [[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]]; then
-		addRustSrc "$TOOLCHAIN" || return $?
-	fi
-
 	# Install target if not already installed, or use build-std if target not available in rustup
 	if ! isTargetInstalled "$rust_target" "$TOOLCHAIN"; then
 		# Check if target is available for installation in rustup
@@ -259,8 +255,6 @@ function getCrossEnv() {
 			if rustc --print=target-list | grep -q "^$rust_target$"; then
 				echo -e "${COLOR_LIGHT_YELLOW}Target $rust_target not available in rustup but exists in rustc, using build-std${COLOR_RESET}"
 				TARGET_BUILD_STD=true
-				# Add rust-src component for build-std
-				addRustSrc "$TOOLCHAIN" || return $?
 			else
 				echo -e "${COLOR_LIGHT_RED}Target $rust_target not found in rustup or rustc target list${COLOR_RESET}"
 				return 1
@@ -806,6 +800,7 @@ function executeTarget() {
 			# Custom build-std parameters
 			cargo_cmd="$cargo_cmd -Zbuild-std=$BUILD_STD"
 		fi
+		addRustSrc "$rust_target" "$TOOLCHAIN" || return $?
 	fi
 	[[ "$VERBOSE" == "true" ]] && cargo_cmd="$cargo_cmd --verbose"
 	[[ -n "$ADDITIONAL_ARGS" ]] && cargo_cmd="$cargo_cmd $ADDITIONAL_ARGS"
