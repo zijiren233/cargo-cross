@@ -81,7 +81,7 @@ inputs:
     required: false
     default: "false"
   build-std:
-    description: "Use -Zbuild-std for building standard library from source"
+    description: "Use -Zbuild-std for building standard library from source (true for default, or specify crates like 'core,alloc')"
     required: false
     default: "false"
   clean-cache:
@@ -172,7 +172,7 @@ runs:
           ${{ inputs.cxx != '' && format('--cxx={0}', inputs.cxx) || '' }} \
           ${{ inputs.rustflags != '' && format('--rustflags={0}', inputs.rustflags) || '' }} \
           ${{ inputs.static-crt == 'true' && '--static-crt' || '' }} \
-          ${{ inputs.build-std == 'true' && '--build-std' || '' }} \
+          ${{ inputs.build-std != 'false' && inputs.build-std != '' && (inputs.build-std == 'true' && '--build-std' || format('--build-std={0}', inputs.build-std)) || '' }} \
           ${{ inputs.clean-cache == 'true' && '--clean-cache' || '' }} \
           ${{ inputs.no-strip == 'true' && '--no-strip' || '' }} \
           ${{ inputs.verbose == 'true' && '--verbose' || '' }} \

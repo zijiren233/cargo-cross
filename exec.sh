@@ -119,7 +119,7 @@ function printHelp() {
 	echo -e "  ${COLOR_LIGHT_BLUE}--cxx=<path>${COLOR_RESET}                      - Force set the C++ compiler for target"
 	echo -e "  ${COLOR_LIGHT_BLUE}--rustflags=<flags>${COLOR_RESET}               - Additional rustflags"
 	echo -e "  ${COLOR_LIGHT_BLUE}--static-crt${COLOR_RESET}                      - Add -C target-feature=+crt-static to rustflags"
-	echo -e "  ${COLOR_LIGHT_BLUE}--build-std${COLOR_RESET}                       - Use -Zbuild-std for building standard library from source"
+	echo -e "  ${COLOR_LIGHT_BLUE}--build-std[=<crates>]${COLOR_RESET}            - Use -Zbuild-std for building standard library from source"
 	echo -e "  ${COLOR_LIGHT_BLUE}--args=<args>${COLOR_RESET}                     - Additional arguments to pass to cargo build"
 	echo -e "  ${COLOR_LIGHT_BLUE}--toolchain=<toolchain>${COLOR_RESET}           - Rust toolchain to use (stable, nightly, etc.)"
 	echo -e "  ${COLOR_LIGHT_BLUE}-v, --verbose${COLOR_RESET}                     - Use verbose output"
@@ -245,7 +245,7 @@ function getCrossEnv() {
 	# curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 	# Add rust-src component when build-std is explicitly requested
-	if [[ "$BUILD_STD" == "true" ]]; then
+	if [[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]]; then
 		addRustSrc "$TOOLCHAIN" || return $?
 	fi
 
@@ -721,9 +721,6 @@ function executeTarget() {
 	# Clean cache if requested
 	cleanCache "$rust_target" || return $?
 
-	# Initialize build-std flags
-	TARGET_BUILD_STD=""
-
 	# Get cross-compilation environment and capture variables
 	getCrossEnv "$rust_target" || return $?
 
@@ -795,8 +792,20 @@ function executeTarget() {
 	[[ "$WORKSPACE" == "true" ]] && cargo_cmd="$cargo_cmd --workspace"
 	[[ -n "$MANIFEST_PATH" ]] && cargo_cmd="$cargo_cmd --manifest-path $MANIFEST_PATH"
 	# Add build-std flag if needed (either from args or target requirements)
-	if [[ "$BUILD_STD" == "true" ]] || [[ "$TARGET_BUILD_STD" == "true" ]]; then
-		cargo_cmd="$cargo_cmd -Zbuild-std"
+	if [[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]] || [[ -n "$TARGET_BUILD_STD" && "$TARGET_BUILD_STD" != "false" ]]; then
+		if [[ "$TARGET_BUILD_STD" == "true" ]]; then
+			# Default for automatic build-std
+			cargo_cmd="$cargo_cmd -Zbuild-std"
+		elif [[ -n "$TARGET_BUILD_STD" ]]; then
+			# Custom build-std parameters
+			cargo_cmd="$cargo_cmd -Zbuild-std=$TARGET_BUILD_STD"
+		elif [[ "$BUILD_STD" == "true" ]]; then
+			# --build-std without parameters
+			cargo_cmd="$cargo_cmd -Zbuild-std"
+		elif [[ -n "$BUILD_STD" ]]; then
+			# Custom build-std parameters
+			cargo_cmd="$cargo_cmd -Zbuild-std=$BUILD_STD"
+		fi
 	fi
 	[[ "$VERBOSE" == "true" ]] && cargo_cmd="$cargo_cmd --verbose"
 	[[ -n "$ADDITIONAL_ARGS" ]] && cargo_cmd="$cargo_cmd $ADDITIONAL_ARGS"
@@ -1094,6 +1103,10 @@ while [[ $# -gt 0 ]]; do
 	--static-crt)
 		STATIC_CRT="true"
 		;;
+	--build-std=*)
+		BUILD_STD="${1#*=}"
+		[[ -z "$BUILD_STD" ]] && BUILD_STD="true"
+		;;
 	--build-std)
 		BUILD_STD="true"
 		;;
@@ -1152,6 +1165,7 @@ echo -e "  Targets: ${TARGETS}"
 [[ "$NO_DEFAULT_FEATURES" == "true" ]] && echo -e "  No default features: true"
 [[ "$ALL_FEATURES" == "true" ]] && echo -e "  All features: true"
 [[ -n "$ADDITIONAL_RUSTFLAGS" ]] && echo -e "  Additional rustflags: ${ADDITIONAL_RUSTFLAGS}"
+[[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]] && echo -e "  Build std: $([ "$BUILD_STD" == "true" ] && echo "true" || echo "$BUILD_STD")"
 [[ -n "$ADDITIONAL_ARGS" ]] && echo -e "  Additional args: ${ADDITIONAL_ARGS}"
 
 # Build for each target

@@ -138,7 +138,7 @@ jobs:
 | `cxx` | Force set the C++ compiler | |
 | `rustflags` | Additional rustflags | |
 | `static-crt` | Add -C target-feature=+crt-static to rustflags for static CRT linking | `false` |
-| `build-std` | Use -Zbuild-std for building standard library from source | `false` |
+| `build-std` | Use -Zbuild-std for building standard library from source (`true` for default, or specify crates like `core,alloc`) | `false` |
 | `args` | Additional arguments to pass to cargo command | |
 | `toolchain` | Rust toolchain to use (stable, nightly, etc.) | `stable` |
 | `clean-cache` | Clean build cache before building | `false` |
@@ -226,12 +226,22 @@ jobs:
 ### Build Standard Library from Source
 
 ```yaml
-- name: Build with build-std
+# Build with default std crates
+- name: Build with build-std (default)
   uses: your-username/rust-cross-build@v1
   with:
     command: build
     targets: x86_64-unknown-linux-musl
     build-std: true
+    toolchain: nightly
+
+# Build with specific crates
+- name: Build with build-std (custom crates)
+  uses: your-username/rust-cross-build@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-musl
+    build-std: core,alloc
     toolchain: nightly
 ```
 
@@ -336,6 +346,9 @@ You can also use the execution script locally:
 
 # Build with build-std (build standard library from source)
 ./exec.sh build --targets=x86_64-unknown-linux-musl --build-std
+
+# Build with build-std using specific crates
+./exec.sh build --targets=x86_64-unknown-linux-musl --build-std=core,alloc
 ```
 
 ## How It Works
