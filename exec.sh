@@ -66,11 +66,7 @@ declare -A TOOLCHAIN_CONFIG=(
 
 	# Windows targets
 	["i686-pc-windows-gnu"]="windows:i686:gnu"
-	["i686-win7-windows-gnu"]="windows:i686:gnu"
-	["i686-uwp-windows-gnu"]="windows:i686:gnu"
 	["x86_64-pc-windows-gnu"]="windows:x86_64:gnu"
-	["x86_64-win7-windows-gnu"]="windows:x86_64:gnu"
-	["x86_64-uwp-windows-gnu"]="windows:x86_64:gnu"
 
 	# macOS targets
 	["x86_64-apple-darwin"]="darwin:x86_64"
@@ -335,6 +331,7 @@ function getWindowsEnv() {
 	local cross_compiler_name="${arch_prefix}-w64-mingw32-cross"
 	local gcc_name="${arch_prefix}-w64-mingw32-gcc"
 	local ar_name="${arch_prefix}-w64-mingw32-ar"
+	local linker_name="${gcc_name}"
 
 	# Check if cross-compiler exists or download it
 	if ! command -v "$gcc_name" >/dev/null 2>&1; then
@@ -352,8 +349,8 @@ function getWindowsEnv() {
 
 	TARGET_CC="${gcc_name}"
 	TARGET_CXX="${arch_prefix}-w64-mingw32-g++"
-	TARGET_AR="${arch_prefix}-w64-mingw32-ld"
-	TARGET_LINKER="${gcc_name}"
+	TARGET_AR="${ar_name}"
+	TARGET_LINKER="${linker_name}"
 
 	TARGET_RUSTFLAGS="-C target-feature=+crt-static"
 
