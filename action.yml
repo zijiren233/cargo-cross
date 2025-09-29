@@ -116,6 +116,56 @@ inputs:
     description: "Add -Zno-embed-metadata flag to cargo"
     required: false
     default: "false"
+  bins:
+    description: "Build all binary targets"
+    required: false
+    default: "false"
+  lib:
+    description: "Build only the library target"
+    required: false
+    default: "false"
+  all-targets:
+    description: "Build all targets (equivalent to --lib --bins --tests --benches --examples)"
+    required: false
+    default: "false"
+  release:
+    description: "Build optimized artifacts with the release profile"
+    required: false
+    default: "false"
+  quiet:
+    description: "Do not print cargo log messages"
+    required: false
+    default: "false"
+  message-format:
+    description: "The output format for diagnostic messages"
+    required: false
+  ignore-rust-version:
+    description: "Ignore rust-version specification in packages"
+    required: false
+    default: "false"
+  locked:
+    description: "Asserts that exact same dependencies are used as Cargo.lock"
+    required: false
+    default: "false"
+  offline:
+    description: "Prevents Cargo from accessing the network"
+    required: false
+    default: "false"
+  frozen:
+    description: "Equivalent to specifying both --locked and --offline"
+    required: false
+    default: "false"
+  jobs:
+    description: "Number of parallel jobs to run"
+    required: false
+  keep-going:
+    description: "Build as many crates as possible, don't abort on first failure"
+    required: false
+    default: "false"
+  future-incompat-report:
+    description: "Displays a future-incompat report for warnings"
+    required: false
+    default: "false"
 
 outputs:
   result-dir:
@@ -170,7 +220,20 @@ runs:
           ${{ inputs.all-features == 'true' && '--all-features' || '' }} \
           ${{ inputs.package != '' && format('--package={0}', inputs.package) || '' }} \
           ${{ inputs.bin != '' && format('--bin={0}', inputs.bin) || '' }} \
+          ${{ inputs.bins == 'true' && '--bins' || '' }} \
+          ${{ inputs.lib == 'true' && '--lib' || '' }} \
+          ${{ inputs.all-targets == 'true' && '--all-targets' || '' }} \
           ${{ inputs.workspace == 'true' && '--workspace' || '' }} \
+          ${{ inputs.release == 'true' && '--release' || '' }} \
+          ${{ inputs.quiet == 'true' && '--quiet' || '' }} \
+          ${{ inputs.message-format != '' && format('--message-format={0}', inputs.message-format) || '' }} \
+          ${{ inputs.ignore-rust-version == 'true' && '--ignore-rust-version' || '' }} \
+          ${{ inputs.locked == 'true' && '--locked' || '' }} \
+          ${{ inputs.offline == 'true' && '--offline' || '' }} \
+          ${{ inputs.frozen == 'true' && '--frozen' || '' }} \
+          ${{ inputs.jobs != '' && format('--jobs={0}', inputs.jobs) || '' }} \
+          ${{ inputs.keep-going == 'true' && '--keep-going' || '' }} \
+          ${{ inputs.future-incompat-report == 'true' && '--future-incompat-report' || '' }} \
           ${{ inputs.manifest-path != '' && format('--manifest-path={0}', inputs.manifest-path) || '' }} \
           --result-dir="$RESULT_DIR" \
           ${{ inputs.bin-name-no-suffix == 'true' && '--bin-name-no-suffix' || '' }} \

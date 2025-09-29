@@ -113,6 +113,19 @@ function printHelp() {
 	echo -e "  ${COLOR_LIGHT_BLUE}--package=<name>${COLOR_RESET}                  - Package to build (workspace member)"
 	echo -e "  ${COLOR_LIGHT_BLUE}--workspace${COLOR_RESET}                       - Build all workspace members"
 	echo -e "  ${COLOR_LIGHT_BLUE}--bin=<name>${COLOR_RESET}                      - Binary target to build"
+	echo -e "  ${COLOR_LIGHT_BLUE}--bins${COLOR_RESET}                            - Build all binary targets"
+	echo -e "  ${COLOR_LIGHT_BLUE}--lib${COLOR_RESET}                             - Build only the library target"
+	echo -e "  ${COLOR_LIGHT_BLUE}--all-targets${COLOR_RESET}                     - Build all targets (equivalent to --lib --bins --tests --benches --examples)"
+	echo -e "  ${COLOR_LIGHT_BLUE}-r, --release${COLOR_RESET}                     - Build optimized artifacts with the release profile"
+	echo -e "  ${COLOR_LIGHT_BLUE}-q, --quiet${COLOR_RESET}                       - Do not print cargo log messages"
+	echo -e "  ${COLOR_LIGHT_BLUE}--message-format=<fmt>${COLOR_RESET}            - The output format for diagnostic messages"
+	echo -e "  ${COLOR_LIGHT_BLUE}--ignore-rust-version${COLOR_RESET}             - Ignore rust-version specification in packages"
+	echo -e "  ${COLOR_LIGHT_BLUE}--locked${COLOR_RESET}                          - Asserts that exact same dependencies are used as Cargo.lock"
+	echo -e "  ${COLOR_LIGHT_BLUE}--offline${COLOR_RESET}                         - Prevents Cargo from accessing the network"
+	echo -e "  ${COLOR_LIGHT_BLUE}--frozen${COLOR_RESET}                          - Equivalent to specifying both --locked and --offline"
+	echo -e "  ${COLOR_LIGHT_BLUE}-j=<N>, --jobs=<N>${COLOR_RESET}               - Number of parallel jobs to run"
+	echo -e "  ${COLOR_LIGHT_BLUE}--keep-going${COLOR_RESET}                      - Build as many crates as possible, don't abort on first failure"
+	echo -e "  ${COLOR_LIGHT_BLUE}--future-incompat-report${COLOR_RESET}          - Displays a future-incompat report for warnings"
 	echo -e "  ${COLOR_LIGHT_BLUE}--manifest-path=<path>${COLOR_RESET}            - Path to Cargo.toml"
 	echo -e "  ${COLOR_LIGHT_BLUE}--use-default-linker${COLOR_RESET}              - Use system default linker (no cross-compiler download)"
 	echo -e "  ${COLOR_LIGHT_BLUE}--cc=<path>${COLOR_RESET}                       - Force set the C compiler for target"
@@ -789,6 +802,9 @@ function executeTarget() {
 	[[ "$ALL_FEATURES" == "true" ]] && cargo_cmd="$cargo_cmd --all-features"
 	[[ -n "$PACKAGE" ]] && cargo_cmd="$cargo_cmd --package $PACKAGE"
 	[[ -n "$BIN_TARGET" ]] && cargo_cmd="$cargo_cmd --bin $BIN_TARGET"
+	[[ "$BINS" == "true" ]] && cargo_cmd="$cargo_cmd --bins"
+	[[ "$LIB" == "true" ]] && cargo_cmd="$cargo_cmd --lib"
+	[[ "$ALL_TARGETS" == "true" ]] && cargo_cmd="$cargo_cmd --all-targets"
 	[[ "$WORKSPACE" == "true" ]] && cargo_cmd="$cargo_cmd --workspace"
 	[[ -n "$MANIFEST_PATH" ]] && cargo_cmd="$cargo_cmd --manifest-path $MANIFEST_PATH"
 	# Add build-std flag if needed (either from args or target requirements)
@@ -809,6 +825,15 @@ function executeTarget() {
 		addRustSrc "$rust_target" "$TOOLCHAIN" || return $?
 	fi
 	[[ "$VERBOSE" == "true" ]] && cargo_cmd="$cargo_cmd --verbose"
+	[[ "$QUIET" == "true" ]] && cargo_cmd="$cargo_cmd --quiet"
+	[[ -n "$MESSAGE_FORMAT" ]] && cargo_cmd="$cargo_cmd --message-format $MESSAGE_FORMAT"
+	[[ "$IGNORE_RUST_VERSION" == "true" ]] && cargo_cmd="$cargo_cmd --ignore-rust-version"
+	[[ "$LOCKED" == "true" ]] && cargo_cmd="$cargo_cmd --locked"
+	[[ "$OFFLINE" == "true" ]] && cargo_cmd="$cargo_cmd --offline"
+	[[ "$FROZEN" == "true" ]] && cargo_cmd="$cargo_cmd --frozen"
+	[[ -n "$JOBS" ]] && cargo_cmd="$cargo_cmd --jobs $JOBS"
+	[[ "$KEEP_GOING" == "true" ]] && cargo_cmd="$cargo_cmd --keep-going"
+	[[ "$FUTURE_INCOMPAT_REPORT" == "true" ]] && cargo_cmd="$cargo_cmd --future-incompat-report"
 	[[ "$NO_EMBED_METADATA" == "true" ]] && cargo_cmd="$cargo_cmd -Zno-embed-metadata"
 	[[ -n "$ADDITIONAL_ARGS" ]] && cargo_cmd="$cargo_cmd $ADDITIONAL_ARGS"
 
@@ -1023,10 +1048,10 @@ while [[ $# -gt 0 ]]; do
 	--all-features)
 		ALL_FEATURES="true"
 		;;
-	-t=* | --targets=*)
+	-t=* | --targets=* | --target=*)
 		TARGETS="${1#*=}"
 		;;
-	-t | --targets)
+	-t | --targets | --target)
 		[[ $# -gt 1 ]] && shift && TARGETS="$1" || {
 			echo -e "${COLOR_LIGHT_RED}Error: --targets requires a value${COLOR_RESET}"
 			exit 1
@@ -1092,6 +1117,57 @@ while [[ $# -gt 0 ]]; do
 			echo -e "${COLOR_LIGHT_RED}Error: --bin requires a value${COLOR_RESET}"
 			exit 1
 		}
+		;;
+	--bins)
+		BINS="true"
+		;;
+	--lib)
+		LIB="true"
+		;;
+	--all-targets)
+		ALL_TARGETS="true"
+		;;
+	-r | --release)
+		PROFILE="release"
+		;;
+	-q | --quiet)
+		QUIET="true"
+		;;
+	--message-format=*)
+		MESSAGE_FORMAT="${1#*=}"
+		;;
+	--message-format)
+		[[ $# -gt 1 ]] && shift && MESSAGE_FORMAT="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --message-format requires a value${COLOR_RESET}"
+			exit 1
+		}
+		;;
+	--ignore-rust-version)
+		IGNORE_RUST_VERSION="true"
+		;;
+	--locked)
+		LOCKED="true"
+		;;
+	--offline)
+		OFFLINE="true"
+		;;
+	--frozen)
+		FROZEN="true"
+		;;
+	-j=* | --jobs=*)
+		JOBS="${1#*=}"
+		;;
+	-j | --jobs)
+		[[ $# -gt 1 ]] && shift && JOBS="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --jobs requires a value${COLOR_RESET}"
+			exit 1
+		}
+		;;
+	--keep-going)
+		KEEP_GOING="true"
+		;;
+	--future-incompat-report)
+		FUTURE_INCOMPAT_REPORT="true"
 		;;
 	--workspace)
 		WORKSPACE="true"
@@ -1223,6 +1299,9 @@ echo -e "  Source directory: ${SOURCE_DIR}"
 echo -e "  Result directory: ${RESULT_DIR}"
 [[ -n "$PACKAGE" ]] && echo -e "  Package: ${PACKAGE}"
 [[ -n "$BIN_TARGET" ]] && echo -e "  Binary target: ${BIN_TARGET}"
+[[ "$BINS" == "true" ]] && echo -e "  Build all binaries: true"
+[[ "$LIB" == "true" ]] && echo -e "  Build library: true"
+[[ "$ALL_TARGETS" == "true" ]] && echo -e "  Build all targets: true"
 [[ "$WORKSPACE" == "true" ]] && echo -e "  Building workspace: true"
 echo -e "  Profile: ${PROFILE}"
 [[ -n "$TOOLCHAIN" ]] && echo -e "  Toolchain: ${TOOLCHAIN}"
