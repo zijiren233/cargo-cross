@@ -122,6 +122,7 @@ function printHelp() {
 	echo -e "  ${COLOR_LIGHT_BLUE}--build-std[=<crates>]${COLOR_RESET}            - Use -Zbuild-std for building standard library from source"
 	echo -e "  ${COLOR_LIGHT_BLUE}--args=<args>${COLOR_RESET}                     - Additional arguments to pass to cargo build"
 	echo -e "  ${COLOR_LIGHT_BLUE}--toolchain=<toolchain>${COLOR_RESET}           - Rust toolchain to use (stable, nightly, etc.)"
+	echo -e "  ${COLOR_LIGHT_BLUE}--cargo-trim-paths=<paths>${COLOR_RESET}        - Set CARGO_TRIM_PATHS environment variable"
 	echo -e "  ${COLOR_LIGHT_BLUE}-v, --verbose${COLOR_RESET}                     - Use verbose output"
 	echo -e "  ${COLOR_LIGHT_BLUE}-h, --help${COLOR_RESET}                        - Display this help message"
 }
@@ -769,6 +770,10 @@ function executeTarget() {
 		build_env+=("RUSTFLAGS=${rustflags}")
 	fi
 
+	if [[ -n "$CARGO_TRIM_PATHS" ]]; then
+		build_env+=("CARGO_TRIM_PATHS=${CARGO_TRIM_PATHS}")
+	fi
+
 	# Prepare command
 	local cargo_cmd="cargo"
 	if [[ -n "$TOOLCHAIN" ]]; then
@@ -962,6 +967,11 @@ if [[ -f "${BUILD_CONFIG}" ]]; then
 	source "${BUILD_CONFIG}"
 fi
 
+# Helper function to check if the next argument is an option
+isNextArgOption() {
+	[[ $# -gt 1 && "$2" =~ ^-- ]]
+}
+
 # Parse command-line arguments
 # First argument might be a command
 if [[ $# -gt 0 ]] && [[ "$1" =~ ^(build|test|check)$ ]]; then
@@ -979,15 +989,19 @@ while [[ $# -gt 0 ]]; do
 		PROFILE="${1#*=}"
 		;;
 	--profile)
-		shift
-		PROFILE="$1"
+		[[ $# -gt 1 ]] && shift && PROFILE="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --profile requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--bin-name=*)
 		BIN_NAME="${1#*=}"
 		;;
 	--bin-name)
-		shift
-		BIN_NAME="$1"
+		[[ $# -gt 1 ]] && shift && BIN_NAME="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --bin-name requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--bin-name-no-suffix)
 		BIN_NAME_NO_SUFFIX="true"
@@ -996,8 +1010,10 @@ while [[ $# -gt 0 ]]; do
 		FEATURES="${1#*=}"
 		;;
 	--features)
-		shift
-		FEATURES="$1"
+		[[ $# -gt 1 ]] && shift && FEATURES="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --features requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--no-default-features)
 		NO_DEFAULT_FEATURES="true"
@@ -1009,15 +1025,19 @@ while [[ $# -gt 0 ]]; do
 		TARGETS="${1#*=}"
 		;;
 	-t | --targets)
-		shift
-		TARGETS="$1"
+		[[ $# -gt 1 ]] && shift && TARGETS="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --targets requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--result-dir=*)
 		RESULT_DIR="${1#*=}"
 		;;
 	--result-dir)
-		shift
-		RESULT_DIR="$1"
+		[[ $# -gt 1 ]] && shift && RESULT_DIR="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --result-dir requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--show-all-targets)
 		echo -e "${COLOR_LIGHT_GREEN}Supported Rust targets:${COLOR_RESET}"
@@ -1030,36 +1050,46 @@ while [[ $# -gt 0 ]]; do
 		GH_PROXY="${1#*=}"
 		;;
 	--github-proxy-mirror)
-		shift
-		GH_PROXY="$1"
+		[[ $# -gt 1 ]] && shift && GH_PROXY="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --github-proxy-mirror requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--cross-compiler-dir=*)
 		CROSS_COMPILER_DIR="${1#*=}"
 		;;
 	--cross-compiler-dir)
-		shift
-		CROSS_COMPILER_DIR="$1"
+		[[ $# -gt 1 ]] && shift && CROSS_COMPILER_DIR="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --cross-compiler-dir requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--ndk-version=*)
 		NDK_VERSION="${1#*=}"
 		;;
 	--ndk-version)
-		shift
-		NDK_VERSION="$1"
+		[[ $# -gt 1 ]] && shift && NDK_VERSION="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --ndk-version requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--package=*)
 		PACKAGE="${1#*=}"
 		;;
 	--package)
-		shift
-		PACKAGE="$1"
+		[[ $# -gt 1 ]] && shift && PACKAGE="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --package requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--bin=*)
 		BIN_TARGET="${1#*=}"
 		;;
 	--bin)
-		shift
-		BIN_TARGET="$1"
+		[[ $# -gt 1 ]] && shift && BIN_TARGET="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --bin requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--workspace)
 		WORKSPACE="true"
@@ -1068,8 +1098,10 @@ while [[ $# -gt 0 ]]; do
 		MANIFEST_PATH="${1#*=}"
 		;;
 	--manifest-path)
-		shift
-		MANIFEST_PATH="$1"
+		[[ $# -gt 1 ]] && shift && MANIFEST_PATH="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --manifest-path requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--use-default-linker)
 		USE_DEFAULT_LINKER="true"
@@ -1078,22 +1110,28 @@ while [[ $# -gt 0 ]]; do
 		CC="${1#*=}"
 		;;
 	--cc)
-		shift
-		CC="$1"
+		[[ $# -gt 1 ]] && shift && CC="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --cc requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--cxx=*)
 		CXX="${1#*=}"
 		;;
 	--cxx)
-		shift
-		CXX="$1"
+		[[ $# -gt 1 ]] && shift && CXX="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --cxx requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--rustflags=*)
 		ADDITIONAL_RUSTFLAGS="${1#*=}"
 		;;
 	--rustflags)
-		shift
-		ADDITIONAL_RUSTFLAGS="$1"
+		[[ $# -gt 1 ]] && shift && ADDITIONAL_RUSTFLAGS="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --rustflags requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--static-crt)
 		STATIC_CRT="true"
@@ -1103,21 +1141,49 @@ while [[ $# -gt 0 ]]; do
 		[[ -z "$BUILD_STD" ]] && BUILD_STD="true"
 		;;
 	--build-std)
-		BUILD_STD="true"
+		if isNextArgOption "$@"; then
+			BUILD_STD="true"
+		else
+			if [[ $# -gt 1 ]]; then
+				shift
+				BUILD_STD="$1"
+			else
+				BUILD_STD="true"
+			fi
+		fi
 		;;
 	--args=*)
 		ADDITIONAL_ARGS="${1#*=}"
 		;;
 	--args)
-		shift
-		ADDITIONAL_ARGS="$1"
+		[[ $# -gt 1 ]] && shift && ADDITIONAL_ARGS="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --args requires a value${COLOR_RESET}"
+			exit 1
+		}
 		;;
 	--toolchain=*)
 		TOOLCHAIN="${1#*=}"
 		;;
 	--toolchain)
-		shift
-		TOOLCHAIN="$1"
+		[[ $# -gt 1 ]] && shift && TOOLCHAIN="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --toolchain requires a value${COLOR_RESET}"
+			exit 1
+		}
+		;;
+	--cargo-trim-paths=*)
+		CARGO_TRIM_PATHS="${1#*=}"
+		;;
+	--cargo-trim-paths)
+		if isNextArgOption "$@"; then
+			CARGO_TRIM_PATHS="true"
+		else
+			if [[ $# -gt 1 ]]; then
+				shift
+				CARGO_TRIM_PATHS="$1"
+			else
+				CARGO_TRIM_PATHS="true"
+			fi
+		fi
 		;;
 	--clean-cache)
 		CLEAN_CACHE="true"

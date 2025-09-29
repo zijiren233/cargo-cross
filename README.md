@@ -141,6 +141,7 @@ jobs:
 | `build-std` | Use -Zbuild-std for building standard library from source (`true` for default, or specify crates like `core,alloc`) | `false` |
 | `args` | Additional arguments to pass to cargo command | |
 | `toolchain` | Rust toolchain to use (stable, nightly, etc.) | `stable` |
+| `cargo-trim-paths` | Set CARGO_TRIM_PATHS environment variable for reproducible builds | |
 | `clean-cache` | Clean build cache before building | `false` |
 | `no-strip` | Do not strip binaries | `false` |
 | `verbose` | Use verbose output | `false` |
@@ -306,6 +307,17 @@ jobs:
     toolchain: nightly
 ```
 
+### Reproducible Builds with CARGO_TRIM_PATHS
+
+```yaml
+- name: Build with reproducible paths
+  uses: your-username/rust-cross-build@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-musl
+    cargo-trim-paths: all
+```
+
 ## Local Usage
 
 You can also use the execution script locally:
@@ -349,6 +361,9 @@ You can also use the execution script locally:
 
 # Build with build-std using specific crates
 ./exec.sh build --targets=x86_64-unknown-linux-musl --build-std=core,alloc
+
+# Build with reproducible paths
+./exec.sh build --targets=x86_64-unknown-linux-musl --cargo-trim-paths=all
 ```
 
 ## How It Works

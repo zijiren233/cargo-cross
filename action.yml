@@ -106,6 +106,9 @@ inputs:
   toolchain:
     description: "Rust toolchain to use (stable, nightly, etc.)"
     required: false
+  cargo-trim-paths:
+    description: "Set CARGO_TRIM_PATHS environment variable for reproducible builds"
+    required: false
 
 outputs:
   result-dir:
@@ -177,7 +180,8 @@ runs:
           ${{ inputs.no-strip == 'true' && '--no-strip' || '' }} \
           ${{ inputs.verbose == 'true' && '--verbose' || '' }} \
           ${{ inputs.args != '' && format('--args={0}', inputs.args) || '' }} \
-          ${{ inputs.toolchain != '' && format('--toolchain={0}', inputs.toolchain) || '' }}
+          ${{ inputs.toolchain != '' && format('--toolchain={0}', inputs.toolchain) || '' }} \
+          ${{ inputs.cargo-trim-paths != '' && format('--cargo-trim-paths={0}', inputs.cargo-trim-paths) || '' }}
 
         # Set outputs
         echo "result-dir=$RESULT_DIR" >> $GITHUB_OUTPUT
