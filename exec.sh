@@ -16,7 +16,6 @@ readonly COLOR_RESET='\033[0m'
 # Default values
 readonly DEFAULT_SOURCE_DIR="$(pwd)"
 readonly DEFAULT_RESULT_DIR="${DEFAULT_SOURCE_DIR}/target/cross"
-readonly DEFAULT_BUILD_CONFIG="${DEFAULT_SOURCE_DIR}/build.config.sh"
 readonly DEFAULT_PROFILE="release"
 readonly DEFAULT_CROSS_COMPILER_DIR="$(dirname $(mktemp -u))/rust-cross-compiler"
 readonly DEFAULT_CROSS_DEPS_VERSION="v0.5.17"
@@ -978,7 +977,6 @@ function expandTargets() {
 # Initialize variables
 setDefault "SOURCE_DIR" "${DEFAULT_SOURCE_DIR}"
 SOURCE_DIR="$(cd "${SOURCE_DIR}" && pwd)"
-setDefault "BUILD_CONFIG" "${SOURCE_DIR}/build.config.sh"
 setDefault "RESULT_DIR" "${DEFAULT_RESULT_DIR}"
 setDefault "PROFILE" "${DEFAULT_PROFILE}"
 setDefault "CROSS_COMPILER_DIR" "${DEFAULT_CROSS_COMPILER_DIR}"
@@ -986,12 +984,6 @@ setDefault "CROSS_DEPS_VERSION" "${DEFAULT_CROSS_DEPS_VERSION}"
 setDefault "NDK_VERSION" "${DEFAULT_NDK_VERSION}"
 setDefault "COMMAND" "${DEFAULT_COMMAND}"
 setDefault "TOOLCHAIN" "${DEFAULT_TOOLCHAIN}"
-
-# Load build configuration if exists
-if [[ -f "${BUILD_CONFIG}" ]]; then
-	echo -e "${COLOR_LIGHT_BLUE}Loading build configuration from ${BUILD_CONFIG}${COLOR_RESET}"
-	source "${BUILD_CONFIG}"
-fi
 
 # Helper function to check if the next argument is an option
 isNextArgOption() {
