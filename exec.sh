@@ -123,6 +123,7 @@ function printHelp() {
 	echo -e "  ${COLOR_LIGHT_BLUE}--args=<args>${COLOR_RESET}                     - Additional arguments to pass to cargo build"
 	echo -e "  ${COLOR_LIGHT_BLUE}--toolchain=<toolchain>${COLOR_RESET}           - Rust toolchain to use (stable, nightly, etc.)"
 	echo -e "  ${COLOR_LIGHT_BLUE}--cargo-trim-paths=<paths>${COLOR_RESET}        - Set CARGO_TRIM_PATHS environment variable"
+	echo -e "  ${COLOR_LIGHT_BLUE}--no-embed-metadata${COLOR_RESET}               - Add -Zno-embed-metadata flag to cargo"
 	echo -e "  ${COLOR_LIGHT_BLUE}-v, --verbose${COLOR_RESET}                     - Use verbose output"
 	echo -e "  ${COLOR_LIGHT_BLUE}-h, --help${COLOR_RESET}                        - Display this help message"
 }
@@ -808,6 +809,7 @@ function executeTarget() {
 		addRustSrc "$rust_target" "$TOOLCHAIN" || return $?
 	fi
 	[[ "$VERBOSE" == "true" ]] && cargo_cmd="$cargo_cmd --verbose"
+	[[ "$NO_EMBED_METADATA" == "true" ]] && cargo_cmd="$cargo_cmd -Zno-embed-metadata"
 	[[ -n "$ADDITIONAL_ARGS" ]] && cargo_cmd="$cargo_cmd $ADDITIONAL_ARGS"
 
 	echo -e "${COLOR_LIGHT_BLUE}Environment variables:${COLOR_RESET}"
@@ -1170,10 +1172,10 @@ while [[ $# -gt 0 ]]; do
 			exit 1
 		}
 		;;
-	--cargo-trim-paths=*)
+	--cargo-trim-paths=* | --trim-paths=*)
 		CARGO_TRIM_PATHS="${1#*=}"
 		;;
-	--cargo-trim-paths)
+	--cargo-trim-paths | --trim-paths)
 		if isNextArgOption "$@"; then
 			CARGO_TRIM_PATHS="true"
 		else
@@ -1184,6 +1186,9 @@ while [[ $# -gt 0 ]]; do
 				CARGO_TRIM_PATHS="true"
 			fi
 		fi
+		;;
+	--no-embed-metadata)
+		NO_EMBED_METADATA="true"
 		;;
 	--clean-cache)
 		CLEAN_CACHE="true"
@@ -1228,6 +1233,7 @@ echo -e "  Targets: ${TARGETS}"
 [[ -n "$ADDITIONAL_RUSTFLAGS" ]] && echo -e "  Additional rustflags: ${ADDITIONAL_RUSTFLAGS}"
 [[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]] && echo -e "  Build std: $([ "$BUILD_STD" == "true" ] && echo "true" || echo "$BUILD_STD")"
 [[ -n "$ADDITIONAL_ARGS" ]] && echo -e "  Additional args: ${ADDITIONAL_ARGS}"
+[[ "$NO_EMBED_METADATA" == "true" ]] && echo -e "  No embed metadata: true"
 
 # Build for each target
 IFS=',' read -ra TARGET_ARRAY <<<"$TARGETS"

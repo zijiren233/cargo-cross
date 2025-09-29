@@ -109,6 +109,13 @@ inputs:
   cargo-trim-paths:
     description: "Set CARGO_TRIM_PATHS environment variable for reproducible builds"
     required: false
+  trim-paths:
+    description: "Set CARGO_TRIM_PATHS environment variable for reproducible builds"
+    required: false
+  no-embed-metadata:
+    description: "Add -Zno-embed-metadata flag to cargo"
+    required: false
+    default: "false"
 
 outputs:
   result-dir:
@@ -181,7 +188,9 @@ runs:
           ${{ inputs.verbose == 'true' && '--verbose' || '' }} \
           ${{ inputs.args != '' && format('--args={0}', inputs.args) || '' }} \
           ${{ inputs.toolchain != '' && format('--toolchain={0}', inputs.toolchain) || '' }} \
-          ${{ inputs.cargo-trim-paths != '' && format('--cargo-trim-paths={0}', inputs.cargo-trim-paths) || '' }}
+          ${{ inputs.cargo-trim-paths != '' && format('--cargo-trim-paths={0}', inputs.cargo-trim-paths) || '' }} \
+          ${{ inputs.trim-paths != '' && format('--trim-paths={0}', inputs.trim-paths) || '' }} \
+          ${{ inputs.no-embed-metadata == 'true' && '--no-embed-metadata' || '' }}
 
         # Set outputs
         echo "result-dir=$RESULT_DIR" >> $GITHUB_OUTPUT

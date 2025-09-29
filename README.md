@@ -142,6 +142,7 @@ jobs:
 | `args` | Additional arguments to pass to cargo command | |
 | `toolchain` | Rust toolchain to use (stable, nightly, etc.) | `stable` |
 | `cargo-trim-paths` | Set CARGO_TRIM_PATHS environment variable for reproducible builds | |
+| `no-embed-metadata` | Add -Zno-embed-metadata flag to cargo | `false` |
 | `clean-cache` | Clean build cache before building | `false` |
 | `no-strip` | Do not strip binaries | `false` |
 | `verbose` | Use verbose output | `false` |
@@ -318,6 +319,18 @@ jobs:
     cargo-trim-paths: all
 ```
 
+### Build without Metadata Embedding
+
+```yaml
+- name: Build without embedding metadata
+  uses: your-username/rust-cross-build@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-musl
+    no-embed-metadata: true
+    toolchain: nightly
+```
+
 ## Local Usage
 
 You can also use the execution script locally:
@@ -364,6 +377,9 @@ You can also use the execution script locally:
 
 # Build with reproducible paths
 ./exec.sh build --targets=x86_64-unknown-linux-musl --cargo-trim-paths=all
+
+# Build without embedding metadata (requires nightly toolchain)
+./exec.sh build --targets=x86_64-unknown-linux-musl --no-embed-metadata --toolchain=nightly
 ```
 
 ## How It Works
