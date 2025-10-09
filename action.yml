@@ -77,9 +77,9 @@ inputs:
     description: "Additional rustflags"
     required: false
   static-crt:
-    description: "Add -C target-feature=+crt-static to rustflags for static CRT linking"
+    description: "Control CRT linking mode: 'true' for static (+crt-static), 'false' for dynamic (-crt-static), empty for default behavior"
     required: false
-    default: "false"
+    default: ""
   build-std:
     description: "Use -Zbuild-std for building standard library from source (true for default, or specify crates like 'core,alloc')"
     required: false
@@ -244,7 +244,7 @@ runs:
           ${{ inputs.cc != '' && format('--cc={0}', inputs.cc) || '' }} \
           ${{ inputs.cxx != '' && format('--cxx={0}', inputs.cxx) || '' }} \
           ${{ inputs.rustflags != '' && format('--rustflags={0}', inputs.rustflags) || '' }} \
-          ${{ inputs.static-crt == 'true' && '--static-crt' || '' }} \
+          ${{ inputs.static-crt != '' && format('--static-crt={0}', inputs.static-crt) || '' }} \
           ${{ inputs.build-std != 'false' && inputs.build-std != '' && (inputs.build-std == 'true' && '--build-std' || format('--build-std={0}', inputs.build-std)) || '' }} \
           ${{ inputs.clean-cache == 'true' && '--clean-cache' || '' }} \
           ${{ inputs.no-strip == 'true' && '--no-strip' || '' }} \

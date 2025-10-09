@@ -131,7 +131,7 @@ function printHelp() {
 	echo -e "  ${COLOR_LIGHT_BLUE}--ar=<path>${COLOR_RESET}                       - Force set the ar for target"
 	echo -e "  ${COLOR_LIGHT_BLUE}--linker=<path>${COLOR_RESET}                   - Force set the linker for target"
 	echo -e "  ${COLOR_LIGHT_BLUE}--rustflags=<flags>${COLOR_RESET}               - Additional rustflags"
-	echo -e "  ${COLOR_LIGHT_BLUE}--static-crt${COLOR_RESET}                      - Add -C target-feature=+crt-static to rustflags"
+	echo -e "  ${COLOR_LIGHT_BLUE}--static-crt[=<true|false>]${COLOR_RESET}       - Add -C target-feature=+crt-static to rustflags (default: true)"
 	echo -e "  ${COLOR_LIGHT_BLUE}--build-std[=<crates>]${COLOR_RESET}            - Use -Zbuild-std for building standard library from source"
 	echo -e "  ${COLOR_LIGHT_BLUE}--args=<args>${COLOR_RESET}                     - Additional arguments to pass to cargo build"
 	echo -e "  ${COLOR_LIGHT_BLUE}--toolchain=<toolchain>${COLOR_RESET}           - Rust toolchain to use (stable, nightly, etc.)"
@@ -815,6 +815,8 @@ function executeTarget() {
 	fi
 	if [[ "$STATIC_CRT" == "true" ]]; then
 		rustflags="${rustflags:+$rustflags }-C target-feature=+crt-static"
+	elif [[ "$STATIC_CRT" == "false" ]]; then
+		rustflags="${rustflags:+$rustflags }-C target-feature=-crt-static"
 	fi
 	if [[ -n "$ADDITIONAL_RUSTFLAGS" ]]; then
 		rustflags="${rustflags:+$rustflags }$ADDITIONAL_RUSTFLAGS"
@@ -1261,8 +1263,21 @@ while [[ $# -gt 0 ]]; do
 			exit 1
 		}
 		;;
+	--static-crt=*)
+		STATIC_CRT="${1#*=}"
+		[[ -z "$STATIC_CRT" ]] && STATIC_CRT="true"
+		;;
 	--static-crt)
-		STATIC_CRT="true"
+		if isNextArgOption "$@"; then
+			STATIC_CRT="true"
+		else
+			if [[ $# -gt 1 ]]; then
+				shift
+				STATIC_CRT="$1"
+			else
+				STATIC_CRT="true"
+			fi
+		fi
 		;;
 	--build-std=*)
 		BUILD_STD="${1#*=}"

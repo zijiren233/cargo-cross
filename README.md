@@ -137,7 +137,7 @@ jobs:
 | `cc` | Force set the C compiler | |
 | `cxx` | Force set the C++ compiler | |
 | `rustflags` | Additional rustflags | |
-| `static-crt` | Add -C target-feature=+crt-static to rustflags for static CRT linking | `false` |
+| `static-crt` | Control CRT linking mode: `true` for static (+crt-static), `false` for dynamic (-crt-static), empty for default behavior | `` |
 | `build-std` | Use -Zbuild-std for building standard library from source (`true` for default, or specify crates like `core,alloc`) | `false` |
 | `args` | Additional arguments to pass to cargo command | |
 | `toolchain` | Rust toolchain to use (stable, nightly, etc.) | `stable` |
@@ -206,12 +206,21 @@ jobs:
 ### Static CRT Linking
 
 ```yaml
+# Enable static CRT linking
 - name: Build with static CRT
   uses: your-username/rust-cross-build@v1
   with:
     command: build
     targets: x86_64-unknown-linux-musl
     static-crt: true
+
+# Disable static CRT linking (force dynamic)
+- name: Build with dynamic CRT
+  uses: your-username/rust-cross-build@v1
+  with:
+    command: build
+    targets: x86_64-pc-windows-gnu
+    static-crt: false
 ```
 
 ### Custom Rustflags
@@ -364,7 +373,10 @@ You can also use the execution script locally:
 ./exec.sh test --targets=x86_64-unknown-linux-musl --toolchain=stable
 
 # Build with static CRT linking
-./exec.sh build --targets=x86_64-unknown-linux-musl --static-crt
+./exec.sh build --targets=x86_64-unknown-linux-musl --static-crt=true
+
+# Build with dynamic CRT linking
+./exec.sh build --targets=x86_64-pc-windows-gnu --static-crt=false
 
 # Build with custom rustflags
 ./exec.sh build --targets=x86_64-unknown-linux-musl --rustflags="-C opt-level=3 -C codegen-units=1"
