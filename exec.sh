@@ -121,13 +121,15 @@ function printHelp() {
 	echo -e "  ${COLOR_LIGHT_BLUE}--locked${COLOR_RESET}                          - Asserts that exact same dependencies are used as Cargo.lock"
 	echo -e "  ${COLOR_LIGHT_BLUE}--offline${COLOR_RESET}                         - Prevents Cargo from accessing the network"
 	echo -e "  ${COLOR_LIGHT_BLUE}--frozen${COLOR_RESET}                          - Equivalent to specifying both --locked and --offline"
-	echo -e "  ${COLOR_LIGHT_BLUE}-j=<N>, --jobs=<N>${COLOR_RESET}               - Number of parallel jobs to run"
+	echo -e "  ${COLOR_LIGHT_BLUE}-j=<N>, --jobs=<N>${COLOR_RESET}                - Number of parallel jobs to run"
 	echo -e "  ${COLOR_LIGHT_BLUE}--keep-going${COLOR_RESET}                      - Build as many crates as possible, don't abort on first failure"
 	echo -e "  ${COLOR_LIGHT_BLUE}--future-incompat-report${COLOR_RESET}          - Displays a future-incompat report for warnings"
 	echo -e "  ${COLOR_LIGHT_BLUE}--manifest-path=<path>${COLOR_RESET}            - Path to Cargo.toml"
 	echo -e "  ${COLOR_LIGHT_BLUE}--use-default-linker${COLOR_RESET}              - Use system default linker (no cross-compiler download)"
 	echo -e "  ${COLOR_LIGHT_BLUE}--cc=<path>${COLOR_RESET}                       - Force set the C compiler for target"
 	echo -e "  ${COLOR_LIGHT_BLUE}--cxx=<path>${COLOR_RESET}                      - Force set the C++ compiler for target"
+	echo -e "  ${COLOR_LIGHT_BLUE}--ar=<path>${COLOR_RESET}                       - Force set the ar for target"
+	echo -e "  ${COLOR_LIGHT_BLUE}--linker=<path>${COLOR_RESET}                   - Force set the linker for target"
 	echo -e "  ${COLOR_LIGHT_BLUE}--rustflags=<flags>${COLOR_RESET}               - Additional rustflags"
 	echo -e "  ${COLOR_LIGHT_BLUE}--static-crt${COLOR_RESET}                      - Add -C target-feature=+crt-static to rustflags"
 	echo -e "  ${COLOR_LIGHT_BLUE}--build-std[=<crates>]${COLOR_RESET}            - Use -Zbuild-std for building standard library from source"
@@ -244,16 +246,10 @@ function isTargetAvailable() {
 # Returns environment variables as a string suitable for use with env command
 function getCrossEnv() {
 	local rust_target="$1"
-	local toolchain_info="${TOOLCHAIN_CONFIG[$rust_target]}"
 
 	# Clear target-specific variables
 	TARGET_CC="" TARGET_CXX="" TARGET_AR="" TARGET_LINKER="" TARGET_RUSTFLAGS="" TARGET_BUILD_STD=""
 	EXTRA_PATH="" SDKROOT=""
-
-	if [[ -z "$toolchain_info" ]]; then
-		echo -e "${COLOR_LIGHT_YELLOW}No specific toolchain configuration for $rust_target, using default${COLOR_RESET}"
-		return 0
-	fi
 
 	# Install Rust target if not already installed, or use build-std if target not available in rustup
 	# curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -281,11 +277,49 @@ function getCrossEnv() {
 		return 0
 	fi
 
+	# Convert target to uppercase for environment variable names
+	local target_upper=$(echo "$rust_target" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
+
+	# Check if target-specific environment variables are already set
+	local cc_var="CC_${target_upper}"
+	local cxx_var="CXX_${target_upper}"
+	local ar_var="AR_${target_upper}"
+	local linker_var="CARGO_TARGET_${target_upper}_LINKER"
+
+	if [[ -n "${!cc_var}" ]]; then
+		echo -e "${COLOR_LIGHT_GREEN}Using pre-configured ${cc_var}=${!cc_var}${COLOR_RESET}"
+		TARGET_CC="${!cc_var}"
+		if [[ -n "${!cxx_var}" ]]; then
+			TARGET_CXX="${!cxx_var}"
+		fi
+		if [[ -n "${!ar_var}" ]]; then
+			TARGET_AR="${!ar_var}"
+		fi
+		if [[ -n "${!linker_var}" ]]; then
+			TARGET_LINKER="${!linker_var}"
+		fi
+		return 0
+	fi
+
 	if [[ -n "$CC" ]] && [[ -n "$CXX" ]]; then
 		TARGET_CC="$CC"
 		TARGET_CXX="$CXX"
-		TARGET_AR="${CC%-gcc}-ar"
-		TARGET_LINKER="$CC"
+		if [[ -n "$AR" ]]; then
+			TARGET_AR="${AR}"
+		else
+			TARGET_AR="${CC%-gcc}-ar"
+		fi
+		if [[ -n "$LINKER" ]]; then
+			TARGET_LINKER="$LINKER"
+		else
+			TARGET_LINKER="$CC"
+		fi
+		return 0
+	fi
+
+	local toolchain_info="${TOOLCHAIN_CONFIG[$rust_target]}"
+	if [[ -z "$toolchain_info" ]]; then
+		echo -e "${COLOR_LIGHT_YELLOW}No specific toolchain configuration for $rust_target, using default${COLOR_RESET}"
 		return 0
 	fi
 
@@ -767,6 +801,13 @@ function executeTarget() {
 		build_env+=("SDKROOT=${SDKROOT}")
 	fi
 
+	# https://github.com/rust-lang/cargo/issues/8147
+	# https://github.com/rust-lang/cargo/pull/9322
+	# https://github.com/rust-lang/cargo/pull/9603
+	build_env+=("CARGO_UNSTABLE_HOST_CONFIG=true")
+	build_env+=("CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST=true")
+	build_env+=("CARGO_TARGET_APPLIES_TO_HOST=false")
+
 	# Prepare rustflags
 	local rustflags=""
 	if [[ -n "$TARGET_RUSTFLAGS" ]]; then
@@ -1190,6 +1231,24 @@ while [[ $# -gt 0 ]]; do
 	--cxx)
 		[[ $# -gt 1 ]] && shift && CXX="$1" || {
 			echo -e "${COLOR_LIGHT_RED}Error: --cxx requires a value${COLOR_RESET}"
+			exit 1
+		}
+		;;
+	--ar=*)
+		AR="${1#*=}"
+		;;
+	--ar)
+		[[ $# -gt 1 ]] && shift && AR="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --ar requires a value${COLOR_RESET}"
+			exit 1
+		}
+		;;
+	--linker=*)
+		LINKER="${1#*=}"
+		;;
+	--linker)
+		[[ $# -gt 1 ]] && shift && LINKER="$1" || {
+			echo -e "${COLOR_LIGHT_RED}Error: --linker requires a value${COLOR_RESET}"
 			exit 1
 		}
 		;;
