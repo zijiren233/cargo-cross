@@ -18,7 +18,7 @@ readonly DEFAULT_SOURCE_DIR="$(pwd)"
 readonly DEFAULT_RESULT_DIR="${DEFAULT_SOURCE_DIR}/target/cross"
 readonly DEFAULT_PROFILE="release"
 readonly DEFAULT_CROSS_COMPILER_DIR="$(dirname $(mktemp -u))/rust-cross-compiler"
-readonly DEFAULT_CROSS_DEPS_VERSION="v0.5.17"
+readonly DEFAULT_CROSS_DEPS_VERSION="v0.6.0"
 readonly DEFAULT_TTY_WIDTH="40"
 readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
@@ -53,14 +53,24 @@ declare -A TOOLCHAIN_CONFIG=(
 	["x86_64-unknown-linux-musl"]="linux:x86_64:musl"
 
 	# Linux GNU targets
-	# ["i686-unknown-linux-gnu"]="linux:i686:gnu"
-	# ["x86_64-unknown-linux-gnu"]="linux:x86_64:gnu"
-	# ["aarch64-unknown-linux-gnu"]="linux:aarch64:gnu"
-	# ["armv7-unknown-linux-gnueabihf"]="linux:armv7:gnu:eabihf"
-	# ["powerpc64-unknown-linux-gnu"]="linux:powerpc64:gnu"
-	# ["powerpc64le-unknown-linux-gnu"]="linux:powerpc64le:gnu"
-	# ["riscv64gc-unknown-linux-gnu"]="linux:riscv64:gnu"
-	# ["s390x-unknown-linux-gnu"]="linux:s390x:gnu"
+	["aarch64-unknown-linux-gnu"]="linux:aarch64:gnu"
+	["arm-unknown-linux-gnueabi"]="linux:armv6:gnu:eabi"
+	["arm-unknown-linux-gnueabihf"]="linux:armv6:gnu:eabihf"
+	["armv5te-unknown-linux-gnueabi"]="linux:armv5:gnu:eabi"
+	["armv7-unknown-linux-gnueabi"]="linux:armv7:gnu:eabi"
+	["armv7-unknown-linux-gnueabihf"]="linux:armv7:gnu:eabihf"
+	["i586-unknown-linux-gnu"]="linux:i586:gnu"
+	["i686-unknown-linux-gnu"]="linux:i686:gnu"
+	["loongarch64-unknown-linux-gnu"]="linux:loongarch64:gnu"
+	["mips-unknown-linux-gnu"]="linux:mips:gnu"
+	["mipsel-unknown-linux-gnu"]="linux:mipsel:gnu"
+	["mips64-unknown-linux-gnuabi64"]="linux:mips64:gnu"
+	["mips64el-unknown-linux-gnuabi64"]="linux:mips64el:gnu"
+	["powerpc64-unknown-linux-gnu"]="linux:powerpc64:gnu"
+	["powerpc64le-unknown-linux-gnu"]="linux:powerpc64le:gnu"
+	["riscv64gc-unknown-linux-gnu"]="linux:riscv64:gnu"
+	["s390x-unknown-linux-gnu"]="linux:s390x:gnu"
+	["x86_64-unknown-linux-gnu"]="linux:x86_64:gnu"
 
 	# Windows targets
 	["i686-pc-windows-gnu"]="windows:i686:gnu"
@@ -332,11 +342,7 @@ function getCrossEnv() {
 
 	case "$os" in
 	"linux")
-		if [[ "$libc" == "musl" ]]; then
-			getLinuxMuslEnv "$arch" "$abi" "$rust_target" || return $?
-		else
-			getLinuxGnuEnv "$arch" "$abi" "$rust_target" || return $?
-		fi
+		getLinuxEnv "$arch" "$libc" "$abi" "$rust_target" || return $?
 		;;
 	"windows")
 		getWindowsEnv "$arch" "$rust_target" || return $?
@@ -356,58 +362,39 @@ function getCrossEnv() {
 	esac
 }
 
-# Get Linux musl cross-compilation environment
-function getLinuxMuslEnv() {
+# Get Linux cross-compilation environment
+function getLinuxEnv() {
 	local arch="$1"
-	local abi="$2"
-	local rust_target="$3"
+	local libc="$2"
+	local abi="$3"
+	local rust_target="$4"
+
+	if [ -z "$libc" ]; then return 1; fi
 
 	# Map architecture to cross-compiler prefix
 	local arch_prefix="$arch"
-	case "$arch" in
-	"armv6" | "armv7")
-		arch_prefix="$arch"
-		;;
-	"powerpc64le")
-		arch_prefix="powerpc64le"
-		;;
-	"riscv64")
-		arch_prefix="riscv64"
-		;;
-	"loongarch64")
-		arch_prefix="loongarch64"
-		;;
-	esac
+	local cross_compiler_name="${arch_prefix}-linux-${libc}${abi}-cross"
+	local gcc_name="${arch_prefix}-linux-${libc}${abi}-gcc"
+	local ar_name="${arch_prefix}-linux-${libc}${abi}-ar"
 
-	local cross_compiler_name="${arch_prefix}-linux-musl${abi}-cross"
-	local gcc_name="${arch_prefix}-linux-musl${abi}-gcc"
-	local ar_name="${arch_prefix}-linux-musl${abi}-ar"
+	if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${gcc_name}" ]]; then
+		local unamespacer="${HOST_OS}-${HOST_ARCH}"
+		[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-armv7"
+		[[ "${HOST_ARCH}" == "arm64" ]] && unamespacer="${HOST_OS}-aarch64"
+		[[ "${HOST_ARCH}" == "amd64" ]] && unamespacer="${HOST_OS}-x86_64"
 
-	# Check if cross-compiler exists or download it
-	if ! command -v "$gcc_name" >/dev/null 2>&1; then
-		if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${gcc_name}" ]]; then
-			local unamespacer="${HOST_OS}-${HOST_ARCH}"
-			[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-arm32v7"
-			[[ "${HOST_ARCH}" == "x86_64" ]] && unamespacer="${HOST_OS}-amd64"
-
-			downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
-				"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
-		fi
-		# Store the additional path needed for this target
-		EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
+		downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
+			"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
 	fi
+	# Store the additional path needed for this target
+	EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
 
 	TARGET_CC="${gcc_name}"
-	TARGET_CXX="${arch_prefix}-linux-musl${abi}-g++"
+	TARGET_CXX="${arch_prefix}-linux-${libc}${abi}-g++"
 	TARGET_AR="${ar_name}"
 	TARGET_LINKER="${gcc_name}"
 
-	echo -e "${COLOR_LIGHT_GREEN}Configured Linux musl toolchain for $rust_target${COLOR_RESET}"
-}
-
-# Get Linux GNU cross-compilation environment
-function getLinuxGnuEnv() {
-	echo -e "${COLOR_LIGHT_YELLOW}Using default GNU toolchain for $rust_target${COLOR_RESET}"
+	echo -e "${COLOR_LIGHT_GREEN}Configured Linux ${libc} toolchain for $rust_target${COLOR_RESET}"
 }
 
 # Get Windows cross-compilation environment
@@ -434,19 +421,17 @@ function getWindowsEnv() {
 	local ar_name="${arch_prefix}-w64-mingw32-ar"
 	local linker_name="${gcc_name}"
 
-	# Check if cross-compiler exists or download it
-	if ! command -v "$gcc_name" >/dev/null 2>&1; then
-		if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${gcc_name}" ]]; then
-			local unamespacer="${HOST_OS}-${HOST_ARCH}"
-			[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-arm32v7"
-			[[ "${HOST_ARCH}" == "x86_64" ]] && unamespacer="${HOST_OS}-amd64"
+	if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${gcc_name}" ]]; then
+		local unamespacer="${HOST_OS}-${HOST_ARCH}"
+		[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-armv7"
+		[[ "${HOST_ARCH}" == "arm64" ]] && unamespacer="${HOST_OS}-aarch64"
+		[[ "${HOST_ARCH}" == "amd64" ]] && unamespacer="${HOST_OS}-x86_64"
 
-			downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
-				"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
-		fi
-		# Store the additional path needed for this target
-		EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
+		downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
+			"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
 	fi
+	# Store the additional path needed for this target
+	EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
 
 	TARGET_CC="${gcc_name}"
 	TARGET_CXX="${arch_prefix}-w64-mingw32-g++"
@@ -489,19 +474,7 @@ function getDarwinEnv() {
 
 		local osxcross_dir="${CROSS_COMPILER_DIR}/osxcross-${host_arch_name}"
 
-		if command -v o64-clang >/dev/null 2>&1; then
-			if [[ "${arch}" == "x86_64" ]]; then
-				TARGET_CC="x86_64-apple-darwin23.5-clang"
-				TARGET_CXX="x86_64-apple-darwin23.5-clang++"
-				TARGET_AR="x86_64-apple-darwin23.5-ar"
-				TARGET_LINKER="x86_64-apple-darwin23.5-clang"
-			else
-				TARGET_CC="aarch64-apple-darwin23.5-clang"
-				TARGET_CXX="aarch64-apple-darwin23.5-clang++"
-				TARGET_AR="aarch64-apple-darwin23.5-ar"
-				TARGET_LINKER="aarch64-apple-darwin23.5-clang"
-			fi
-		elif [[ -x "${osxcross_dir}/bin/o64-clang" ]]; then
+		if [[ -x "${osxcross_dir}/bin/o64-clang" ]]; then
 			patchelf --set-rpath "${osxcross_dir}/lib" \
 				${osxcross_dir}/bin/x86_64-apple-darwin*-ld || return 2
 
@@ -624,23 +597,7 @@ function getIosEnv() {
 		local ar_name="${arch_prefix}-apple-darwin11-ar"
 		local linker_name="${arch_prefix}-apple-darwin11-ld"
 
-		if command -v "$clang_name" >/dev/null 2>&1; then
-			# Cross-compiler already available in PATH
-			# Get CC directory and set SDKROOT to ../SDK/ first folder
-			local cc_dir="$(dirname "$(command -v "$clang_name")")"
-			local sdk_dir="${cc_dir}/../SDK"
-			if [[ -d "$sdk_dir" ]]; then
-				local first_sdk="$(find "$sdk_dir" -maxdepth 1 -type d ! -path "$sdk_dir" | head -n 1)"
-				if [[ -n "$first_sdk" ]]; then
-					SDKROOT="$first_sdk"
-				fi
-			fi
-
-			TARGET_CC="${clang_name}"
-			TARGET_CXX="${clangxx_name}"
-			TARGET_AR="${ar_name}"
-			TARGET_LINKER="${linker_name}"
-		elif [[ -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${clang_name}" ]]; then
+		if [[ -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${clang_name}" ]]; then
 			# Cross-compiler already downloaded
 			# Fix rpath if on Linux
 			patchelf --set-rpath "${CROSS_COMPILER_DIR}/${cross_compiler_name}/lib" \
@@ -769,10 +726,8 @@ function executeTarget() {
 	local build_env=()
 
 	# Set up PATH with target-specific tools if needed
-	local target_path="$PATH"
 	if [[ -n "$EXTRA_PATH" ]]; then
-		target_path="${EXTRA_PATH}:${PATH}"
-		build_env+=("PATH=${target_path}")
+		build_env+=("PATH=${EXTRA_PATH}:${PATH}")
 	fi
 
 	# Set up environment based on target
@@ -801,12 +756,14 @@ function executeTarget() {
 		build_env+=("SDKROOT=${SDKROOT}")
 	fi
 
-	# https://github.com/rust-lang/cargo/issues/8147
-	# https://github.com/rust-lang/cargo/pull/9322
-	# https://github.com/rust-lang/cargo/pull/9603
-	build_env+=("CARGO_UNSTABLE_HOST_CONFIG=true")
-	build_env+=("CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST=true")
-	build_env+=("CARGO_TARGET_APPLIES_TO_HOST=false")
+	if [ "$rust_target" = "$HOST_TRIPLE" ]; then
+		# https://github.com/rust-lang/cargo/issues/8147
+		# https://github.com/rust-lang/cargo/pull/9322
+		# https://github.com/rust-lang/cargo/pull/9603
+		build_env+=("CARGO_UNSTABLE_HOST_CONFIG=true")
+		build_env+=("CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST=true")
+		build_env+=("CARGO_TARGET_APPLIES_TO_HOST=false")
+	fi
 
 	# Prepare rustflags
 	local rustflags=""
@@ -1351,6 +1308,7 @@ done
 # Default to host target if not specified
 if [[ -z "$TARGETS" ]]; then
 	TARGETS="$HOST_TRIPLE"
+	USE_DEFAULT_LINKER="true"
 	echo -e "${COLOR_LIGHT_BLUE}No target specified, using host: ${TARGETS}${COLOR_RESET}"
 fi
 
