@@ -9,7 +9,7 @@ A powerful GitHub Action for building, testing, and checking Rust projects with 
 - 📦 **Automatic toolchain setup** - downloads and configures cross-compilers as needed
 - 🎯 **Multiple target support** - build for 63+ target platforms in a single run
 - 🏗️ **Workspace support** - work with entire workspaces or specific packages
-- ⚡ **Static linking** - produces statically linked binaries for easy distribution
+- ⚡ **Flexible linking** - musl targets default to static, GNU targets default to dynamic, both configurable via `static-crt` parameter
 - 🔧 **Flexible configuration** - extensive customization options
 - 📁 **Organized output** - all artifacts collected in a single directory
 - 🛠️ **Multiple commands** - supports build, test, and check operations
@@ -29,13 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Cross compile (comma-separated)
-        uses: your-username/rust-cross-build@v1
-        with:
-          command: build
-          targets: x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
-
-      - name: Cross compile (newline-separated)
+      - name: Cross compile
         uses: your-username/rust-cross-build@v1
         with:
           command: build
@@ -135,29 +129,33 @@ jobs:
 
 ## Supported Targets
 
-### Linux (musl - fully static)
+### Linux (musl - static by default)
 
-- `i586-unknown-linux-musl` - Linux i586 (static)
-- `i686-unknown-linux-musl` - Linux i686 (static)
-- `x86_64-unknown-linux-musl` - Linux x86_64 (static)
-- `arm-unknown-linux-musleabi` - ARM Linux (static)
-- `arm-unknown-linux-musleabihf` - ARM Linux hard-float (static)
-- `armv5te-unknown-linux-musleabi` - ARMv5TE Linux (static)
-- `armv7-unknown-linux-musleabi` - ARMv7 Linux (static)
-- `armv7-unknown-linux-musleabihf` - ARMv7 Linux hard-float (static)
-- `aarch64-unknown-linux-musl` - ARM64 Linux (static)
-- `loongarch64-unknown-linux-musl` - LoongArch64 Linux (static)
-- `mips-unknown-linux-musl` - MIPS Linux (static)
-- `mipsel-unknown-linux-musl` - MIPS little-endian Linux (static)
-- `mips64-unknown-linux-muslabi64` - MIPS64 Linux (static)
-- `mips64-openwrt-linux-musl` - MIPS64 OpenWrt Linux (static)
-- `mips64el-unknown-linux-muslabi64` - MIPS64 little-endian Linux (static)
-- `powerpc64-unknown-linux-musl` - PowerPC64 Linux (static)
-- `powerpc64le-unknown-linux-musl` - PowerPC64 little-endian Linux (static)
-- `riscv64gc-unknown-linux-musl` - RISC-V 64-bit Linux (static)
-- `s390x-unknown-linux-musl` - S390x Linux (static)
+musl targets produce **statically linked binaries by default**. Use `static-crt: false` to enable dynamic linking.
 
-### Linux (GNU libc)
+- `i586-unknown-linux-musl` - Linux i586
+- `i686-unknown-linux-musl` - Linux i686
+- `x86_64-unknown-linux-musl` - Linux x86_64
+- `arm-unknown-linux-musleabi` - ARM Linux
+- `arm-unknown-linux-musleabihf` - ARM Linux hard-float
+- `armv5te-unknown-linux-musleabi` - ARMv5TE Linux
+- `armv7-unknown-linux-musleabi` - ARMv7 Linux
+- `armv7-unknown-linux-musleabihf` - ARMv7 Linux hard-float
+- `aarch64-unknown-linux-musl` - ARM64 Linux
+- `loongarch64-unknown-linux-musl` - LoongArch64 Linux
+- `mips-unknown-linux-musl` - MIPS Linux
+- `mipsel-unknown-linux-musl` - MIPS little-endian Linux
+- `mips64-unknown-linux-muslabi64` - MIPS64 Linux
+- `mips64-openwrt-linux-musl` - MIPS64 OpenWrt Linux
+- `mips64el-unknown-linux-muslabi64` - MIPS64 little-endian Linux
+- `powerpc64-unknown-linux-musl` - PowerPC64 Linux
+- `powerpc64le-unknown-linux-musl` - PowerPC64 little-endian Linux
+- `riscv64gc-unknown-linux-musl` - RISC-V 64-bit Linux
+- `s390x-unknown-linux-musl` - S390x Linux
+
+### Linux (GNU libc - dynamic by default)
+
+GNU libc targets produce **dynamically linked binaries by default**. Use `static-crt: true` to enable static linking.
 
 - `i586-unknown-linux-gnu` - Linux i586
 - `i686-unknown-linux-gnu` - Linux i686
@@ -209,7 +207,7 @@ jobs:
 | Input | Description | Default |
 |-------|-------------|---------|
 | `command` | Command to execute (`build`, `test`, `check`) | `build` |
-| `targets` | Comma-separated or newline-separated list of Rust target triples | Host target |
+| `targets` | Newline-separated list of Rust target triples (comma-separated also supported) | Host target |
 | `profile` | Build profile (`debug` or `release`) | `release` |
 | `features` | Comma-separated list of features to activate | |
 | `no-default-features` | Do not activate default features | `false` |
@@ -228,7 +226,7 @@ jobs:
 | `cc` | Force set the C compiler | |
 | `cxx` | Force set the C++ compiler | |
 | `rustflags` | Additional rustflags | |
-| `static-crt` | Control CRT linking mode: `true` for static (+crt-static), `false` for dynamic (-crt-static), empty for default behavior | `` |
+| `static-crt` | Control CRT linking mode: `true` for static (+crt-static), `false` for dynamic (-crt-static), empty for default (musl=static, gnu=dynamic) | `` |
 | `build-std` | Use -Zbuild-std for building standard library from source (`true` for default, or specify crates like `core,alloc`) | `false` |
 | `args` | Additional arguments to pass to cargo command | |
 | `toolchain` | Rust toolchain to use (stable, nightly, etc.) | `stable` |
@@ -278,7 +276,9 @@ jobs:
   uses: your-username/rust-cross-build@v1
   with:
     command: build
-    targets: aarch64-linux-android,armv7-linux-androideabi
+    targets: |
+      aarch64-linux-android
+      armv7-linux-androideabi
     ndk-version: r27
 ```
 
@@ -294,24 +294,34 @@ jobs:
     cxx: /usr/bin/custom-g++
 ```
 
-### Static CRT Linking
+### Static/Dynamic Linking Configuration
 
 ```yaml
-# Enable static CRT linking
-- name: Build with static CRT
+# musl targets: static by default, set to false for dynamic linking
+- name: Build musl with dynamic linking
   uses: your-username/rust-cross-build@v1
   with:
     command: build
     targets: x86_64-unknown-linux-musl
-    static-crt: true
+    static-crt: false
 
-# Disable static CRT linking (force dynamic)
-- name: Build with dynamic CRT
+# GNU targets: dynamic by default, set to true for static linking
+- name: Build GNU with static linking
   uses: your-username/rust-cross-build@v1
   with:
     command: build
-    targets: x86_64-pc-windows-gnu
-    static-crt: false
+    targets: x86_64-unknown-linux-gnu
+    static-crt: true
+
+# Leave empty to use default behavior (musl=static, gnu=dynamic)
+- name: Build with default linking
+  uses: your-username/rust-cross-build@v1
+  with:
+    command: build
+    targets: |
+      x86_64-unknown-linux-musl
+      x86_64-unknown-linux-gnu
+    # static-crt not specified - uses defaults
 ```
 
 ### Custom Rustflags
@@ -383,7 +393,9 @@ jobs:
   uses: your-username/rust-cross-build@v1
   with:
     command: test
-    targets: x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
+    targets: |
+      x86_64-unknown-linux-musl
+      aarch64-unknown-linux-musl
 ```
 
 ### Check Code Quality
@@ -463,11 +475,11 @@ You can also use the execution script locally:
 # Test with stable toolchain (explicitly)
 ./exec.sh test --targets=x86_64-unknown-linux-musl --toolchain=stable
 
-# Build with static CRT linking
-./exec.sh build --targets=x86_64-unknown-linux-musl --static-crt=true
+# Build musl with dynamic linking (musl is static by default)
+./exec.sh build --targets=x86_64-unknown-linux-musl --static-crt=false
 
-# Build with dynamic CRT linking
-./exec.sh build --targets=x86_64-pc-windows-gnu --static-crt=false
+# Build GNU with static linking (GNU is dynamic by default)
+./exec.sh build --targets=x86_64-unknown-linux-gnu --static-crt=true
 
 # Build with custom rustflags
 ./exec.sh build --targets=x86_64-unknown-linux-musl --rustflags="-C opt-level=3 -C codegen-units=1"
@@ -502,7 +514,11 @@ Make sure you're running on a supported host OS. Linux hosts support the most ta
 
 ### Binary is too large
 
-Use `profile: release` and ensure stripping is enabled (default). The musl targets produce fully static binaries which are larger but completely self-contained.
+Use `profile: release` and ensure stripping is enabled (default). Note that:
+
+- **musl targets** produce statically linked binaries by default, which are larger but completely self-contained
+- **GNU targets** produce dynamically linked binaries by default, which are smaller but require system libraries
+- You can configure the linking behavior using the `static-crt` parameter
 
 ### Android build fails
 

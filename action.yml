@@ -11,7 +11,7 @@ inputs:
     required: false
     default: "build"
   targets:
-    description: "Rust target triple(s) to build for (comma-separated or newline-separated, e.g., x86_64-unknown-linux-musl,aarch64-unknown-linux-musl or one per line)"
+    description: "Rust target triple(s) to build for (newline-separated recommended, comma-separated also supported)"
     required: false
     default: ""
   profile:
