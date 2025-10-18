@@ -140,7 +140,7 @@ function printHelp() {
 	echo -e "  ${COLOR_LIGHT_BLUE}--cxx=<path>${COLOR_RESET}                      - Force set the C++ compiler for target"
 	echo -e "  ${COLOR_LIGHT_BLUE}--ar=<path>${COLOR_RESET}                       - Force set the ar for target"
 	echo -e "  ${COLOR_LIGHT_BLUE}--linker=<path>${COLOR_RESET}                   - Force set the linker for target"
-	echo -e "  ${COLOR_LIGHT_BLUE}--rustflags=<flags>${COLOR_RESET}               - Additional rustflags"
+	echo -e "  ${COLOR_LIGHT_BLUE}--rustflags=<flags>${COLOR_RESET}               - Additional rustflags (can be specified multiple times)"
 	echo -e "  ${COLOR_LIGHT_BLUE}--static-crt[=<true|false>]${COLOR_RESET}       - Add -C target-feature=+crt-static to rustflags (default: true)"
 	echo -e "  ${COLOR_LIGHT_BLUE}--build-std[=<crates>]${COLOR_RESET}            - Use -Zbuild-std for building standard library from source"
 	echo -e "  ${COLOR_LIGHT_BLUE}--args=<args>${COLOR_RESET}                     - Additional arguments to pass to cargo build"
@@ -765,19 +765,24 @@ function executeTarget() {
 		build_env+=("CARGO_TARGET_APPLIES_TO_HOST=false")
 	fi
 
-	# Prepare rustflags
-	local rustflags=""
+	local rustflags="$RUSTFLAGS"
+
 	if [[ -n "$TARGET_RUSTFLAGS" ]]; then
-		rustflags="$TARGET_RUSTFLAGS"
+		rustflags="${rustflags:+$rustflags }$TARGET_RUSTFLAGS"
 	fi
+
 	if [[ "$STATIC_CRT" == "true" ]]; then
 		rustflags="${rustflags:+$rustflags }-C target-feature=+crt-static"
 	elif [[ "$STATIC_CRT" == "false" ]]; then
 		rustflags="${rustflags:+$rustflags }-C target-feature=-crt-static"
 	fi
-	if [[ -n "$ADDITIONAL_RUSTFLAGS" ]]; then
-		rustflags="${rustflags:+$rustflags }$ADDITIONAL_RUSTFLAGS"
+
+	if [[ ${#ADDITIONAL_RUSTFLAGS_ARRAY[@]} -gt 0 ]]; then
+		for flag in "${ADDITIONAL_RUSTFLAGS_ARRAY[@]}"; do
+			rustflags="${rustflags:+$rustflags }$flag"
+		done
 	fi
+
 	if [[ -n "$rustflags" ]]; then
 		build_env+=("RUSTFLAGS=${rustflags}")
 	fi
@@ -1252,10 +1257,10 @@ while [[ $# -gt 0 ]]; do
 		}
 		;;
 	--rustflags=*)
-		ADDITIONAL_RUSTFLAGS="${1#*=}"
+		ADDITIONAL_RUSTFLAGS_ARRAY+=("${1#*=}")
 		;;
 	--rustflags)
-		[[ $# -gt 1 ]] && shift && ADDITIONAL_RUSTFLAGS="$1" || {
+		[[ $# -gt 1 ]] && shift && ADDITIONAL_RUSTFLAGS_ARRAY+=("$1") || {
 			echo -e "${COLOR_LIGHT_RED}Error: --rustflags requires a value${COLOR_RESET}"
 			exit 1
 		}
@@ -1377,7 +1382,8 @@ echo -e "  Targets: ${TARGETS}"
 [[ -n "$FEATURES" ]] && echo -e "  Features: ${FEATURES}"
 [[ "$NO_DEFAULT_FEATURES" == "true" ]] && echo -e "  No default features: true"
 [[ "$ALL_FEATURES" == "true" ]] && echo -e "  All features: true"
-[[ -n "$ADDITIONAL_RUSTFLAGS" ]] && echo -e "  Additional rustflags: ${ADDITIONAL_RUSTFLAGS}"
+[[ -n "$RUSTFLAGS" ]] && echo -e "  Default rustflags env: ${RUSTFLAGS}"
+[[ ${#ADDITIONAL_RUSTFLAGS_ARRAY[@]} -gt 0 ]] && echo -e "  Additional rustflags: ${ADDITIONAL_RUSTFLAGS_ARRAY[*]}"
 [[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]] && echo -e "  Build std: $([ "$BUILD_STD" == "true" ] && echo "true" || echo "$BUILD_STD")"
 [[ -n "$ADDITIONAL_ARGS" ]] && echo -e "  Additional args: ${ADDITIONAL_ARGS}"
 [[ "$NO_EMBED_METADATA" == "true" ]] && echo -e "  No embed metadata: true"
