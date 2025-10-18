@@ -5,8 +5,9 @@ A powerful GitHub Action for building, testing, and checking Rust projects with 
 ## Features
 
 - 🚀 **Cross-compilation support** for Linux (GNU/musl), Windows, macOS, Android, and iOS
+- 🖥️ **Multi-platform hosts** - runs on Linux (x86_64/aarch64/armv7) and macOS (x86_64/aarch64)
 - 📦 **Automatic toolchain setup** - downloads and configures cross-compilers as needed
-- 🎯 **Multiple target support** - execute commands for multiple targets in a single run
+- 🎯 **Multiple target support** - build for 63+ target platforms in a single run
 - 🏗️ **Workspace support** - work with entire workspaces or specific packages
 - ⚡ **Static linking** - produces statically linked binaries for easy distribution
 - 🔧 **Flexible configuration** - extensive customization options
@@ -27,12 +28,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
-      - name: Cross compile
+
+      - name: Cross compile (comma-separated)
         uses: your-username/rust-cross-build@v1
         with:
           command: build
           targets: x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
+
+      - name: Cross compile (newline-separated)
+        uses: your-username/rust-cross-build@v1
+        with:
+          command: build
+          targets: |
+            x86_64-unknown-linux-musl
+            aarch64-unknown-linux-musl
 ```
 
 ### Build for Multiple Platforms
@@ -58,10 +67,10 @@ jobs:
         with:
           command: build
           targets: |
-            x86_64-unknown-linux-musl,
-            aarch64-unknown-linux-musl,
-            x86_64-pc-windows-gnu,
-            x86_64-apple-darwin,
+            x86_64-unknown-linux-musl
+            aarch64-unknown-linux-musl
+            x86_64-pc-windows-gnu
+            x86_64-apple-darwin
             aarch64-apple-darwin
           profile: release
           
@@ -72,45 +81,127 @@ jobs:
           path: target/cross/*
 ```
 
+## Host Platforms (Runners)
+
+This action can run on the following GitHub Actions runners or local platforms:
+
+### Supported Host Platforms
+
+| Platform | Architecture | GitHub Runner | Local Support |
+|----------|--------------|---------------|---------------|
+| **Linux** | x86_64 (amd64) | `ubuntu-latest`, `ubuntu-24.04`, `ubuntu-22.04`, `ubuntu-20.04` | ✅ Yes |
+| **Linux** | aarch64 (arm64) | `ubuntu-24.04-arm` | ✅ Yes |
+| **Linux** | armv7 | Self-hosted ARMv7 runners | ✅ Yes |
+| **macOS** | x86_64 (Intel) | `macos-15-intel` | ✅ Yes |
+| **macOS** | aarch64 (Apple Silicon) | `macos-15` | ✅ Yes |
+
+### Recommended Usage
+
+For maximum compatibility and cross-compilation support, use **Linux x86_64** runners:
+
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest  # Best for cross-compilation
+    steps:
+      - uses: actions/checkout@v3
+      - uses: your-username/rust-cross-build@v1
+        with:
+          targets: |
+            x86_64-unknown-linux-musl
+            aarch64-unknown-linux-musl
+            x86_64-pc-windows-gnu
+            aarch64-apple-darwin
+            aarch64-apple-ios
+```
+
+For macOS/iOS native/cross builds, use macOS runners:
+
+```yaml
+jobs:
+  build-macos:
+    runs-on: macos-latest  # Apple Silicon
+    steps:
+      - uses: actions/checkout@v3
+      - uses: your-username/rust-cross-build@v1
+        with:
+          targets: |
+            x86_64-unknown-linux-musl
+            aarch64-unknown-linux-musl
+            x86_64-pc-windows-gnu
+            aarch64-apple-darwin
+            aarch64-apple-ios
+```
+
 ## Supported Targets
 
 ### Linux (musl - fully static)
 
-- `i686-unknown-linux-musl` - Linux 32-bit (static)
-- `x86_64-unknown-linux-musl` - Linux 64-bit (static)
+- `i586-unknown-linux-musl` - Linux i586 (static)
+- `i686-unknown-linux-musl` - Linux i686 (static)
+- `x86_64-unknown-linux-musl` - Linux x86_64 (static)
 - `arm-unknown-linux-musleabi` - ARM Linux (static)
 - `arm-unknown-linux-musleabihf` - ARM Linux hard-float (static)
+- `armv5te-unknown-linux-musleabi` - ARMv5TE Linux (static)
 - `armv7-unknown-linux-musleabi` - ARMv7 Linux (static)
 - `armv7-unknown-linux-musleabihf` - ARMv7 Linux hard-float (static)
 - `aarch64-unknown-linux-musl` - ARM64 Linux (static)
+- `loongarch64-unknown-linux-musl` - LoongArch64 Linux (static)
 - `mips-unknown-linux-musl` - MIPS Linux (static)
 - `mipsel-unknown-linux-musl` - MIPS little-endian Linux (static)
 - `mips64-unknown-linux-muslabi64` - MIPS64 Linux (static)
+- `mips64-openwrt-linux-musl` - MIPS64 OpenWrt Linux (static)
 - `mips64el-unknown-linux-muslabi64` - MIPS64 little-endian Linux (static)
+- `powerpc64-unknown-linux-musl` - PowerPC64 Linux (static)
 - `powerpc64le-unknown-linux-musl` - PowerPC64 little-endian Linux (static)
 - `riscv64gc-unknown-linux-musl` - RISC-V 64-bit Linux (static)
 - `s390x-unknown-linux-musl` - S390x Linux (static)
 
+### Linux (GNU libc)
+
+- `i586-unknown-linux-gnu` - Linux i586
+- `i686-unknown-linux-gnu` - Linux i686
+- `x86_64-unknown-linux-gnu` - Linux x86_64
+- `arm-unknown-linux-gnueabi` - ARM Linux
+- `arm-unknown-linux-gnueabihf` - ARM Linux hard-float
+- `armv5te-unknown-linux-gnueabi` - ARMv5TE Linux
+- `armv7-unknown-linux-gnueabi` - ARMv7 Linux
+- `armv7-unknown-linux-gnueabihf` - ARMv7 Linux hard-float
+- `aarch64-unknown-linux-gnu` - ARM64 Linux
+- `loongarch64-unknown-linux-gnu` - LoongArch64 Linux
+- `mips-unknown-linux-gnu` - MIPS Linux
+- `mipsel-unknown-linux-gnu` - MIPS little-endian Linux
+- `mips64-unknown-linux-gnuabi64` - MIPS64 Linux
+- `mips64el-unknown-linux-gnuabi64` - MIPS64 little-endian Linux
+- `powerpc64-unknown-linux-gnu` - PowerPC64 Linux
+- `powerpc64le-unknown-linux-gnu` - PowerPC64 little-endian Linux
+- `riscv64gc-unknown-linux-gnu` - RISC-V 64-bit Linux
+- `s390x-unknown-linux-gnu` - S390x Linux
+
 ### Windows
 
-- `i686-pc-windows-gnu` - Windows 32-bit
-- `x86_64-pc-windows-gnu` - Windows 64-bit
+- `i686-pc-windows-gnu` - Windows i686 (MinGW)
+- `x86_64-pc-windows-gnu` - Windows x86_64 (MinGW)
 
 ### macOS
 
-- `x86_64-apple-darwin` - macOS Intel
-- `aarch64-apple-darwin` - macOS Apple Silicon
+- `x86_64-apple-darwin` - macOS Intel (x86_64)
+- `x86_64h-apple-darwin` - macOS Intel (x86_64h, optimized for Haswell+)
+- `aarch64-apple-darwin` - macOS Apple Silicon (ARM64)
+- `arm64e-apple-darwin` - macOS Apple Silicon (ARM64e)
 
 ### Android
 
 - `i686-linux-android` - Android x86
 - `x86_64-linux-android` - Android x86_64
 - `armv7-linux-androideabi` - Android ARMv7
+- `arm-linux-androideabi` - Android ARM
 - `aarch64-linux-android` - Android ARM64
+- `riscv64-linux-android` - Android RISC-V 64-bit
 
 ### iOS
 
-- `x86_64-apple-ios` - iOS Simulator (Intel)
+- `x86_64-apple-ios` - iOS Simulator (x86_64)
 - `aarch64-apple-ios` - iOS ARM64
 
 ## Inputs
@@ -118,7 +209,7 @@ jobs:
 | Input | Description | Default |
 |-------|-------------|---------|
 | `command` | Command to execute (`build`, `test`, `check`) | `build` |
-| `targets` | Comma-separated list of Rust target triples | Host target |
+| `targets` | Comma-separated or newline-separated list of Rust target triples | Host target |
 | `profile` | Build profile (`debug` or `release`) | `release` |
 | `features` | Comma-separated list of features to activate | |
 | `no-default-features` | Do not activate default features | `false` |

@@ -528,7 +528,7 @@ function getAndroidEnv() {
 	local ndk_dir="${CROSS_COMPILER_DIR}/android-ndk-${HOST_OS}-${NDK_VERSION}"
 	local clang_base_dir="${ndk_dir}/toolchains/llvm/prebuilt/${HOST_OS}-x86_64/bin"
 
-	if [[ ! -d "${ndk_dir}" ]]; then
+	if [[ ! -d "${ndk_dir}" ]] || [[ ! -d "${clang_base_dir}" ]]; then
 		local ndk_url="https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-${HOST_OS}.zip"
 		downloadAndUnzip "${ndk_url}" "${ndk_dir}" "zip" || return 2
 		mv "$ndk_dir/android-ndk-${NDK_VERSION}/"* "$ndk_dir"
@@ -947,9 +947,12 @@ function expandTargets() {
 	local targets="$1"
 	local expanded=""
 
+	# Normalize: replace newlines with commas, then split by comma
+	targets=$(echo "$targets" | tr '\n' ',' | sed 's/,\+/,/g')
 	IFS=',' read -ra TARGET_ARRAY <<<"$targets"
 	for target in "${TARGET_ARRAY[@]}"; do
 		target=$(echo "$target" | xargs) # Trim whitespace
+		[[ -z "$target" ]] && continue # Skip empty entries
 
 		if [[ "$target" == "all" ]]; then
 			# Return all supported targets
@@ -987,7 +990,35 @@ setDefault "TOOLCHAIN" "${DEFAULT_TOOLCHAIN}"
 
 # Helper function to check if the next argument is an option
 isNextArgOption() {
-	[[ $# -gt 1 && "$2" =~ ^-- ]]
+	if [[ $# -le 1 ]]; then
+		return 1
+	fi
+
+	local next_arg="$2"
+
+	# Check if it's a long option (starts with --)
+	if [[ "$next_arg" =~ ^-- ]]; then
+		return 0
+	fi
+
+	# Check if it's a known short option (exact match or with = for those that support it)
+	case "$next_arg" in
+		-h|-r|-v|-q)
+			# These short options don't support = form
+			return 0
+			;;
+		-t|-j)
+			# These short options exist without =
+			return 0
+			;;
+		-t=*|-j=*)
+			# These short options support = form
+			return 0
+			;;
+		*)
+			return 1
+			;;
+	esac
 }
 
 # Parse command-line arguments
@@ -1040,13 +1071,22 @@ while [[ $# -gt 0 ]]; do
 		ALL_FEATURES="true"
 		;;
 	-t=* | --targets=* | --target=*)
-		TARGETS="${1#*=}"
+		if [[ -n "$TARGETS" ]]; then
+			TARGETS="${TARGETS},${1#*=}"
+		else
+			TARGETS="${1#*=}"
+		fi
 		;;
 	-t | --targets | --target)
-		[[ $# -gt 1 ]] && shift && TARGETS="$1" || {
+		[[ $# -gt 1 ]] && shift || {
 			echo -e "${COLOR_LIGHT_RED}Error: --targets requires a value${COLOR_RESET}"
 			exit 1
 		}
+		if [[ -n "$TARGETS" ]]; then
+			TARGETS="${TARGETS},$1"
+		else
+			TARGETS="$1"
+		fi
 		;;
 	--result-dir=*)
 		RESULT_DIR="${1#*=}"
