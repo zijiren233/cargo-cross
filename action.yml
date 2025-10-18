@@ -182,12 +182,8 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Setup Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: ${{ inputs.toolchain || 'stable' }}
-        override: true
-        profile: minimal
+    - name: Setup Rustup
+      uses: actions-rust-lang/setup-rust-toolchain@v1
 
     - name: Show all targets
       if: ${{ inputs.show-all-targets == 'true' }}
@@ -201,67 +197,52 @@ runs:
       if: ${{ inputs.show-all-targets == 'false' }}
       shell: bash
       working-directory: ${{ inputs.source-dir }}
+      env:
+        INPUT_COMMAND: ${{ inputs.command }}
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_TARGETS: ${{ inputs.targets }}
+        INPUT_PROFILE: ${{ inputs.profile }}
+        INPUT_FEATURES: ${{ inputs.features }}
+        INPUT_NO_DEFAULT_FEATURES: ${{ inputs.no-default-features }}
+        INPUT_ALL_FEATURES: ${{ inputs.all-features }}
+        INPUT_PACKAGE: ${{ inputs.package }}
+        INPUT_BIN: ${{ inputs.bin }}
+        INPUT_BINS: ${{ inputs.bins }}
+        INPUT_LIB: ${{ inputs.lib }}
+        INPUT_ALL_TARGETS: ${{ inputs.all-targets }}
+        INPUT_WORKSPACE: ${{ inputs.workspace }}
+        INPUT_RELEASE: ${{ inputs.release }}
+        INPUT_QUIET: ${{ inputs.quiet }}
+        INPUT_MESSAGE_FORMAT: ${{ inputs.message-format }}
+        INPUT_IGNORE_RUST_VERSION: ${{ inputs.ignore-rust-version }}
+        INPUT_LOCKED: ${{ inputs.locked }}
+        INPUT_OFFLINE: ${{ inputs.offline }}
+        INPUT_FROZEN: ${{ inputs.frozen }}
+        INPUT_JOBS: ${{ inputs.jobs }}
+        INPUT_KEEP_GOING: ${{ inputs.keep-going }}
+        INPUT_FUTURE_INCOMPAT_REPORT: ${{ inputs.future-incompat-report }}
+        INPUT_MANIFEST_PATH: ${{ inputs.manifest-path }}
+        INPUT_RESULT_DIR: ${{ inputs.result-dir }}
+        INPUT_BIN_NAME_NO_SUFFIX: ${{ inputs.bin-name-no-suffix }}
+        INPUT_GITHUB_PROXY_MIRROR: ${{ inputs.github-proxy-mirror }}
+        INPUT_CROSS_COMPILER_DIR: ${{ inputs.cross-compiler-dir }}
+        INPUT_NDK_VERSION: ${{ inputs.ndk-version }}
+        INPUT_USE_DEFAULT_LINKER: ${{ inputs.use-default-linker }}
+        INPUT_CC: ${{ inputs.cc }}
+        INPUT_CXX: ${{ inputs.cxx }}
+        INPUT_RUSTFLAGS: ${{ inputs.rustflags }}
+        INPUT_STATIC_CRT: ${{ inputs.static-crt }}
+        INPUT_BUILD_STD: ${{ inputs.build-std }}
+        INPUT_CLEAN_CACHE: ${{ inputs.clean-cache }}
+        INPUT_NO_STRIP: ${{ inputs.no-strip }}
+        INPUT_VERBOSE: ${{ inputs.verbose }}
+        INPUT_ARGS: ${{ inputs.args }}
+        INPUT_TOOLCHAIN: ${{ inputs.toolchain }}
+        INPUT_CARGO_TRIM_PATHS: ${{ inputs.cargo-trim-paths }}
+        INPUT_TRIM_PATHS: ${{ inputs.trim-paths }}
+        INPUT_NO_EMBED_METADATA: ${{ inputs.no-embed-metadata }}
+        ACTION_PATH: ${{ github.action_path }}
+        SOURCE_DIR: ${{ inputs.source-dir }}
+        GITHUB_WORKSPACE: ${{ github.workspace }}
       run: |
-        # Set default result directory if not specified
-        RESULT_DIR="${{ inputs.result-dir }}"
-        if [ -z "$RESULT_DIR" ]; then
-          RESULT_DIR="${{ inputs.source-dir }}/target/cross"
-        fi
-
-        # Set default targets if not specified (prioritize 'target' over 'targets')
-        TARGETS="${{ inputs.target }}"
-        if [ -z "$TARGETS" ]; then
-          TARGETS="${{ inputs.targets }}"
-        fi
-        if [ -z "$TARGETS" ]; then
-          TARGETS="$(rustc -vV | grep host | cut -d' ' -f2)"
-        fi
-
-        # Execute command
-        "${{ github.action_path }}/exec.sh" \
-          ${{ inputs.command }} \
-          ${{ inputs.target != '' && format('--targets={0}', inputs.target) || inputs.targets != '' && format('--targets={0}', inputs.targets) || '' }} \
-          --profile=${{ inputs.profile }} \
-          ${{ inputs.features != '' && format('--features={0}', inputs.features) || '' }} \
-          ${{ inputs.no-default-features == 'true' && '--no-default-features' || '' }} \
-          ${{ inputs.all-features == 'true' && '--all-features' || '' }} \
-          ${{ inputs.package != '' && format('--package={0}', inputs.package) || '' }} \
-          ${{ inputs.bin != '' && format('--bin={0}', inputs.bin) || '' }} \
-          ${{ inputs.bins == 'true' && '--bins' || '' }} \
-          ${{ inputs.lib == 'true' && '--lib' || '' }} \
-          ${{ inputs.all-targets == 'true' && '--all-targets' || '' }} \
-          ${{ inputs.workspace == 'true' && '--workspace' || '' }} \
-          ${{ inputs.release == 'true' && '--release' || '' }} \
-          ${{ inputs.quiet == 'true' && '--quiet' || '' }} \
-          ${{ inputs.message-format != '' && format('--message-format={0}', inputs.message-format) || '' }} \
-          ${{ inputs.ignore-rust-version == 'true' && '--ignore-rust-version' || '' }} \
-          ${{ inputs.locked == 'true' && '--locked' || '' }} \
-          ${{ inputs.offline == 'true' && '--offline' || '' }} \
-          ${{ inputs.frozen == 'true' && '--frozen' || '' }} \
-          ${{ inputs.jobs != '' && format('--jobs={0}', inputs.jobs) || '' }} \
-          ${{ inputs.keep-going == 'true' && '--keep-going' || '' }} \
-          ${{ inputs.future-incompat-report == 'true' && '--future-incompat-report' || '' }} \
-          ${{ inputs.manifest-path != '' && format('--manifest-path={0}', inputs.manifest-path) || '' }} \
-          --result-dir="$RESULT_DIR" \
-          ${{ inputs.bin-name-no-suffix == 'true' && '--bin-name-no-suffix' || '' }} \
-          ${{ inputs.github-proxy-mirror != '' && format('--github-proxy-mirror={0}', inputs.github-proxy-mirror) || '' }} \
-          ${{ inputs.cross-compiler-dir != '' && format('--cross-compiler-dir={0}', inputs.cross-compiler-dir) || '' }} \
-          --ndk-version=${{ inputs.ndk-version }} \
-          ${{ inputs.use-default-linker == 'true' && '--use-default-linker' || '' }} \
-          ${{ inputs.cc != '' && format('--cc={0}', inputs.cc) || '' }} \
-          ${{ inputs.cxx != '' && format('--cxx={0}', inputs.cxx) || '' }} \
-          ${{ inputs.rustflags != '' && format('--rustflags={0}', inputs.rustflags) || '' }} \
-          ${{ inputs.static-crt != '' && format('--static-crt={0}', inputs.static-crt) || '' }} \
-          ${{ inputs.build-std != 'false' && inputs.build-std != '' && (inputs.build-std == 'true' && '--build-std' || format('--build-std={0}', inputs.build-std)) || '' }} \
-          ${{ inputs.clean-cache == 'true' && '--clean-cache' || '' }} \
-          ${{ inputs.no-strip == 'true' && '--no-strip' || '' }} \
-          ${{ inputs.verbose == 'true' && '--verbose' || '' }} \
-          ${{ inputs.args != '' && format('--args={0}', inputs.args) || '' }} \
-          ${{ inputs.toolchain != '' && format('--toolchain={0}', inputs.toolchain) || '' }} \
-          ${{ inputs.cargo-trim-paths != '' && format('--cargo-trim-paths={0}', inputs.cargo-trim-paths) || '' }} \
-          ${{ inputs.trim-paths != '' && format('--trim-paths={0}', inputs.trim-paths) || '' }} \
-          ${{ inputs.no-embed-metadata == 'true' && '--no-embed-metadata' || '' }}
-
-        # Set outputs
-        echo "result-dir=$RESULT_DIR" >> $GITHUB_OUTPUT
-        echo "targets=$TARGETS" >> $GITHUB_OUTPUT
+        "${{ github.action_path }}/action-wrapper.sh"
