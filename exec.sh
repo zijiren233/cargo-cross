@@ -952,7 +952,7 @@ function expandTargets() {
 	IFS=',' read -ra TARGET_ARRAY <<<"$targets"
 	for target in "${TARGET_ARRAY[@]}"; do
 		target=$(echo "$target" | xargs) # Trim whitespace
-		[[ -z "$target" ]] && continue # Skip empty entries
+		[[ -z "$target" ]] && continue   # Skip empty entries
 
 		if [[ "$target" == "all" ]]; then
 			# Return all supported targets
@@ -1003,21 +1003,21 @@ isNextArgOption() {
 
 	# Check if it's a known short option (exact match or with = for those that support it)
 	case "$next_arg" in
-		-h|-r|-v|-q)
-			# These short options don't support = form
-			return 0
-			;;
-		-t|-j)
-			# These short options exist without =
-			return 0
-			;;
-		-t=*|-j=*)
-			# These short options support = form
-			return 0
-			;;
-		*)
-			return 1
-			;;
+	-h | -r | -v | -q)
+		# These short options don't support = form
+		return 0
+		;;
+	-t | -j)
+		# These short options exist without =
+		return 0
+		;;
+	-t=* | -j=*)
+		# These short options support = form
+		return 0
+		;;
+	*)
+		return 1
+		;;
 	esac
 }
 
@@ -1350,10 +1350,15 @@ if [[ -z "$TARGETS" ]]; then
 	TARGETS="$HOST_TRIPLE"
 	USE_DEFAULT_LINKER="true"
 	echo -e "${COLOR_LIGHT_BLUE}No target specified, using host: ${TARGETS}${COLOR_RESET}"
+else
+	# Expand target patterns
+	TARGETS=$(expandTargets "$TARGETS")
+	# Check if expansion resulted in empty string
+	if [[ -z "$TARGETS" ]]; then
+		echo -e "${COLOR_LIGHT_RED}Error: Target expansion resulted in no valid targets${COLOR_RESET}"
+		exit 1
+	fi
 fi
-
-# Expand target patterns
-TARGETS=$(expandTargets "$TARGETS")
 
 # Print execution information
 echo -e "${COLOR_LIGHT_BLUE}Execution configuration:${COLOR_RESET}"
