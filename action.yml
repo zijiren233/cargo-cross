@@ -10,6 +10,10 @@ inputs:
     description: "Command to execute (build, test, check)"
     required: false
     default: "build"
+  target:
+    description: "Rust target triple(s) to build for (newline-separated recommended, comma-separated also supported)"
+    required: false
+    default: ""
   targets:
     description: "Rust target triple(s) to build for (newline-separated recommended, comma-separated also supported)"
     required: false
@@ -204,8 +208,11 @@ runs:
           RESULT_DIR="${{ inputs.source-dir }}/target/cross"
         fi
 
-        # Set default targets if not specified
-        TARGETS="${{ inputs.targets }}"
+        # Set default targets if not specified (prioritize 'target' over 'targets')
+        TARGETS="${{ inputs.target }}"
+        if [ -z "$TARGETS" ]; then
+          TARGETS="${{ inputs.targets }}"
+        fi
         if [ -z "$TARGETS" ]; then
           TARGETS="$(rustc -vV | grep host | cut -d' ' -f2)"
         fi
@@ -213,7 +220,7 @@ runs:
         # Execute command
         "${{ github.action_path }}/exec.sh" \
           ${{ inputs.command }} \
-          ${{ inputs.targets != '' && format('--targets={0}', inputs.targets) || '' }} \
+          ${{ inputs.target != '' && format('--targets={0}', inputs.target) || inputs.targets != '' && format('--targets={0}', inputs.targets) || '' }} \
           --profile=${{ inputs.profile }} \
           ${{ inputs.features != '' && format('--features={0}', inputs.features) || '' }} \
           ${{ inputs.no-default-features == 'true' && '--no-default-features' || '' }} \
