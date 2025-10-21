@@ -18,7 +18,7 @@ readonly DEFAULT_SOURCE_DIR="$(pwd)"
 readonly DEFAULT_RESULT_DIR="${DEFAULT_SOURCE_DIR}/target/cross"
 readonly DEFAULT_PROFILE="release"
 readonly DEFAULT_CROSS_COMPILER_DIR="$(dirname $(mktemp -u))/rust-cross-compiler"
-readonly DEFAULT_CROSS_DEPS_VERSION="v0.6.3"
+readonly DEFAULT_CROSS_DEPS_VERSION="v0.6.4"
 readonly DEFAULT_TTY_WIDTH="40"
 readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
@@ -75,6 +75,13 @@ declare -A TOOLCHAIN_CONFIG=(
 	# Windows targets
 	["i686-pc-windows-gnu"]="windows:i686:gnu"
 	["x86_64-pc-windows-gnu"]="windows:x86_64:gnu"
+
+	# FreeBSD targets
+	["x86_64-unknown-freebsd"]="freebsd:x86_64"
+	["aarch64-unknown-freebsd"]="freebsd:aarch64"
+	["powerpc64-unknown-freebsd"]="freebsd:powerpc64"
+	["powerpc64le-unknown-freebsd"]="freebsd:powerpc64le"
+	["riscv64gc-unknown-freebsd"]="freebsd:riscv64"
 
 	# macOS targets
 	["x86_64-apple-darwin"]="darwin:x86_64"
@@ -347,6 +354,9 @@ function getCrossEnv() {
 	"windows")
 		getWindowsEnv "$arch" "$rust_target" || return $?
 		;;
+	"freebsd")
+		getFreebsdEnv "$arch" "$rust_target" || return $?
+		;;
 	"darwin")
 		getDarwinEnv "$arch" "$rust_target" || return $?
 		;;
@@ -439,6 +449,62 @@ function getWindowsEnv() {
 	TARGET_LINKER="${linker_name}"
 
 	echo -e "${COLOR_LIGHT_GREEN}Configured Windows toolchain for $rust_target${COLOR_RESET}"
+}
+
+# Get FreeBSD cross-compilation environment
+function getFreebsdEnv() {
+	local arch="$1"
+	local rust_target="$2"
+
+	local arch_prefix=""
+	case "$arch" in
+	"x86_64")
+		arch_prefix="x86_64"
+		;;
+	"aarch64")
+		arch_prefix="aarch64"
+		;;
+	"powerpc")
+		arch_prefix="powerpc"
+		;;
+	"powerpc64")
+		arch_prefix="powerpc64"
+		;;
+	"powerpc64le")
+		arch_prefix="powerpc64le"
+		;;
+	"riscv64")
+		arch_prefix="riscv64"
+		;;
+	*)
+		echo -e "${COLOR_LIGHT_RED}Unsupported FreeBSD architecture: $arch${COLOR_RESET}"
+		return 1
+		;;
+	esac
+
+	local cross_compiler_name="${arch_prefix}-unknown-freebsd13-cross"
+	local gcc_name="${arch_prefix}-unknown-freebsd13-gcc"
+	local ar_name="${arch_prefix}-unknown-freebsd13-ar"
+	local linker_name="${gcc_name}"
+
+	if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${gcc_name}" ]]; then
+		local unamespacer="${HOST_OS}-${HOST_ARCH}"
+		[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-armv7"
+		[[ "${HOST_ARCH}" == "arm64" ]] && unamespacer="${HOST_OS}-aarch64"
+		[[ "${HOST_ARCH}" == "amd64" ]] && unamespacer="${HOST_OS}-x86_64"
+
+		downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
+			"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
+	fi
+	# Store the additional path needed for this target
+	EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
+
+	TARGET_CC="${gcc_name}"
+	TARGET_CXX="${arch_prefix}-unknown-freebsd13-g++"
+	TARGET_AR="${ar_name}"
+	TARGET_LINKER="${linker_name}"
+
+	echo -e "${COLOR_LIGHT_GREEN}Configured FreeBSD toolchain for $rust_target${COLOR_RESET}"
 }
 
 # Get Darwin (macOS) environment
