@@ -18,7 +18,7 @@ readonly DEFAULT_SOURCE_DIR="$(pwd)"
 readonly DEFAULT_RESULT_DIR="${DEFAULT_SOURCE_DIR}/target/cross"
 readonly DEFAULT_PROFILE="release"
 readonly DEFAULT_CROSS_COMPILER_DIR="$(dirname $(mktemp -u))/rust-cross-compiler"
-readonly DEFAULT_CROSS_DEPS_VERSION="v0.6.4"
+readonly DEFAULT_CROSS_DEPS_VERSION="v0.6.6"
 readonly DEFAULT_TTY_WIDTH="40"
 readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
@@ -30,77 +30,71 @@ readonly HOST_ARCH="$(uname -m)"
 readonly HOST_TRIPLE="$(rustc -vV | grep host | cut -d' ' -f2)"
 
 # Supported Rust targets with their toolchain configurations
-declare -A TOOLCHAIN_CONFIG=(
-	# Linux musl targets
-	["aarch64-unknown-linux-musl"]="linux:aarch64:musl"
-	["arm-unknown-linux-musleabi"]="linux:armv6:musl:eabi"
-	["arm-unknown-linux-musleabihf"]="linux:armv6:musl:eabihf"
-	["armv5te-unknown-linux-musleabi"]="linux:armv5:musl:eabi"
-	["armv7-unknown-linux-musleabi"]="linux:armv7:musl:eabi"
-	["armv7-unknown-linux-musleabihf"]="linux:armv7:musl:eabihf"
-	["i586-unknown-linux-musl"]="linux:i586:musl"
-	["i686-unknown-linux-musl"]="linux:i686:musl"
-	["loongarch64-unknown-linux-musl"]="linux:loongarch64:musl"
-	["mips-unknown-linux-musl"]="linux:mips:musl"
-	["mipsel-unknown-linux-musl"]="linux:mipsel:musl"
-	["mips64-unknown-linux-muslabi64"]="linux:mips64:musl"
-	["mips64-openwrt-linux-musl"]="linux:mips64:musl"
-	["mips64el-unknown-linux-muslabi64"]="linux:mips64el:musl"
-	["powerpc64-unknown-linux-musl"]="linux:powerpc64:musl"
-	["powerpc64le-unknown-linux-musl"]="linux:powerpc64le:musl"
-	["riscv64gc-unknown-linux-musl"]="linux:riscv64:musl"
-	["s390x-unknown-linux-musl"]="linux:s390x:musl"
-	["x86_64-unknown-linux-musl"]="linux:x86_64:musl"
+# Format: "target=os:arch:libc:abi"
+readonly TOOLCHAIN_CONFIG="
+aarch64-unknown-linux-musl=linux:aarch64:musl
+arm-unknown-linux-musleabi=linux:armv6:musl:eabi
+arm-unknown-linux-musleabihf=linux:armv6:musl:eabihf
+armv5te-unknown-linux-musleabi=linux:armv5:musl:eabi
+armv7-unknown-linux-musleabi=linux:armv7:musl:eabi
+armv7-unknown-linux-musleabihf=linux:armv7:musl:eabihf
+i586-unknown-linux-musl=linux:i586:musl
+i686-unknown-linux-musl=linux:i686:musl
+loongarch64-unknown-linux-musl=linux:loongarch64:musl
+mips-unknown-linux-musl=linux:mips:musl
+mipsel-unknown-linux-musl=linux:mipsel:musl
+mips64-unknown-linux-muslabi64=linux:mips64:musl
+mips64-openwrt-linux-musl=linux:mips64:musl
+mips64el-unknown-linux-muslabi64=linux:mips64el:musl
+powerpc64-unknown-linux-musl=linux:powerpc64:musl
+powerpc64le-unknown-linux-musl=linux:powerpc64le:musl
+riscv64gc-unknown-linux-musl=linux:riscv64:musl
+s390x-unknown-linux-musl=linux:s390x:musl
+x86_64-unknown-linux-musl=linux:x86_64:musl
+aarch64-unknown-linux-gnu=linux:aarch64:gnu
+arm-unknown-linux-gnueabi=linux:armv6:gnu:eabi
+arm-unknown-linux-gnueabihf=linux:armv6:gnu:eabihf
+armv5te-unknown-linux-gnueabi=linux:armv5:gnu:eabi
+armv7-unknown-linux-gnueabi=linux:armv7:gnu:eabi
+armv7-unknown-linux-gnueabihf=linux:armv7:gnu:eabihf
+i586-unknown-linux-gnu=linux:i586:gnu
+i686-unknown-linux-gnu=linux:i686:gnu
+loongarch64-unknown-linux-gnu=linux:loongarch64:gnu
+mips-unknown-linux-gnu=linux:mips:gnu
+mipsel-unknown-linux-gnu=linux:mipsel:gnu
+mips64-unknown-linux-gnuabi64=linux:mips64:gnu
+mips64el-unknown-linux-gnuabi64=linux:mips64el:gnu
+powerpc64-unknown-linux-gnu=linux:powerpc64:gnu
+powerpc64le-unknown-linux-gnu=linux:powerpc64le:gnu
+riscv64gc-unknown-linux-gnu=linux:riscv64:gnu
+s390x-unknown-linux-gnu=linux:s390x:gnu
+x86_64-unknown-linux-gnu=linux:x86_64:gnu
+i686-pc-windows-gnu=windows:i686:gnu
+x86_64-pc-windows-gnu=windows:x86_64:gnu
+x86_64-unknown-freebsd=freebsd:x86_64
+aarch64-unknown-freebsd=freebsd:aarch64
+powerpc64-unknown-freebsd=freebsd:powerpc64
+powerpc64le-unknown-freebsd=freebsd:powerpc64le
+riscv64gc-unknown-freebsd=freebsd:riscv64
+x86_64-apple-darwin=darwin:x86_64
+x86_64h-apple-darwin=darwin:x86_64
+aarch64-apple-darwin=darwin:aarch64
+arm64e-apple-darwin=darwin:aarch64
+x86_64-apple-ios=ios:x86_64
+aarch64-apple-ios=ios:aarch64
+aarch64-linux-android=android:aarch64
+arm-linux-androideabi=android:armv7
+armv7-linux-androideabi=android:armv7
+i686-linux-android=android:i686
+riscv64-linux-android=android:riscv64
+x86_64-linux-android=android:x86_64
+"
 
-	# Linux GNU targets
-	["aarch64-unknown-linux-gnu"]="linux:aarch64:gnu"
-	["arm-unknown-linux-gnueabi"]="linux:armv6:gnu:eabi"
-	["arm-unknown-linux-gnueabihf"]="linux:armv6:gnu:eabihf"
-	["armv5te-unknown-linux-gnueabi"]="linux:armv5:gnu:eabi"
-	["armv7-unknown-linux-gnueabi"]="linux:armv7:gnu:eabi"
-	["armv7-unknown-linux-gnueabihf"]="linux:armv7:gnu:eabihf"
-	["i586-unknown-linux-gnu"]="linux:i586:gnu"
-	["i686-unknown-linux-gnu"]="linux:i686:gnu"
-	["loongarch64-unknown-linux-gnu"]="linux:loongarch64:gnu"
-	["mips-unknown-linux-gnu"]="linux:mips:gnu"
-	["mipsel-unknown-linux-gnu"]="linux:mipsel:gnu"
-	["mips64-unknown-linux-gnuabi64"]="linux:mips64:gnu"
-	["mips64el-unknown-linux-gnuabi64"]="linux:mips64el:gnu"
-	["powerpc64-unknown-linux-gnu"]="linux:powerpc64:gnu"
-	["powerpc64le-unknown-linux-gnu"]="linux:powerpc64le:gnu"
-	["riscv64gc-unknown-linux-gnu"]="linux:riscv64:gnu"
-	["s390x-unknown-linux-gnu"]="linux:s390x:gnu"
-	["x86_64-unknown-linux-gnu"]="linux:x86_64:gnu"
-
-	# Windows targets
-	["i686-pc-windows-gnu"]="windows:i686:gnu"
-	["x86_64-pc-windows-gnu"]="windows:x86_64:gnu"
-
-	# FreeBSD targets
-	["x86_64-unknown-freebsd"]="freebsd:x86_64"
-	["aarch64-unknown-freebsd"]="freebsd:aarch64"
-	["powerpc64-unknown-freebsd"]="freebsd:powerpc64"
-	["powerpc64le-unknown-freebsd"]="freebsd:powerpc64le"
-	["riscv64gc-unknown-freebsd"]="freebsd:riscv64"
-
-	# macOS targets
-	["x86_64-apple-darwin"]="darwin:x86_64"
-	["x86_64h-apple-darwin"]="darwin:x86_64"
-	["aarch64-apple-darwin"]="darwin:aarch64"
-	["arm64e-apple-darwin"]="darwin:aarch64"
-
-	# iOS targets
-	["x86_64-apple-ios"]="ios:x86_64"
-	["aarch64-apple-ios"]="ios:aarch64"
-
-	# Android targets
-	["aarch64-linux-android"]="android:aarch64"
-	["arm-linux-androideabi"]="android:armv7"
-	["armv7-linux-androideabi"]="android:armv7"
-	["i686-linux-android"]="android:i686"
-	["riscv64-linux-android"]="android:riscv64"
-	["x86_64-linux-android"]="android:x86_64"
-)
+# Get toolchain configuration for a target
+function getToolchainConfig() {
+	local target="$1"
+	echo "$TOOLCHAIN_CONFIG" | grep "^${target}=" | cut -d'=' -f2
+}
 
 # Prints help information
 function printHelp() {
@@ -334,7 +328,7 @@ function getCrossEnv() {
 		return 0
 	fi
 
-	local toolchain_info="${TOOLCHAIN_CONFIG[$rust_target]}"
+	local toolchain_info="$(getToolchainConfig "$rust_target")"
 	if [[ -z "$toolchain_info" ]]; then
 		echo -e "${COLOR_LIGHT_YELLOW}No specific toolchain configuration for $rust_target, using default${COLOR_RESET}"
 		return 0
@@ -1027,16 +1021,20 @@ function expandTargets() {
 
 		if [[ "$target" == "all" ]]; then
 			# Return all supported targets
-			for key in "${!TOOLCHAIN_CONFIG[@]}"; do
+			while IFS= read -r line; do
+				[[ -z "$line" ]] && continue
+				local key="${line%%=*}"
 				expanded="${expanded}${key},"
-			done
+			done <<<"$TOOLCHAIN_CONFIG"
 		elif [[ "$target" == *"*"* ]]; then
 			# Pattern matching (e.g., "*-linux-musl")
-			for key in "${!TOOLCHAIN_CONFIG[@]}"; do
+			while IFS= read -r line; do
+				[[ -z "$line" ]] && continue
+				local key="${line%%=*}"
 				if [[ "$key" == $target ]]; then
 					expanded="${expanded}${key},"
 				fi
-			done
+			done <<<"$TOOLCHAIN_CONFIG"
 		else
 			# Direct target
 			expanded="${expanded}${target},"
@@ -1170,8 +1168,8 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--show-all-targets)
 		echo -e "${COLOR_LIGHT_GREEN}Supported Rust targets:${COLOR_RESET}"
-		for key in $(printf '%s\n' "${!TOOLCHAIN_CONFIG[@]}" | sort); do
-			echo "  $key"
+		echo "$TOOLCHAIN_CONFIG" | grep -v '^$' | cut -d'=' -f1 | sort | while read -r target; do
+			[[ -n "$target" ]] && echo "  $target"
 		done
 		exit 0
 		;;
