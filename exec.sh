@@ -1,7 +1,16 @@
 #!/bin/bash
 set -e
 
-# Light Color definitions
+# =============================================================================
+# Rust Cross-Compilation Build Script
+# =============================================================================
+# This script provides cross-compilation support for Rust projects across
+# multiple platforms including Linux, Windows, macOS, FreeBSD, iOS, and Android.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Color Definitions
+# -----------------------------------------------------------------------------
 readonly COLOR_LIGHT_RED='\033[1;31m'
 readonly COLOR_LIGHT_GREEN='\033[1;32m'
 readonly COLOR_LIGHT_YELLOW='\033[1;33m'
@@ -13,9 +22,10 @@ readonly COLOR_DARK_GRAY='\033[1;30m'
 readonly COLOR_WHITE='\033[1;37m'
 readonly COLOR_RESET='\033[0m'
 
-# Default values
+# -----------------------------------------------------------------------------
+# Default Configuration
+# -----------------------------------------------------------------------------
 readonly DEFAULT_SOURCE_DIR="$(pwd)"
-readonly DEFAULT_RESULT_DIR="${DEFAULT_SOURCE_DIR}/target/cross"
 readonly DEFAULT_PROFILE="release"
 readonly DEFAULT_CROSS_COMPILER_DIR="$(dirname $(mktemp -u))/rust-cross-compiler"
 readonly DEFAULT_CROSS_DEPS_VERSION="v0.6.6"
@@ -24,11 +34,16 @@ readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
 readonly DEFAULT_TOOLCHAIN=""
 
-# Host environment
+# -----------------------------------------------------------------------------
+# Host Environment Detection
+# -----------------------------------------------------------------------------
 readonly HOST_OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 readonly HOST_ARCH="$(uname -m)"
 readonly HOST_TRIPLE="$(rustc -vV | grep host | cut -d' ' -f2)"
 
+# -----------------------------------------------------------------------------
+# Target Configuration Database
+# -----------------------------------------------------------------------------
 # Supported Rust targets with their toolchain configurations
 # Format: "target=os:arch:libc:abi"
 readonly TOOLCHAIN_CONFIG="
@@ -77,9 +92,9 @@ powerpc64-unknown-freebsd=freebsd:powerpc64
 powerpc64le-unknown-freebsd=freebsd:powerpc64le
 riscv64gc-unknown-freebsd=freebsd:riscv64
 x86_64-apple-darwin=darwin:x86_64
-x86_64h-apple-darwin=darwin:x86_64
+x86_64h-apple-darwin=darwin:x86_64h
 aarch64-apple-darwin=darwin:aarch64
-arm64e-apple-darwin=darwin:aarch64
+arm64e-apple-darwin=darwin:arm64e
 x86_64-apple-ios=ios:x86_64
 aarch64-apple-ios=ios:aarch64
 aarch64-linux-android=android:aarch64
@@ -90,14 +105,76 @@ riscv64-linux-android=android:riscv64
 x86_64-linux-android=android:x86_64
 "
 
+# -----------------------------------------------------------------------------
+# Utility Functions
+# -----------------------------------------------------------------------------
+
 # Get toolchain configuration for a target
-function getToolchainConfig() {
+get_toolchain_config() {
 	local target="$1"
 	echo "$TOOLCHAIN_CONFIG" | grep "^${target}=" | cut -d'=' -f2
 }
 
+# Sets a variable to a default value if it's not already set
+set_default() {
+	local var_name="$1"
+	local default_value="$2"
+	[[ -z "${!var_name}" ]] && eval "${var_name}=\"${default_value}\"" || true
+}
+
+# Get separator line
+print_separator() {
+	local width=$(tput cols 2>/dev/null || echo $DEFAULT_TTY_WIDTH)
+	printf '%*s\n' "$width" '' | tr ' ' -
+}
+
+# Log functions for consistent output
+log_info() {
+	echo -e "${COLOR_LIGHT_BLUE}$*${COLOR_RESET}"
+}
+
+log_success() {
+	echo -e "${COLOR_LIGHT_GREEN}$*${COLOR_RESET}"
+}
+
+log_warning() {
+	echo -e "${COLOR_LIGHT_YELLOW}$*${COLOR_RESET}"
+}
+
+log_error() {
+	echo -e "${COLOR_LIGHT_RED}$*${COLOR_RESET}" >&2
+}
+
+# Get next argument value or exit with error
+get_arg_value() {
+	local option_name="$1"
+	local next_value="$2"
+
+	if [[ -z "$next_value" || "$next_value" == -* ]]; then
+		log_error "Error: $option_name requires a value"
+		exit 1
+	fi
+	echo "$next_value"
+}
+
+# Parse single-value option argument
+parse_option_value() {
+	local option_name="$1"
+	shift
+	if [[ $# -gt 0 ]]; then
+		echo "$1"
+	else
+		log_error "Error: $option_name requires a value"
+		exit 1
+	fi
+}
+
+# -----------------------------------------------------------------------------
+# Help and Information
+# -----------------------------------------------------------------------------
+
 # Prints help information
-function printHelp() {
+print_help() {
 	echo -e "${COLOR_LIGHT_GREEN}Usage:${COLOR_RESET}"
 	echo -e "  $(basename "$0") [command] [options]"
 	echo -e ""
@@ -107,15 +184,12 @@ function printHelp() {
 	echo -e "  ${COLOR_LIGHT_BLUE}check${COLOR_RESET}                               - Check the project"
 	echo -e ""
 	echo -e "${COLOR_LIGHT_RED}Options:${COLOR_RESET}"
-	echo -e "  ${COLOR_LIGHT_BLUE}--bin-name=<name>${COLOR_RESET}                 - Specify the binary name (auto-detect if not set)"
-	echo -e "  ${COLOR_LIGHT_BLUE}--bin-name-no-suffix${COLOR_RESET}              - Do not append the target suffix to the binary name"
 	echo -e "  ${COLOR_LIGHT_BLUE}--profile=<profile>${COLOR_RESET}               - Set the build profile (debug/release, default: ${DEFAULT_PROFILE})"
 	echo -e "  ${COLOR_LIGHT_BLUE}--cross-compiler-dir=<dir>${COLOR_RESET}        - Specify the cross compiler directory"
 	echo -e "  ${COLOR_LIGHT_BLUE}--features=<features>${COLOR_RESET}             - Comma-separated list of features to activate"
 	echo -e "  ${COLOR_LIGHT_BLUE}--no-default-features${COLOR_RESET}             - Do not activate default features"
 	echo -e "  ${COLOR_LIGHT_BLUE}--all-features${COLOR_RESET}                    - Activate all available features"
 	echo -e "  ${COLOR_LIGHT_BLUE}-t=<targets>, --targets=<targets>${COLOR_RESET} - Rust target triple(s) (e.g., x86_64-unknown-linux-musl)"
-	echo -e "  ${COLOR_LIGHT_BLUE}--result-dir=<dir>${COLOR_RESET}                - Specify the build result directory"
 	echo -e "  ${COLOR_LIGHT_BLUE}--show-all-targets${COLOR_RESET}                - Display all supported target triples"
 	echo -e "  ${COLOR_LIGHT_BLUE}--github-proxy-mirror=<url>${COLOR_RESET}       - Use a GitHub proxy mirror"
 	echo -e "  ${COLOR_LIGHT_BLUE}--ndk-version=<version>${COLOR_RESET}           - Specify the Android NDK version"
@@ -152,15 +226,21 @@ function printHelp() {
 	echo -e "  ${COLOR_LIGHT_BLUE}-h, --help${COLOR_RESET}                        - Display this help message"
 }
 
-# Sets a variable to a default value if it's not already set
-function setDefault() {
-	local var_name="$1"
-	local default_value="$2"
-	[[ -z "${!var_name}" ]] && eval "${var_name}=\"${default_value}\"" || true
+# -----------------------------------------------------------------------------
+# Download and Archive Handling
+# -----------------------------------------------------------------------------
+
+# Get host platform string for downloads
+get_host_platform() {
+	local host_arch="${HOST_ARCH}"
+	[[ "${HOST_ARCH}" == "arm" ]] && host_arch="armv7"
+	[[ "${HOST_ARCH}" == "arm64" ]] && host_arch="aarch64"
+	[[ "${HOST_ARCH}" == "amd64" ]] && host_arch="x86_64"
+	echo "${HOST_OS}-${host_arch}"
 }
 
 # Downloads and extracts a file
-function downloadAndUnzip() {
+download_and_extract() {
 	local url="$1"
 	local file="$2"
 	local type="${3:-$(echo "${url}" | sed 's/.*\.//g')}"
@@ -170,7 +250,7 @@ function downloadAndUnzip() {
 	if [ "$(ls -A "${file}")" ]; then
 		rm -rf "${file}"/* || return $?
 	fi
-	echo -e "${COLOR_LIGHT_BLUE}Downloading ${COLOR_LIGHT_CYAN}\"${url}\"${COLOR_LIGHT_BLUE} to ${COLOR_LIGHT_CYAN}\"${file}\"${COLOR_RESET}"
+	log_info "Downloading \"${url}\" to \"${file}\""
 
 	local start_time=$(date +%s)
 
@@ -196,66 +276,116 @@ function downloadAndUnzip() {
 	esac
 
 	local end_time=$(date +%s)
-	echo -e "${COLOR_LIGHT_GREEN}Download and extraction successful (took $((end_time - start_time))s)${COLOR_RESET}"
+	log_success "Download and extraction successful (took $((end_time - start_time))s)"
 }
 
-# Get separator line
-function printSeparator() {
-	local width=$(tput cols 2>/dev/null || echo $DEFAULT_TTY_WIDTH)
-	printf '%*s\n' "$width" '' | tr ' ' -
+# Download cross-compiler if needed
+# Args: compiler_dir, compiler_name, download_url
+download_cross_compiler() {
+	local compiler_dir="$1"
+	local compiler_name="$2"
+	local download_url="$3"
+
+	if [[ ! -d "${compiler_dir}" ]]; then
+		download_and_extract "${download_url}" "${compiler_dir}" || return 2
+	fi
+
+	echo "${compiler_dir}"
 }
+
+# Set cross-compilation environment variables
+# Args: cc, cxx, ar, linker, extra_path
+set_cross_env() {
+	TARGET_CC="$1"
+	TARGET_CXX="$2"
+	TARGET_AR="$3"
+	TARGET_LINKER="$4"
+	EXTRA_PATH="$5"
+}
+
+# Set iOS/Darwin SDK root from compiler directory
+# Args: cross_compiler_name
+set_ios_sdk_root() {
+	local cross_compiler_name="$1"
+	local sdk_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}/SDK"
+	if [[ -d "$sdk_dir" ]]; then
+		local first_sdk="$(find "$sdk_dir" -maxdepth 1 -type d ! -path "$sdk_dir" | head -n 1)"
+		if [[ -n "$first_sdk" ]]; then
+			SDKROOT="$first_sdk"
+		fi
+	fi
+}
+
+# Add environment variable to build_env array if value is non-empty
+# Args: env_var_name, value
+add_env_if_set() {
+	local var_name="$1"
+	local var_value="$2"
+	[[ -n "$var_value" ]] && build_env+=("${var_name}=${var_value}")
+}
+
+# Fix rpath for Darwin/iOS linkers
+# Args: compiler_dir, arch_prefix
+fix_darwin_linker_rpath() {
+	local compiler_dir="$1"
+	local arch_prefix="$2"
+	patchelf --set-rpath "${compiler_dir}/lib" \
+		${compiler_dir}/bin/${arch_prefix}-apple-darwin*-ld || return 2
+}
+
+# -----------------------------------------------------------------------------
+# Rust Toolchain Management
+# -----------------------------------------------------------------------------
 
 # Helper function to add rust-src component
-function addRustSrc() {
+add_rust_src() {
 	local target="$1"
 	local toolchain="$2"
-	if [[ -n "$toolchain" ]]; then
-		echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component for target: $target and toolchain: $toolchain${COLOR_RESET}"
-		rustup component add rust-src --target="$target" --toolchain="$toolchain" || return $?
-	else
-		echo -e "${COLOR_LIGHT_BLUE}Adding rust-src component for target: $target${COLOR_RESET}"
-		rustup component add rust-src --target="$target" || return $?
-	fi
+	local toolchain_flag=""
+	[[ -n "$toolchain" ]] && toolchain_flag="--toolchain=$toolchain"
+
+	log_info "Adding rust-src component for target: $target${toolchain:+ and toolchain: $toolchain}"
+	rustup component add rust-src --target="$target" $toolchain_flag || return $?
 }
 
 # Helper function to install target
-function installTarget() {
+install_target() {
 	local rust_target="$1"
 	local toolchain="$2"
-	if [[ -n "$toolchain" ]]; then
-		echo -e "${COLOR_LIGHT_BLUE}Installing Rust target: $rust_target for toolchain: $toolchain${COLOR_RESET}"
-		rustup target add "$rust_target" --toolchain="$toolchain" || return $?
-	else
-		echo -e "${COLOR_LIGHT_BLUE}Installing Rust target: $rust_target${COLOR_RESET}"
-		rustup target add "$rust_target" || return $?
-	fi
+	local toolchain_flag=""
+	[[ -n "$toolchain" ]] && toolchain_flag="--toolchain=$toolchain"
+
+	log_info "Installing Rust target: $rust_target${toolchain:+ for toolchain: $toolchain}"
+	rustup target add "$rust_target" $toolchain_flag || return $?
 }
 
 # Helper function to check if target is installed
-function isTargetInstalled() {
+is_target_installed() {
 	local rust_target="$1"
 	local toolchain="$2"
-	if [[ -n "$toolchain" ]]; then
-		rustup target list --installed --toolchain="$toolchain" | grep -q "^$rust_target$"
-	else
-		rustup target list --installed | grep -q "^$rust_target$"
-	fi
+	local toolchain_flag=""
+	[[ -n "$toolchain" ]] && toolchain_flag="--toolchain=$toolchain"
+
+	rustup target list --installed $toolchain_flag | grep -q "^$rust_target$"
 }
 
 # Helper function to check if target is available in rustup
-function isTargetAvailable() {
+is_target_available() {
 	local rust_target="$1"
 	local toolchain="$2"
-	if [[ -n "$toolchain" ]]; then
-		rustup target list --toolchain="$toolchain" | grep -q "^$rust_target$"
-	else
-		rustup target list | grep -q "^$rust_target$"
-	fi
+	local toolchain_flag=""
+	[[ -n "$toolchain" ]] && toolchain_flag="--toolchain=$toolchain"
+
+	rustup target list $toolchain_flag | grep -q "^$rust_target$"
 }
+
+# -----------------------------------------------------------------------------
+# Cross-Compilation Environment Setup
+# -----------------------------------------------------------------------------
 
 # Get cross-compilation environment variables
 # Returns environment variables as a string suitable for use with env command
-function getCrossEnv() {
+get_cross_env() {
 	local rust_target="$1"
 
 	# Clear target-specific variables
@@ -266,17 +396,17 @@ function getCrossEnv() {
 	# curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 	# Install target if not already installed, or use build-std if target not available in rustup
-	if ! isTargetInstalled "$rust_target" "$TOOLCHAIN"; then
+	if ! is_target_installed "$rust_target" "$TOOLCHAIN"; then
 		# Check if target is available for installation in rustup
-		if isTargetAvailable "$rust_target" "$TOOLCHAIN"; then
-			installTarget "$rust_target" "$TOOLCHAIN" || return $?
+		if is_target_available "$rust_target" "$TOOLCHAIN"; then
+			install_target "$rust_target" "$TOOLCHAIN" || return $?
 		else
 			# Check if target exists in rustc --print=target-list
 			if rustc --print=target-list | grep -q "^$rust_target$"; then
-				echo -e "${COLOR_LIGHT_YELLOW}Target $rust_target not available in rustup but exists in rustc, using build-std${COLOR_RESET}"
+				log_warning "Target $rust_target not available in rustup but exists in rustc, using build-std"
 				TARGET_BUILD_STD=true
 			else
-				echo -e "${COLOR_LIGHT_RED}Target $rust_target not found in rustup or rustc target list${COLOR_RESET}"
+				log_error "Target $rust_target not found in rustup or rustc target list"
 				return 1
 			fi
 		fi
@@ -284,7 +414,7 @@ function getCrossEnv() {
 
 	# Skip toolchain setup if using default linker
 	if [[ "$USE_DEFAULT_LINKER" == "true" ]]; then
-		echo -e "${COLOR_LIGHT_YELLOW}Using system default linker for $rust_target${COLOR_RESET}"
+		log_warning "Using system default linker for $rust_target"
 		return 0
 	fi
 
@@ -298,7 +428,7 @@ function getCrossEnv() {
 	local linker_var="CARGO_TARGET_${target_upper}_LINKER"
 
 	if [[ -n "${!cc_var}" ]]; then
-		echo -e "${COLOR_LIGHT_GREEN}Using pre-configured ${cc_var}=${!cc_var}${COLOR_RESET}"
+		log_success "Using pre-configured ${cc_var}=${!cc_var}"
 		TARGET_CC="${!cc_var}"
 		if [[ -n "${!cxx_var}" ]]; then
 			TARGET_CXX="${!cxx_var}"
@@ -328,9 +458,9 @@ function getCrossEnv() {
 		return 0
 	fi
 
-	local toolchain_info="$(getToolchainConfig "$rust_target")"
+	local toolchain_info="$(get_toolchain_config "$rust_target")"
 	if [[ -z "$toolchain_info" ]]; then
-		echo -e "${COLOR_LIGHT_YELLOW}No specific toolchain configuration for $rust_target, using default${COLOR_RESET}"
+		log_warning "No specific toolchain configuration for $rust_target, using default"
 		return 0
 	fi
 
@@ -343,174 +473,147 @@ function getCrossEnv() {
 
 	case "$os" in
 	"linux")
-		getLinuxEnv "$arch" "$libc" "$abi" "$rust_target" || return $?
+		get_linux_env "$arch" "$libc" "$abi" "$rust_target" || return $?
 		;;
 	"windows")
-		getWindowsEnv "$arch" "$rust_target" || return $?
+		get_windows_gnu_env "$arch" "$rust_target" || return $?
 		;;
 	"freebsd")
-		getFreebsdEnv "$arch" "$rust_target" || return $?
+		get_freebsd_env "$arch" "$rust_target" || return $?
 		;;
 	"darwin")
-		getDarwinEnv "$arch" "$rust_target" || return $?
+		get_darwin_env "$arch" "$rust_target" || return $?
 		;;
 	"android")
-		getAndroidEnv "$arch" "$rust_target" || return $?
+		get_android_env "$arch" "$rust_target" || return $?
 		;;
 	"ios")
-		getIosEnv "$arch" "$rust_target" || return $?
+		get_ios_env "$arch" "$rust_target" || return $?
 		;;
 	*)
-		echo -e "${COLOR_LIGHT_YELLOW}No cross-compilation setup needed for $rust_target${COLOR_RESET}"
+		log_warning "No cross-compilation setup needed for $rust_target"
 		;;
 	esac
 }
 
+# -----------------------------------------------------------------------------
+# Platform-Specific Environment Functions
+# -----------------------------------------------------------------------------
+
 # Get Linux cross-compilation environment
-function getLinuxEnv() {
+get_linux_env() {
 	local arch="$1"
 	local libc="$2"
 	local abi="$3"
 	local rust_target="$4"
 
-	if [ -z "$libc" ]; then return 1; fi
+	[[ -z "$libc" ]] && return 1
 
-	# Map architecture to cross-compiler prefix
 	local arch_prefix="$arch"
 	local cross_compiler_name="${arch_prefix}-linux-${libc}${abi}-cross"
 	local gcc_name="${arch_prefix}-linux-${libc}${abi}-gcc"
-	local ar_name="${arch_prefix}-linux-${libc}${abi}-ar"
+	local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}"
 
-	if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${gcc_name}" ]]; then
-		local unamespacer="${HOST_OS}-${HOST_ARCH}"
-		[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-armv7"
-		[[ "${HOST_ARCH}" == "arm64" ]] && unamespacer="${HOST_OS}-aarch64"
-		[[ "${HOST_ARCH}" == "amd64" ]] && unamespacer="${HOST_OS}-x86_64"
-
-		downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
-			"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
+	# Download compiler if not present
+	if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
+		local host_platform=$(get_host_platform)
+		local download_url="${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
+		download_cross_compiler "${compiler_dir}" "${cross_compiler_name}" "${download_url}" || return 2
 	fi
-	# Store the additional path needed for this target
-	EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
 
-	TARGET_CC="${gcc_name}"
-	TARGET_CXX="${arch_prefix}-linux-${libc}${abi}-g++"
-	TARGET_AR="${ar_name}"
-	TARGET_LINKER="${gcc_name}"
+	# Set environment variables
+	set_cross_env \
+		"${gcc_name}" \
+		"${arch_prefix}-linux-${libc}${abi}-g++" \
+		"${arch_prefix}-linux-${libc}${abi}-ar" \
+		"${gcc_name}" \
+		"${compiler_dir}/bin"
 
-	echo -e "${COLOR_LIGHT_GREEN}Configured Linux ${libc} toolchain for $rust_target${COLOR_RESET}"
+	log_success "Configured Linux ${libc} toolchain for $rust_target"
 }
 
 # Get Windows cross-compilation environment
-function getWindowsEnv() {
+get_windows_gnu_env() {
 	local arch="$1"
 	local rust_target="$2"
 
-	local arch_prefix=""
+	# Validate architecture
 	case "$arch" in
-	"i686")
-		arch_prefix="i686"
-		;;
-	"x86_64")
-		arch_prefix="x86_64"
-		;;
+	"i686" | "x86_64") ;;
 	*)
-		echo -e "${COLOR_LIGHT_RED}Unsupported Windows architecture: $arch${COLOR_RESET}"
+		log_error "Unsupported Windows architecture: $arch"
 		return 1
 		;;
 	esac
 
-	local cross_compiler_name="${arch_prefix}-w64-mingw32-cross"
-	local gcc_name="${arch_prefix}-w64-mingw32-gcc"
-	local ar_name="${arch_prefix}-w64-mingw32-ar"
-	local linker_name="${gcc_name}"
+	local cross_compiler_name="${arch}-w64-mingw32-cross"
+	local gcc_name="${arch}-w64-mingw32-gcc"
+	local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}"
 
-	if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${gcc_name}" ]]; then
-		local unamespacer="${HOST_OS}-${HOST_ARCH}"
-		[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-armv7"
-		[[ "${HOST_ARCH}" == "arm64" ]] && unamespacer="${HOST_OS}-aarch64"
-		[[ "${HOST_ARCH}" == "amd64" ]] && unamespacer="${HOST_OS}-x86_64"
-
-		downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
-			"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
+	# Download compiler if not present
+	if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
+		local host_platform=$(get_host_platform)
+		local download_url="${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
+		download_cross_compiler "${compiler_dir}" "${cross_compiler_name}" "${download_url}" || return 2
 	fi
-	# Store the additional path needed for this target
-	EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
 
-	TARGET_CC="${gcc_name}"
-	TARGET_CXX="${arch_prefix}-w64-mingw32-g++"
-	TARGET_AR="${ar_name}"
-	TARGET_LINKER="${linker_name}"
+	# Set environment variables
+	set_cross_env \
+		"${gcc_name}" \
+		"${arch}-w64-mingw32-g++" \
+		"${arch}-w64-mingw32-ar" \
+		"${gcc_name}" \
+		"${compiler_dir}/bin"
 
-	echo -e "${COLOR_LIGHT_GREEN}Configured Windows toolchain for $rust_target${COLOR_RESET}"
+	log_success "Configured Windows toolchain for $rust_target"
 }
 
 # Get FreeBSD cross-compilation environment
-function getFreebsdEnv() {
+get_freebsd_env() {
 	local arch="$1"
 	local rust_target="$2"
 
-	local arch_prefix=""
+	# Validate architecture
 	case "$arch" in
-	"x86_64")
-		arch_prefix="x86_64"
-		;;
-	"aarch64")
-		arch_prefix="aarch64"
-		;;
-	"powerpc")
-		arch_prefix="powerpc"
-		;;
-	"powerpc64")
-		arch_prefix="powerpc64"
-		;;
-	"powerpc64le")
-		arch_prefix="powerpc64le"
-		;;
-	"riscv64")
-		arch_prefix="riscv64"
-		;;
+	"x86_64" | "aarch64" | "powerpc" | "powerpc64" | "powerpc64le" | "riscv64") ;;
 	*)
-		echo -e "${COLOR_LIGHT_RED}Unsupported FreeBSD architecture: $arch${COLOR_RESET}"
+		log_error "Unsupported FreeBSD architecture: $arch"
 		return 1
 		;;
 	esac
 
-	local cross_compiler_name="${arch_prefix}-unknown-freebsd13-cross"
-	local gcc_name="${arch_prefix}-unknown-freebsd13-gcc"
-	local ar_name="${arch_prefix}-unknown-freebsd13-ar"
-	local linker_name="${gcc_name}"
+	local cross_compiler_name="${arch}-unknown-freebsd13-cross"
+	local gcc_name="${arch}-unknown-freebsd13-gcc"
+	local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}"
 
-	if [[ ! -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${gcc_name}" ]]; then
-		local unamespacer="${HOST_OS}-${HOST_ARCH}"
-		[[ "${HOST_ARCH}" == "arm" ]] && unamespacer="${HOST_OS}-armv7"
-		[[ "${HOST_ARCH}" == "arm64" ]] && unamespacer="${HOST_OS}-aarch64"
-		[[ "${HOST_ARCH}" == "amd64" ]] && unamespacer="${HOST_OS}-x86_64"
-
-		downloadAndUnzip "${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${unamespacer}.tgz" \
-			"${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
+	# Download compiler if not present
+	if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
+		local host_platform=$(get_host_platform)
+		local download_url="${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
+		download_cross_compiler "${compiler_dir}" "${cross_compiler_name}" "${download_url}" || return 2
 	fi
-	# Store the additional path needed for this target
-	EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
 
-	TARGET_CC="${gcc_name}"
-	TARGET_CXX="${arch_prefix}-unknown-freebsd13-g++"
-	TARGET_AR="${ar_name}"
-	TARGET_LINKER="${linker_name}"
+	# Set environment variables
+	set_cross_env \
+		"${gcc_name}" \
+		"${arch}-unknown-freebsd13-g++" \
+		"${arch}-unknown-freebsd13-ar" \
+		"${gcc_name}" \
+		"${compiler_dir}/bin"
 
-	echo -e "${COLOR_LIGHT_GREEN}Configured FreeBSD toolchain for $rust_target${COLOR_RESET}"
+	log_success "Configured FreeBSD toolchain for $rust_target"
 }
 
 # Get Darwin (macOS) environment
 # Need install patchelf
-function getDarwinEnv() {
+get_darwin_env() {
 	local arch="$1"
 	local rust_target="$2"
 
 	case "${HOST_OS}" in
 	"darwin")
 		# Native compilation on macOS
-		echo -e "${COLOR_LIGHT_GREEN}Using native macOS toolchain for $rust_target${COLOR_RESET}"
+		log_success "Using native macOS toolchain for $rust_target"
 		;;
 	"linux")
 		# Cross-compilation from Linux to macOS using osxcross
@@ -527,61 +630,47 @@ function getDarwinEnv() {
 			host_arch_name="aarch64"
 			;;
 		*)
-			echo -e "${COLOR_LIGHT_YELLOW}Cross-compilation to macOS not supported on ${HOST_OS}/${HOST_ARCH}${COLOR_RESET}"
+			log_warning "Cross-compilation to macOS not supported on ${HOST_OS}/${HOST_ARCH}"
 			return 1
 			;;
 		esac
 
 		local osxcross_dir="${CROSS_COMPILER_DIR}/osxcross-${host_arch_name}"
 
-		if [[ -x "${osxcross_dir}/bin/o64-clang" ]]; then
-			patchelf --set-rpath "${osxcross_dir}/lib" \
-				${osxcross_dir}/bin/x86_64-apple-darwin*-ld || return 2
-
-			EXTRA_PATH="${osxcross_dir}/bin:${osxcross_dir}/clang/bin"
-		else
+		if [[ ! -x "${osxcross_dir}/bin/o64-clang" ]]; then
 			# Determine download URL based on host architecture
-			local download_url=""
 			local ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "20.04")
 			[[ "$ubuntu_version" != *"."* ]] && ubuntu_version="20.04"
-			if [[ "${host_arch_name}" == "amd64" ]]; then
-				download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.2/osxcross-14-5-linux-x86_64-gnu-ubuntu-${ubuntu_version}.tar.gz"
-			else
-				download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.2/osxcross-14-5-linux-aarch64-gnu-ubuntu-${ubuntu_version}.tar.gz"
-			fi
 
-			downloadAndUnzip "${download_url}" "${osxcross_dir}" || return 2
+			local url_arch="${host_arch_name}"
+			[[ "${host_arch_name}" == "amd64" ]] && url_arch="x86_64"
 
-			patchelf --set-rpath "${osxcross_dir}/lib" \
-				${osxcross_dir}/bin/x86_64-apple-darwin*-ld || return 2
-
-			EXTRA_PATH="${osxcross_dir}/bin:${osxcross_dir}/clang/bin"
+			local download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.3/osxcross-15-5-linux-${url_arch}-gnu-ubuntu-${ubuntu_version}.tar.gz"
+			download_and_extract "${download_url}" "${osxcross_dir}" || return 2
 		fi
 
-		# Set compiler paths based on target architecture
-		if [[ "${arch}" == "x86_64" ]]; then
-			TARGET_CC="${osxcross_dir}/bin/x86_64-apple-darwin23.5-clang"
-			TARGET_CXX="${osxcross_dir}/bin/x86_64-apple-darwin23.5-clang++"
-			TARGET_AR="${osxcross_dir}/bin/x86_64-apple-darwin23.5-ar"
-			TARGET_LINKER="${osxcross_dir}/bin/x86_64-apple-darwin23.5-clang"
-		else
-			TARGET_CC="${osxcross_dir}/bin/aarch64-apple-darwin23.5-clang"
-			TARGET_CXX="${osxcross_dir}/bin/aarch64-apple-darwin23.5-clang++"
-			TARGET_AR="${osxcross_dir}/bin/aarch64-apple-darwin23.5-ar"
-			TARGET_LINKER="${osxcross_dir}/bin/aarch64-apple-darwin23.5-clang"
-		fi
+		fix_darwin_linker_rpath "${osxcross_dir}" "${arch}"
 
-		echo -e "${COLOR_LIGHT_GREEN}Configured osxcross toolchain for $rust_target${COLOR_RESET}"
+		set_cross_env \
+			"${arch}-apple-darwin24.5-clang" \
+			"${arch}-apple-darwin24.5-clang++" \
+			"${arch}-apple-darwin24.5-ar" \
+			"${arch}-apple-darwin24.5-clang" \
+			"${osxcross_dir}/bin:${osxcross_dir}/clang/bin"
+
+		export MACOSX_DEPLOYMENT_TARGET="10.12"
+
+		log_success "Configured osxcross toolchain for $rust_target"
 		;;
 	*)
-		echo -e "${COLOR_LIGHT_YELLOW}Cross-compilation to macOS not supported on ${HOST_OS}${COLOR_RESET}"
+		log_warning "Cross-compilation to macOS not supported on ${HOST_OS}"
 		return 1
 		;;
 	esac
 }
 
 # Get Android environment
-function getAndroidEnv() {
+get_android_env() {
 	local arch="$1"
 	local rust_target="$2"
 
@@ -590,46 +679,45 @@ function getAndroidEnv() {
 
 	if [[ ! -d "${ndk_dir}" ]] || [[ ! -d "${clang_base_dir}" ]]; then
 		local ndk_url="https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-${HOST_OS}.zip"
-		downloadAndUnzip "${ndk_url}" "${ndk_dir}" "zip" || return 2
+		download_and_extract "${ndk_url}" "${ndk_dir}" "zip" || return 2
 		mv "$ndk_dir/android-ndk-${NDK_VERSION}/"* "$ndk_dir"
 		rmdir "$ndk_dir/android-ndk-${NDK_VERSION}" || return 2
 	fi
 
+	# Map architecture to Android target prefix
 	local API="${API:-24}"
-	local clang_prefix=""
-
+	local clang_prefix
 	case "$arch" in
-	"armv7")
-		clang_prefix="armv7a-linux-androideabi${API}"
-		;;
-	"aarch64")
-		clang_prefix="aarch64-linux-android${API}"
-		;;
-	"i686")
-		clang_prefix="i686-linux-android${API}"
-		;;
-	"x86_64")
-		clang_prefix="x86_64-linux-android${API}"
+	"armv7") clang_prefix="armv7a-linux-androideabi${API}" ;;
+	"aarch64") clang_prefix="aarch64-linux-android${API}" ;;
+	"i686") clang_prefix="i686-linux-android${API}" ;;
+	"x86_64") clang_prefix="x86_64-linux-android${API}" ;;
+	*)
+		log_error "Unsupported Android architecture: $arch"
+		return 1
 		;;
 	esac
 
-	TARGET_CC="${clang_base_dir}/${clang_prefix}-clang"
-	TARGET_CXX="${clang_base_dir}/${clang_prefix}-clang++"
-	TARGET_AR="${clang_base_dir}/llvm-ar"
-	TARGET_LINKER="${clang_base_dir}/${clang_prefix}-clang"
+	# Set environment variables
+	set_cross_env \
+		"${clang_prefix}-clang" \
+		"${clang_prefix}-clang++" \
+		"llvm-ar" \
+		"${clang_prefix}-clang" \
+		"${clang_base_dir}"
 
-	echo -e "${COLOR_LIGHT_GREEN}Configured Android toolchain for $rust_target${COLOR_RESET}"
+	log_success "Configured Android toolchain for $rust_target"
 }
 
 # Get iOS environment
-function getIosEnv() {
+get_ios_env() {
 	local arch="$1"
 	local rust_target="$2"
 
 	case "${HOST_OS}" in
 	"darwin")
 		# Native compilation on macOS
-		echo -e "${COLOR_LIGHT_GREEN}Using native macOS toolchain for $rust_target${COLOR_RESET}"
+		log_success "Using native macOS toolchain for $rust_target"
 		;;
 	"linux")
 		# Map architecture to cross-compiler prefix
@@ -641,7 +729,7 @@ function getIosEnv() {
 			local arch_prefix="x86_64"
 			;;
 		*)
-			echo -e "${COLOR_LIGHT_YELLOW}Unknown iOS architecture: ${arch}${COLOR_RESET}"
+			log_warning "Unknown iOS architecture: ${arch}"
 			return 2
 			;;
 		esac
@@ -657,130 +745,75 @@ function getIosEnv() {
 		local ar_name="${arch_prefix}-apple-darwin11-ar"
 		local linker_name="${arch_prefix}-apple-darwin11-ld"
 
-		if [[ -x "${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${clang_name}" ]]; then
-			# Cross-compiler already downloaded
-			# Fix rpath if on Linux
-			patchelf --set-rpath "${CROSS_COMPILER_DIR}/${cross_compiler_name}/lib" \
-				${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${arch_prefix}-apple-darwin*-ld || return 2
+		local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}"
 
-			EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin"
-			# Set SDKROOT to first folder in SDK directory
-			local sdk_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}/SDK"
-			if [[ -d "$sdk_dir" ]]; then
-				local first_sdk="$(find "$sdk_dir" -maxdepth 1 -type d ! -path "$sdk_dir" | head -n 1)"
-				if [[ -n "$first_sdk" ]]; then
-					SDKROOT="$first_sdk"
-				fi
-			fi
-		else
+		if [[ ! -x "${compiler_dir}/bin/${clang_name}" ]]; then
 			# Download cross-compiler
-			local unamespacer="${HOST_OS}-${HOST_ARCH}"
+			local host_platform=$(get_host_platform)
 
 			local ubuntu_version=""
 			ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "20.04")
 			[[ "$ubuntu_version" != *"."* ]] && ubuntu_version="20.04"
 
-			local download_url=""
+			local ios_sdk_type="iPhoneOS"
+			local ios_arch="${arch_prefix}"
 			if [[ "${arch}" == "x86_64" ]]; then
-				download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.6/ioscross-iPhoneSimulator18-5-x86_64-${unamespacer}-gnu-ubuntu-${ubuntu_version}.tar.gz"
-			else
-				download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.6/ioscross-iPhoneOS18-5-arm64-${unamespacer}-gnu-ubuntu-${ubuntu_version}.tar.gz"
+				ios_sdk_type="iPhoneSimulator"
+				ios_arch="x86_64"
 			fi
 
-			downloadAndUnzip "$download_url" "${CROSS_COMPILER_DIR}/${cross_compiler_name}" || return 2
-
-			# Fix rpath if on Linux
-			patchelf --set-rpath "${CROSS_COMPILER_DIR}/${cross_compiler_name}/lib" \
-				${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/${arch_prefix}-apple-darwin*-ld || return 2
-
-			EXTRA_PATH="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin:${CROSS_COMPILER_DIR}/${cross_compiler_name}/clang/bin"
-			# Set SDKROOT to first folder in SDK directory
-			local sdk_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}/SDK"
-			if [[ -d "$sdk_dir" ]]; then
-				local first_sdk="$(find "$sdk_dir" -maxdepth 1 -type d ! -path "$sdk_dir" | head -n 1)"
-				if [[ -n "$first_sdk" ]]; then
-					SDKROOT="$first_sdk"
-				fi
-			fi
+			local download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.6/ioscross-${ios_sdk_type}18-5-${ios_arch}-${host_platform}-gnu-ubuntu-${ubuntu_version}.tar.gz"
+			download_and_extract "$download_url" "${compiler_dir}" || return 2
 		fi
+
+		fix_darwin_linker_rpath "${compiler_dir}" "${arch_prefix}"
+
+		# Set SDKROOT to first folder in SDK directory
+		set_ios_sdk_root "${cross_compiler_name}"
 
 		# Set compiler paths based on target architecture
-		if [[ "${arch}" == "x86_64" ]]; then
-			TARGET_CC="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/x86_64-apple-darwin11-clang"
-			TARGET_CXX="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/x86_64-apple-darwin11-clang++"
-			TARGET_AR="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/x86_64-apple-darwin11-ar"
-			TARGET_LINKER="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/x86_64-apple-darwin11-ld"
-		else
-			TARGET_CC="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/arm64-apple-darwin11-clang"
-			TARGET_CXX="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/arm64-apple-darwin11-clang++"
-			TARGET_AR="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/arm64-apple-darwin11-ar"
-			TARGET_LINKER="${CROSS_COMPILER_DIR}/${cross_compiler_name}/bin/arm64-apple-darwin11-ld"
-		fi
+		set_cross_env \
+			"${arch_prefix}-apple-darwin11-clang" \
+			"${arch_prefix}-apple-darwin11-clang++" \
+			"${arch_prefix}-apple-darwin11-ar" \
+			"${arch_prefix}-apple-darwin11-ld" \
+			"${compiler_dir}/bin:${compiler_dir}/clang/bin"
 
-		echo -e "${COLOR_LIGHT_GREEN}Configured iOS toolchain for $rust_target${COLOR_RESET}"
+		log_success "Configured iOS toolchain for $rust_target"
 		;;
 	*)
-		echo -e "${COLOR_LIGHT_YELLOW}Cross-compilation to macOS not supported on ${HOST_OS}${COLOR_RESET}"
+		log_warning "Cross-compilation to macOS not supported on ${HOST_OS}"
 		return 1
 		;;
 	esac
 }
 
+# -----------------------------------------------------------------------------
+# Build Support Functions
+# -----------------------------------------------------------------------------
+
 # Clean cache
-function cleanCache() {
+clean_cache() {
 	if [[ "$CLEAN_CACHE" == "true" ]]; then
-		echo -e "${COLOR_LIGHT_BLUE}Cleaning cache...${COLOR_RESET}"
+		log_info "Cleaning cache..."
 		cargo clean --target "$1" 2>/dev/null || true
 	fi
 }
 
-# Find built binaries in target directory
-function findBuiltBinaries() {
-	local target_dir="$1"
-	local rust_target="$2"
-	local profile="$3"
-
-	# Determine file extension based on target
-	local ext=""
-	if [[ "$rust_target" == *"windows"* ]]; then
-		ext=".exe"
-	fi
-
-	# Find all executable files in the target directory
-	local binaries=()
-
-	# Look for executables in the target directory
-	if [[ -d "${target_dir}/${rust_target}/${profile}" ]]; then
-		while IFS= read -r -d '' file; do
-			# Check if it's a regular file and executable (or .exe for Windows)
-			if [[ -f "$file" ]]; then
-				if [[ -n "$ext" && "$file" == *"$ext" ]]; then
-					binaries+=("$file")
-				elif [[ -z "$ext" && -x "$file" && ! "$file" == *.* ]]; then
-					# On Unix, executable without extension
-					binaries+=("$file")
-				fi
-			fi
-		done < <(find "${target_dir}/${rust_target}/${profile}" -maxdepth 1 -type f -print0 2>/dev/null)
-	fi
-
-	printf '%s\n' "${binaries[@]}"
-}
-
 # Execute command for a specific target
 # https://doc.rust-lang.org/cargo/reference/config.html
-function executeTarget() {
+execute_target() {
 	local rust_target="$1"
 	local command="$2"
 
-	echo -e "${COLOR_LIGHT_GRAY}$(printSeparator)${COLOR_RESET}"
-	echo -e "${COLOR_LIGHT_MAGENTA}Executing ${command} for ${rust_target}...${COLOR_RESET}"
+	echo -e "${COLOR_LIGHT_GRAY}$(print_separator)${COLOR_RESET}"
+	echo -e "${COLOR_LIGHT_MAGENTA}Executing ${command} for ${rust_target}...${COLOR_RESET}" # Keep as-is for visibility
 
 	# Clean cache if requested
-	cleanCache "$rust_target" || return $?
+	clean_cache "$rust_target" || return $?
 
 	# Get cross-compilation environment and capture variables
-	getCrossEnv "$rust_target" || return $?
+	get_cross_env "$rust_target" || return $?
 
 	# Prepare environment variables
 	local build_env=()
@@ -793,28 +826,14 @@ function executeTarget() {
 	# Set up environment based on target
 	local target_upper=$(echo "$rust_target" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
 
-	if [[ -n "$TARGET_CC" ]]; then
-		build_env+=("CC_${target_upper}=${TARGET_CC}")
-		build_env+=("CC=${TARGET_CC}")
-	fi
-
-	if [[ -n "$TARGET_CXX" ]]; then
-		build_env+=("CXX_${target_upper}=${TARGET_CXX}")
-		build_env+=("CXX=${TARGET_CXX}")
-	fi
-
-	if [[ -n "$TARGET_AR" ]]; then
-		build_env+=("AR_${target_upper}=${TARGET_AR}")
-		build_env+=("AR=${TARGET_AR}")
-	fi
-
-	if [[ -n "$TARGET_LINKER" ]]; then
-		build_env+=("CARGO_TARGET_${target_upper}_LINKER=${TARGET_LINKER}")
-	fi
-
-	if [[ -n "$SDKROOT" ]]; then
-		build_env+=("SDKROOT=${SDKROOT}")
-	fi
+	add_env_if_set "CC_${target_upper}" "$TARGET_CC"
+	add_env_if_set "CC" "$TARGET_CC"
+	add_env_if_set "CXX_${target_upper}" "$TARGET_CXX"
+	add_env_if_set "CXX" "$TARGET_CXX"
+	add_env_if_set "AR_${target_upper}" "$TARGET_AR"
+	add_env_if_set "AR" "$TARGET_AR"
+	add_env_if_set "CARGO_TARGET_${target_upper}_LINKER" "$TARGET_LINKER"
+	add_env_if_set "SDKROOT" "$SDKROOT"
 
 	if [ "$rust_target" = "$HOST_TRIPLE" ]; then
 		# https://github.com/rust-lang/cargo/issues/8147
@@ -843,13 +862,8 @@ function executeTarget() {
 		done
 	fi
 
-	if [[ -n "$rustflags" ]]; then
-		build_env+=("RUSTFLAGS=${rustflags}")
-	fi
-
-	if [[ -n "$CARGO_TRIM_PATHS" ]]; then
-		build_env+=("CARGO_TRIM_PATHS=${CARGO_TRIM_PATHS}")
-	fi
+	add_env_if_set "RUSTFLAGS" "$rustflags"
+	add_env_if_set "CARGO_TRIM_PATHS" "$CARGO_TRIM_PATHS"
 
 	# Prepare command
 	local cargo_cmd="cargo"
@@ -885,7 +899,7 @@ function executeTarget() {
 			# Custom build-std parameters
 			cargo_cmd="$cargo_cmd -Zbuild-std=$BUILD_STD"
 		fi
-		addRustSrc "$rust_target" "$TOOLCHAIN" || return $?
+		add_rust_src "$rust_target" "$TOOLCHAIN" || return $?
 	fi
 	[[ "$VERBOSE" == "true" ]] && cargo_cmd="$cargo_cmd --verbose"
 	[[ "$QUIET" == "true" ]] && cargo_cmd="$cargo_cmd --quiet"
@@ -900,12 +914,12 @@ function executeTarget() {
 	[[ "$NO_EMBED_METADATA" == "true" ]] && cargo_cmd="$cargo_cmd -Zno-embed-metadata"
 	[[ -n "$ADDITIONAL_ARGS" ]] && cargo_cmd="$cargo_cmd $ADDITIONAL_ARGS"
 
-	echo -e "${COLOR_LIGHT_BLUE}Environment variables:${COLOR_RESET}"
+	log_info "Environment variables:"
 	for env_var in "${build_env[@]}"; do
 		echo -e "  ${COLOR_LIGHT_CYAN}${env_var}${COLOR_RESET}"
 	done
 
-	echo -e "${COLOR_LIGHT_BLUE}Run command:${COLOR_RESET}"
+	log_info "Run command:"
 	echo -e "  ${COLOR_LIGHT_CYAN}${cargo_cmd}${COLOR_RESET}"
 
 	local start_time=$(date +%s)
@@ -919,96 +933,16 @@ function executeTarget() {
 
 	local end_time=$(date +%s)
 
-	# Only handle binary output for build command
-	if [[ "$command" != "build" ]]; then
-		echo -e "${COLOR_LIGHT_GREEN}${command^} successful: ${rust_target} (took $((end_time - start_time))s)${COLOR_RESET}"
-		return
-	fi
-
-	# Find and copy built binaries
-	echo -e "${COLOR_LIGHT_BLUE}Looking for built binaries...${COLOR_RESET}"
-
-	local found_binaries=()
-	readarray -t found_binaries < <(findBuiltBinaries "${SOURCE_DIR}/target" "$rust_target" "$PROFILE")
-
-	if [[ ${#found_binaries[@]} -eq 0 ]]; then
-		echo -e "${COLOR_LIGHT_YELLOW}No binaries found, checking for libraries...${COLOR_RESET}"
-
-		# Check for library outputs
-		for lib_ext in ".a" ".so" ".dylib" ".dll" ".rlib"; do
-			for lib_file in "${SOURCE_DIR}/target/${rust_target}/${PROFILE}/"*"${lib_ext}"; do
-				if [[ -f "$lib_file" ]]; then
-					local lib_name=$(basename "$lib_file")
-					local dest_lib="${RESULT_DIR}/${lib_name%.${lib_ext}}"
-
-					# Add target suffix unless disabled
-					if [[ -z "$BIN_NAME_NO_SUFFIX" ]]; then
-						local suffix=$(echo "$rust_target" | sed 's/-unknown//g')
-						dest_lib="${dest_lib}-${suffix}"
-					fi
-					dest_lib="${dest_lib}${lib_ext}"
-
-					mkdir -p "${RESULT_DIR}"
-					cp "$lib_file" "$dest_lib"
-					echo -e "${COLOR_LIGHT_GREEN}Library copied: ${dest_lib}${COLOR_RESET}"
-				fi
-			done
-		done
-		return
-	fi
-
-	# Copy found binaries
-	for binary in "${found_binaries[@]}"; do
-		local binary_name=$(basename "$binary")
-		# Remove .exe extension for naming
-		local base_name="${binary_name%.exe}"
-
-		# Determine destination name
-		local dest_binary="${RESULT_DIR}/${base_name}"
-
-		# Add target suffix unless disabled
-		if [[ -z "$BIN_NAME_NO_SUFFIX" ]]; then
-			local suffix=$(echo "$rust_target" | sed 's/-unknown//g')
-			dest_binary="${dest_binary}-${suffix}"
-		fi
-
-		# Add back extension if needed
-		[[ "$binary_name" == *.exe ]] && dest_binary="${dest_binary}.exe"
-
-		mkdir -p "${RESULT_DIR}"
-		cp "$binary" "$dest_binary"
-
-		# Strip binary in release mode
-		if [[ "$PROFILE" == "release" ]] && [[ "$NO_STRIP" != "true" ]]; then
-			# Try to find appropriate strip tool
-			local strip_cmd=""
-			if [[ -n "$TARGET_LINKER" ]]; then
-				# Try to find strip based on linker
-				local strip_tool="${TARGET_LINKER%-gcc}-strip"
-				if command -v "$strip_tool" >/dev/null 2>&1; then
-					strip_cmd="$strip_tool"
-				fi
-			fi
-
-			# Fallback to default strip for native builds
-			if [[ -z "$strip_cmd" ]] && [[ "$rust_target" == "$HOST_TRIPLE" ]]; then
-				strip_cmd="strip"
-			fi
-
-			if [[ -n "$strip_cmd" ]] && command -v "$strip_cmd" >/dev/null 2>&1; then
-				echo -e "${COLOR_LIGHT_BLUE}Stripping binary with: ${strip_cmd}${COLOR_RESET}"
-				"$strip_cmd" "$dest_binary" 2>/dev/null || true
-			fi
-		fi
-
-		echo -e "${COLOR_LIGHT_GREEN}Binary copied: ${dest_binary} (size: $(du -sh "${dest_binary}" | cut -f1))${COLOR_RESET}"
-	done
-
-	echo -e "${COLOR_LIGHT_GREEN}Build successful: ${rust_target} (took $((end_time - start_time))s)${COLOR_RESET}"
+	# Report success
+	log_success "${command^} successful: ${rust_target} (took $((end_time - start_time))s)"
 }
 
+# -----------------------------------------------------------------------------
+# Target Pattern Expansion
+# -----------------------------------------------------------------------------
+
 # Expand target patterns (e.g., "linux/*" or "all")
-function expandTargets() {
+expand_targets() {
 	local targets="$1"
 	local expanded=""
 
@@ -1046,19 +980,22 @@ function expandTargets() {
 	echo "$expanded" | tr ',' '\n' | sort -u | paste -sd ',' -
 }
 
+# -----------------------------------------------------------------------------
+# Argument Parsing and Main Script
+# -----------------------------------------------------------------------------
+
 # Initialize variables
-setDefault "SOURCE_DIR" "${DEFAULT_SOURCE_DIR}"
+set_default "SOURCE_DIR" "${DEFAULT_SOURCE_DIR}"
 SOURCE_DIR="$(cd "${SOURCE_DIR}" && pwd)"
-setDefault "RESULT_DIR" "${DEFAULT_RESULT_DIR}"
-setDefault "PROFILE" "${DEFAULT_PROFILE}"
-setDefault "CROSS_COMPILER_DIR" "${DEFAULT_CROSS_COMPILER_DIR}"
-setDefault "CROSS_DEPS_VERSION" "${DEFAULT_CROSS_DEPS_VERSION}"
-setDefault "NDK_VERSION" "${DEFAULT_NDK_VERSION}"
-setDefault "COMMAND" "${DEFAULT_COMMAND}"
-setDefault "TOOLCHAIN" "${DEFAULT_TOOLCHAIN}"
+set_default "PROFILE" "${DEFAULT_PROFILE}"
+set_default "CROSS_COMPILER_DIR" "${DEFAULT_CROSS_COMPILER_DIR}"
+set_default "CROSS_DEPS_VERSION" "${DEFAULT_CROSS_DEPS_VERSION}"
+set_default "NDK_VERSION" "${DEFAULT_NDK_VERSION}"
+set_default "COMMAND" "${DEFAULT_COMMAND}"
+set_default "TOOLCHAIN" "${DEFAULT_TOOLCHAIN}"
 
 # Helper function to check if the next argument is an option
-isNextArgOption() {
+is_next_arg_option() {
 	if [[ $# -le 1 ]]; then
 		return 1
 	fi
@@ -1100,38 +1037,22 @@ fi
 while [[ $# -gt 0 ]]; do
 	case "${1}" in
 	-h | --help)
-		printHelp
+		print_help
 		exit 0
 		;;
 	--profile=*)
 		PROFILE="${1#*=}"
 		;;
 	--profile)
-		[[ $# -gt 1 ]] && shift && PROFILE="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --profile requires a value${COLOR_RESET}"
-			exit 1
-		}
-		;;
-	--bin-name=*)
-		BIN_NAME="${1#*=}"
-		;;
-	--bin-name)
-		[[ $# -gt 1 ]] && shift && BIN_NAME="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --bin-name requires a value${COLOR_RESET}"
-			exit 1
-		}
-		;;
-	--bin-name-no-suffix)
-		BIN_NAME_NO_SUFFIX="true"
+		shift
+		PROFILE="$(parse_option_value "--profile" "$@")"
 		;;
 	--features=*)
 		FEATURES="${1#*=}"
 		;;
 	--features)
-		[[ $# -gt 1 ]] && shift && FEATURES="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --features requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		FEATURES="$(parse_option_value "--features" "$@")"
 		;;
 	--no-default-features)
 		NO_DEFAULT_FEATURES="true"
@@ -1147,24 +1068,13 @@ while [[ $# -gt 0 ]]; do
 		fi
 		;;
 	-t | --targets | --target)
-		[[ $# -gt 1 ]] && shift || {
-			echo -e "${COLOR_LIGHT_RED}Error: --targets requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		__target_value="$(parse_option_value "--targets" "$@")"
 		if [[ -n "$TARGETS" ]]; then
-			TARGETS="${TARGETS},$1"
+			TARGETS="${TARGETS},${__target_value}"
 		else
-			TARGETS="$1"
+			TARGETS="${__target_value}"
 		fi
-		;;
-	--result-dir=*)
-		RESULT_DIR="${1#*=}"
-		;;
-	--result-dir)
-		[[ $# -gt 1 ]] && shift && RESULT_DIR="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --result-dir requires a value${COLOR_RESET}"
-			exit 1
-		}
 		;;
 	--show-all-targets)
 		echo -e "${COLOR_LIGHT_GREEN}Supported Rust targets:${COLOR_RESET}"
@@ -1177,46 +1087,36 @@ while [[ $# -gt 0 ]]; do
 		GH_PROXY="${1#*=}"
 		;;
 	--github-proxy-mirror)
-		[[ $# -gt 1 ]] && shift && GH_PROXY="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --github-proxy-mirror requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		GH_PROXY="$(parse_option_value "--github-proxy-mirror" "$@")"
 		;;
 	--cross-compiler-dir=*)
 		CROSS_COMPILER_DIR="${1#*=}"
 		;;
 	--cross-compiler-dir)
-		[[ $# -gt 1 ]] && shift && CROSS_COMPILER_DIR="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --cross-compiler-dir requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		CROSS_COMPILER_DIR="$(parse_option_value "--cross-compiler-dir" "$@")"
 		;;
 	--ndk-version=*)
 		NDK_VERSION="${1#*=}"
 		;;
 	--ndk-version)
-		[[ $# -gt 1 ]] && shift && NDK_VERSION="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --ndk-version requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		NDK_VERSION="$(parse_option_value "--ndk-version" "$@")"
 		;;
 	--package=*)
 		PACKAGE="${1#*=}"
 		;;
 	--package)
-		[[ $# -gt 1 ]] && shift && PACKAGE="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --package requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		PACKAGE="$(parse_option_value "--package" "$@")"
 		;;
 	--bin=*)
 		BIN_TARGET="${1#*=}"
 		;;
 	--bin)
-		[[ $# -gt 1 ]] && shift && BIN_TARGET="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --bin requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		BIN_TARGET="$(parse_option_value "--bin" "$@")"
 		;;
 	--bins)
 		BINS="true"
@@ -1237,10 +1137,8 @@ while [[ $# -gt 0 ]]; do
 		MESSAGE_FORMAT="${1#*=}"
 		;;
 	--message-format)
-		[[ $# -gt 1 ]] && shift && MESSAGE_FORMAT="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --message-format requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		MESSAGE_FORMAT="$(parse_option_value "--message-format" "$@")"
 		;;
 	--ignore-rust-version)
 		IGNORE_RUST_VERSION="true"
@@ -1258,10 +1156,8 @@ while [[ $# -gt 0 ]]; do
 		JOBS="${1#*=}"
 		;;
 	-j | --jobs)
-		[[ $# -gt 1 ]] && shift && JOBS="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --jobs requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		JOBS="$(parse_option_value "--jobs" "$@")"
 		;;
 	--keep-going)
 		KEEP_GOING="true"
@@ -1276,10 +1172,8 @@ while [[ $# -gt 0 ]]; do
 		MANIFEST_PATH="${1#*=}"
 		;;
 	--manifest-path)
-		[[ $# -gt 1 ]] && shift && MANIFEST_PATH="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --manifest-path requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		MANIFEST_PATH="$(parse_option_value "--manifest-path" "$@")"
 		;;
 	--use-default-linker)
 		USE_DEFAULT_LINKER="true"
@@ -1288,53 +1182,43 @@ while [[ $# -gt 0 ]]; do
 		CC="${1#*=}"
 		;;
 	--cc)
-		[[ $# -gt 1 ]] && shift && CC="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --cc requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		CC="$(parse_option_value "--cc" "$@")"
 		;;
 	--cxx=*)
 		CXX="${1#*=}"
 		;;
 	--cxx)
-		[[ $# -gt 1 ]] && shift && CXX="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --cxx requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		CXX="$(parse_option_value "--cxx" "$@")"
 		;;
 	--ar=*)
 		AR="${1#*=}"
 		;;
 	--ar)
-		[[ $# -gt 1 ]] && shift && AR="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --ar requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		AR="$(parse_option_value "--ar" "$@")"
 		;;
 	--linker=*)
 		LINKER="${1#*=}"
 		;;
 	--linker)
-		[[ $# -gt 1 ]] && shift && LINKER="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --linker requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		LINKER="$(parse_option_value "--linker" "$@")"
 		;;
 	--rustflags=*)
 		ADDITIONAL_RUSTFLAGS_ARRAY+=("${1#*=}")
 		;;
 	--rustflags)
-		[[ $# -gt 1 ]] && shift && ADDITIONAL_RUSTFLAGS_ARRAY+=("$1") || {
-			echo -e "${COLOR_LIGHT_RED}Error: --rustflags requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		ADDITIONAL_RUSTFLAGS_ARRAY+=("$(parse_option_value "--rustflags" "$@")")
 		;;
 	--static-crt=*)
 		STATIC_CRT="${1#*=}"
 		[[ -z "$STATIC_CRT" ]] && STATIC_CRT="true"
 		;;
 	--static-crt)
-		if isNextArgOption "$@"; then
+		if is_next_arg_option "$@"; then
 			STATIC_CRT="true"
 		else
 			if [[ $# -gt 1 ]]; then
@@ -1350,7 +1234,7 @@ while [[ $# -gt 0 ]]; do
 		[[ -z "$BUILD_STD" ]] && BUILD_STD="true"
 		;;
 	--build-std)
-		if isNextArgOption "$@"; then
+		if is_next_arg_option "$@"; then
 			BUILD_STD="true"
 		else
 			if [[ $# -gt 1 ]]; then
@@ -1365,25 +1249,21 @@ while [[ $# -gt 0 ]]; do
 		ADDITIONAL_ARGS="${1#*=}"
 		;;
 	--args)
-		[[ $# -gt 1 ]] && shift && ADDITIONAL_ARGS="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --args requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		ADDITIONAL_ARGS="$(parse_option_value "--args" "$@")"
 		;;
 	--toolchain=*)
 		TOOLCHAIN="${1#*=}"
 		;;
 	--toolchain)
-		[[ $# -gt 1 ]] && shift && TOOLCHAIN="$1" || {
-			echo -e "${COLOR_LIGHT_RED}Error: --toolchain requires a value${COLOR_RESET}"
-			exit 1
-		}
+		shift
+		TOOLCHAIN="$(parse_option_value "--toolchain" "$@")"
 		;;
 	--cargo-trim-paths=* | --trim-paths=*)
 		CARGO_TRIM_PATHS="${1#*=}"
 		;;
 	--cargo-trim-paths | --trim-paths)
-		if isNextArgOption "$@"; then
+		if is_next_arg_option "$@"; then
 			CARGO_TRIM_PATHS="true"
 		else
 			if [[ $# -gt 1 ]]; then
@@ -1407,7 +1287,7 @@ while [[ $# -gt 0 ]]; do
 		VERBOSE="true"
 		;;
 	*)
-		echo -e "${COLOR_LIGHT_RED}Invalid option: $1${COLOR_RESET}"
+		log_error "Invalid option: $1"
 		exit 1
 		;;
 	esac
@@ -1418,22 +1298,21 @@ done
 if [[ -z "$TARGETS" ]]; then
 	TARGETS="$HOST_TRIPLE"
 	USE_DEFAULT_LINKER="true"
-	echo -e "${COLOR_LIGHT_BLUE}No target specified, using host: ${TARGETS}${COLOR_RESET}"
+	log_info "No target specified, using host: ${TARGETS}"
 else
 	# Expand target patterns
-	TARGETS=$(expandTargets "$TARGETS")
+	TARGETS=$(expand_targets "$TARGETS")
 	# Check if expansion resulted in empty string
 	if [[ -z "$TARGETS" ]]; then
-		echo -e "${COLOR_LIGHT_RED}Error: Target expansion resulted in no valid targets${COLOR_RESET}"
+		log_error "Error: Target expansion resulted in no valid targets"
 		exit 1
 	fi
 fi
 
 # Print execution information
-echo -e "${COLOR_LIGHT_BLUE}Execution configuration:${COLOR_RESET}"
+log_info "Execution configuration:"
 echo -e "  Command: ${COMMAND}"
 echo -e "  Source directory: ${SOURCE_DIR}"
-echo -e "  Result directory: ${RESULT_DIR}"
 [[ -n "$PACKAGE" ]] && echo -e "  Package: ${PACKAGE}"
 [[ -n "$BIN_TARGET" ]] && echo -e "  Binary target: ${BIN_TARGET}"
 [[ "$BINS" == "true" ]] && echo -e "  Build all binaries: true"
@@ -1460,9 +1339,9 @@ BUILD_START_TIME=$(date +%s)
 
 for target in "${TARGET_ARRAY[@]}"; do
 	CURRENT_TARGET=$((CURRENT_TARGET + 1))
-	echo -e "${COLOR_LIGHT_GREEN}[${CURRENT_TARGET}/${TOTAL_TARGETS}] Processing target: ${target}${COLOR_RESET}"
-	executeTarget "$target" "$COMMAND" || {
-		echo -e "${COLOR_LIGHT_RED}${COMMAND^} failed for target: ${target}${COLOR_RESET}"
+	log_success "[${CURRENT_TARGET}/${TOTAL_TARGETS}] Processing target: ${target}"
+	execute_target "$target" "$COMMAND" || {
+		log_error "${COMMAND^} failed for target: ${target}"
 		exit 1
 	}
 done
@@ -1470,19 +1349,6 @@ done
 BUILD_END_TIME=$(date +%s)
 TOTAL_TIME=$((BUILD_END_TIME - BUILD_START_TIME))
 
-echo -e "${COLOR_LIGHT_GRAY}$(printSeparator)${COLOR_RESET}"
-echo -e "${COLOR_LIGHT_GREEN}All ${COMMAND} operations completed successfully!${COLOR_RESET}"
-echo -e "${COLOR_LIGHT_GREEN}Total time: ${TOTAL_TIME}s${COLOR_RESET}"
-
-# Only show result directory for build command
-if [[ "$COMMAND" == "build" ]]; then
-	echo -e "${COLOR_LIGHT_GREEN}Results in: ${RESULT_DIR}${COLOR_RESET}"
-
-	# List all built files
-	if [[ -d "$RESULT_DIR" ]]; then
-		echo -e "${COLOR_LIGHT_BLUE}Built files:${COLOR_RESET}"
-		ls -lh "$RESULT_DIR" | tail -n +2 | while read line; do
-			echo -e "  ${COLOR_LIGHT_CYAN}${line}${COLOR_RESET}"
-		done
-	fi
-fi
+echo -e "${COLOR_LIGHT_GRAY}$(print_separator)${COLOR_RESET}"
+log_success "All ${COMMAND} operations completed successfully!"
+log_success "Total time: ${TOTAL_TIME}s"
