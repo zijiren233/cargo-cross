@@ -303,6 +303,21 @@ set_cross_env() {
 	EXTRA_PATH="$5"
 }
 
+# Set gcc library search paths for rustc
+# Args: compiler_dir, target_prefix
+set_gcc_lib_paths() {
+	local compiler_dir="$1"
+	local target_prefix="$2"
+
+	# Add target library directory
+	local target_lib="${compiler_dir}/${target_prefix}/lib"
+	TARGET_RUSTFLAGS="-L ${target_lib}"
+
+	# Add gcc library directory (find the version directory)
+	local gcc_lib_dir=$(find "${compiler_dir}/lib/gcc/${target_prefix}" -maxdepth 1 -type d ! -path "${compiler_dir}/lib/gcc/${target_prefix}" 2>/dev/null | head -n 1)
+	[[ -n "$gcc_lib_dir" ]] && TARGET_RUSTFLAGS="${TARGET_RUSTFLAGS} -L ${gcc_lib_dir}"
+}
+
 # Set iOS/Darwin SDK root from compiler directory
 # Args: cross_compiler_name
 set_ios_sdk_root() {
@@ -529,6 +544,9 @@ get_linux_env() {
 		"${gcc_name}" \
 		"${compiler_dir}/bin"
 
+	# Add library search paths from gcc to rustc
+	set_gcc_lib_paths "${compiler_dir}" "${arch_prefix}-linux-${libc}${abi}"
+
 	log_success "Configured Linux ${libc} toolchain for $rust_target"
 }
 
@@ -565,6 +583,9 @@ get_windows_gnu_env() {
 		"${gcc_name}" \
 		"${compiler_dir}/bin"
 
+	# Add library search paths from gcc to rustc
+	set_gcc_lib_paths "${compiler_dir}" "${arch}-w64-mingw32"
+
 	log_success "Configured Windows toolchain for $rust_target"
 }
 
@@ -600,6 +621,9 @@ get_freebsd_env() {
 		"${arch}-unknown-freebsd13-ar" \
 		"${gcc_name}" \
 		"${compiler_dir}/bin"
+
+	# Add library search paths from gcc to rustc
+	set_gcc_lib_paths "${compiler_dir}" "${arch}-unknown-freebsd13"
 
 	log_success "Configured FreeBSD toolchain for $rust_target"
 }
