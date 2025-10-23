@@ -958,7 +958,8 @@ execute_target() {
 	local end_time=$(date +%s)
 
 	# Report success
-	log_success "${command^} successful: ${rust_target} (took $((end_time - start_time))s)"
+	local command_capitalized="$(echo "${command:0:1}" | tr '[:lower:]' '[:upper:]')${command:1}"
+	log_success "${command_capitalized} successful: ${rust_target} (took $((end_time - start_time))s)"
 }
 
 # -----------------------------------------------------------------------------
@@ -1365,7 +1366,8 @@ for target in "${TARGET_ARRAY[@]}"; do
 	CURRENT_TARGET=$((CURRENT_TARGET + 1))
 	log_success "[${CURRENT_TARGET}/${TOTAL_TARGETS}] Processing target: ${target}"
 	execute_target "$target" "$COMMAND" || {
-		log_error "${COMMAND^} failed for target: ${target}"
+		local command_capitalized="$(echo "${COMMAND:0:1}" | tr '[:lower:]' '[:upper:]')${COMMAND:1}"
+		log_error "${command_capitalized} failed for target: ${target}"
 		exit 1
 	}
 done
