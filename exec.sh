@@ -176,7 +176,7 @@ parse_option_value() {
 # Prints help information
 print_help() {
 	echo -e "${COLOR_LIGHT_GREEN}Usage:${COLOR_RESET}"
-	echo -e "  $(basename "$0") [command] [options]"
+	echo -e "  [command] [options]"
 	echo -e ""
 	echo -e "${COLOR_LIGHT_RED}Commands:${COLOR_RESET}"
 	echo -e "  ${COLOR_LIGHT_BLUE}build${COLOR_RESET}                               - Build the project (default)"

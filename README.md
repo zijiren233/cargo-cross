@@ -445,7 +445,49 @@ jobs:
 
 ## Local Usage
 
-You can also use the execution script locally:
+### Installation as Cargo Subcommand
+
+You can install this tool as a cargo subcommand for easy cross-compilation:
+
+```bash
+# Install from GitHub
+cargo install cargo-cross --git https://github.com/zijiren233/rust-build-action
+
+# Or install from local path
+cargo install --path .
+```
+
+After installation, you can use `cargo cross` command:
+
+```bash
+# Show help
+cargo cross --help
+
+# Show all supported targets
+cargo cross --show-all-targets
+
+# Build for a specific target
+cargo cross build --target x86_64-unknown-linux-musl
+
+# Build for multiple targets
+cargo cross build --targets x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
+
+# Build with release profile
+cargo cross build --target x86_64-unknown-linux-musl --release
+
+# Build with features
+cargo cross build --target x86_64-unknown-linux-musl --features feature1,feature2
+
+# Test for a target
+cargo cross test --target x86_64-unknown-linux-musl
+
+# Check the project
+cargo cross check --target x86_64-unknown-linux-musl
+```
+
+### Direct Script Usage
+
+You can also use the execution script directly:
 
 ```bash
 # Build for a specific target (default command)
