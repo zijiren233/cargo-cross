@@ -50,9 +50,6 @@ inputs:
     description: "The directory containing the Rust project to build"
     required: false
     default: ${{ github.workspace }}
-  result-dir:
-    description: "The directory to store build results"
-    required: false
   bin-name-no-suffix:
     description: "Do not append target suffix to binary name"
     required: false
@@ -172,9 +169,6 @@ inputs:
     default: "false"
 
 outputs:
-  result-dir:
-    description: "Directory containing built artifacts"
-    value: ${{ steps.execute.outputs.result-dir }}
   targets:
     description: "Targets that were processed"
     value: ${{ steps.execute.outputs.targets }}
@@ -222,7 +216,6 @@ runs:
         INPUT_KEEP_GOING: ${{ inputs.keep-going }}
         INPUT_FUTURE_INCOMPAT_REPORT: ${{ inputs.future-incompat-report }}
         INPUT_MANIFEST_PATH: ${{ inputs.manifest-path }}
-        INPUT_RESULT_DIR: ${{ inputs.result-dir }}
         INPUT_BIN_NAME_NO_SUFFIX: ${{ inputs.bin-name-no-suffix }}
         INPUT_GITHUB_PROXY_MIRROR: ${{ inputs.github-proxy-mirror }}
         INPUT_CROSS_COMPILER_DIR: ${{ inputs.cross-compiler-dir }}

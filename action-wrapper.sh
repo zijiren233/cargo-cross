@@ -51,15 +51,6 @@ ARGS+=("--profile=$INPUT_PROFILE")
 # Path options
 [ -n "$INPUT_MANIFEST_PATH" ] && ARGS+=("--manifest-path=$INPUT_MANIFEST_PATH")
 
-# Result directory
-if [ -n "$INPUT_RESULT_DIR" ]; then
-  ARGS+=("--result-dir=$INPUT_RESULT_DIR")
-  RESULT_DIR="$INPUT_RESULT_DIR"
-else
-  RESULT_DIR="$SOURCE_DIR/target/cross"
-  ARGS+=("--result-dir=$RESULT_DIR")
-fi
-
 # Binary name options
 [ "$INPUT_BIN_NAME_NO_SUFFIX" = "true" ] && ARGS+=("--bin-name-no-suffix")
 
@@ -111,9 +102,6 @@ fi
 
 # Execute command
 "$ACTION_PATH/exec.sh" "${ARGS[@]}"
-
-# Set outputs for GitHub Actions
-echo "result-dir=$RESULT_DIR" >> $GITHUB_OUTPUT
 
 # Determine targets for output (prioritize INPUT_TARGET over INPUT_TARGETS)
 OUTPUT_TARGETS="${INPUT_TARGET}"
