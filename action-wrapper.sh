@@ -3,7 +3,7 @@ set -e
 
 # Action wrapper script for rust-build-action
 # This script translates GitHub Actions inputs (via environment variables)
-# into command-line arguments for exec.sh
+# into command-line arguments for cross.sh
 
 # Build command arguments from environment variables
 ARGS=()
@@ -101,7 +101,7 @@ fi
 [ "$INPUT_NO_EMBED_METADATA" = "true" ] && ARGS+=("--no-embed-metadata")
 
 # Execute command
-"$ACTION_PATH/exec.sh" "${ARGS[@]}"
+"$ACTION_PATH/cross.sh" "${ARGS[@]}"
 
 # Determine targets for output (prioritize INPUT_TARGET over INPUT_TARGETS)
 OUTPUT_TARGETS="${INPUT_TARGET}"

@@ -184,7 +184,7 @@ runs:
       shell: bash
       working-directory: ${{ inputs.source-dir }}
       run: |
-        "${{ github.action_path }}/exec.sh" --show-all-targets
+        "${{ github.action_path }}/cross.sh" --show-all-targets
 
     - name: Execute
       id: execute

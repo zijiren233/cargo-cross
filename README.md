@@ -491,52 +491,52 @@ You can also use the execution script directly:
 
 ```bash
 # Build for a specific target (default command)
-./exec.sh --targets=x86_64-unknown-linux-musl
+./cross.sh --targets=x86_64-unknown-linux-musl
 
 # Explicitly specify build command
-./exec.sh build --targets=x86_64-unknown-linux-musl
+./cross.sh build --targets=x86_64-unknown-linux-musl
 
 # Test for multiple targets
-./exec.sh test --targets=x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
+./cross.sh test --targets=x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
 
 # Check the project
-./exec.sh check --targets=x86_64-unknown-linux-musl
+./cross.sh check --targets=x86_64-unknown-linux-musl
 
 # Show all supported targets
-./exec.sh --show-all-targets
+./cross.sh --show-all-targets
 
 # Build with features
-./exec.sh build --targets=x86_64-unknown-linux-musl --features=feature1,feature2
+./cross.sh build --targets=x86_64-unknown-linux-musl --features=feature1,feature2
 
 # Build entire workspace
-./exec.sh build --targets=x86_64-unknown-linux-musl --workspace
+./cross.sh build --targets=x86_64-unknown-linux-musl --workspace
 
 # Build with nightly toolchain
-./exec.sh build --targets=x86_64-unknown-linux-musl --toolchain=nightly
+./cross.sh build --targets=x86_64-unknown-linux-musl --toolchain=nightly
 
 # Test with stable toolchain (explicitly)
-./exec.sh test --targets=x86_64-unknown-linux-musl --toolchain=stable
+./cross.sh test --targets=x86_64-unknown-linux-musl --toolchain=stable
 
 # Build musl with dynamic linking (musl is static by default)
-./exec.sh build --targets=x86_64-unknown-linux-musl --static-crt=false
+./cross.sh build --targets=x86_64-unknown-linux-musl --static-crt=false
 
 # Build GNU with static linking (GNU is dynamic by default)
-./exec.sh build --targets=x86_64-unknown-linux-gnu --static-crt=true
+./cross.sh build --targets=x86_64-unknown-linux-gnu --static-crt=true
 
 # Build with custom rustflags
-./exec.sh build --targets=x86_64-unknown-linux-musl --rustflags="-C opt-level=3 -C codegen-units=1"
+./cross.sh build --targets=x86_64-unknown-linux-musl --rustflags="-C opt-level=3 -C codegen-units=1"
 
 # Build with build-std (build standard library from source)
-./exec.sh build --targets=x86_64-unknown-linux-musl --build-std
+./cross.sh build --targets=x86_64-unknown-linux-musl --build-std
 
 # Build with build-std using specific crates
-./exec.sh build --targets=x86_64-unknown-linux-musl --build-std=core,alloc
+./cross.sh build --targets=x86_64-unknown-linux-musl --build-std=core,alloc
 
 # Build with reproducible paths
-./exec.sh build --targets=x86_64-unknown-linux-musl --cargo-trim-paths=all
+./cross.sh build --targets=x86_64-unknown-linux-musl --cargo-trim-paths=all
 
 # Build without embedding metadata (requires nightly toolchain)
-./exec.sh build --targets=x86_64-unknown-linux-musl --no-embed-metadata --toolchain=nightly
+./cross.sh build --targets=x86_64-unknown-linux-musl --no-embed-metadata --toolchain=nightly
 ```
 
 ## How It Works
