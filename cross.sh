@@ -880,10 +880,16 @@ execute_target() {
 		rustflags="${rustflags:+$rustflags }-C target-feature=-crt-static"
 	fi
 
+	# Add rustflags from command-line arguments (--rustflags)
 	if [[ ${#ADDITIONAL_RUSTFLAGS_ARRAY[@]} -gt 0 ]]; then
 		for flag in "${ADDITIONAL_RUSTFLAGS_ARRAY[@]}"; do
 			rustflags="${rustflags:+$rustflags }$flag"
 		done
+	fi
+
+	# Add rustflags from environment variable
+	if [[ -n "$ADDITIONAL_RUSTFLAGS" ]]; then
+		rustflags="${rustflags:+$rustflags }$ADDITIONAL_RUSTFLAGS"
 	fi
 
 	add_env_if_set "RUSTFLAGS" "$rustflags"
@@ -903,10 +909,10 @@ execute_target() {
 	[[ "$ALL_FEATURES" == "true" ]] && cargo_cmd="$cargo_cmd --all-features"
 	[[ -n "$PACKAGE" ]] && cargo_cmd="$cargo_cmd --package $PACKAGE"
 	[[ -n "$BIN_TARGET" ]] && cargo_cmd="$cargo_cmd --bin $BIN_TARGET"
-	[[ "$BINS" == "true" ]] && cargo_cmd="$cargo_cmd --bins"
-	[[ "$LIB" == "true" ]] && cargo_cmd="$cargo_cmd --lib"
-	[[ "$ALL_TARGETS" == "true" ]] && cargo_cmd="$cargo_cmd --all-targets"
-	[[ "$WORKSPACE" == "true" ]] && cargo_cmd="$cargo_cmd --workspace"
+	[[ "$BUILD_BINS" == "true" ]] && cargo_cmd="$cargo_cmd --bins"
+	[[ "$BUILD_LIB" == "true" ]] && cargo_cmd="$cargo_cmd --lib"
+	[[ "$BUILD_ALL_TARGETS" == "true" ]] && cargo_cmd="$cargo_cmd --all-targets"
+	[[ "$BUILD_WORKSPACE" == "true" ]] && cargo_cmd="$cargo_cmd --workspace"
 	[[ -n "$MANIFEST_PATH" ]] && cargo_cmd="$cargo_cmd --manifest-path $MANIFEST_PATH"
 	# Add build-std flag if needed (either from args or target requirements)
 	if [[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]] || [[ -n "$TARGET_BUILD_STD" && "$TARGET_BUILD_STD" != "false" ]]; then
@@ -1018,11 +1024,6 @@ set_default "CROSS_DEPS_VERSION" "${DEFAULT_CROSS_DEPS_VERSION}"
 set_default "NDK_VERSION" "${DEFAULT_NDK_VERSION}"
 set_default "COMMAND" "${DEFAULT_COMMAND}"
 set_default "TOOLCHAIN" "${DEFAULT_TOOLCHAIN}"
-
-# Initialize ADDITIONAL_RUSTFLAGS_ARRAY from environment variable if set
-if [[ -n "$ADDITIONAL_RUSTFLAGS" ]]; then
-	ADDITIONAL_RUSTFLAGS_ARRAY=("$ADDITIONAL_RUSTFLAGS")
-fi
 
 # Helper function to check if the next argument is an option
 is_next_arg_option() {
@@ -1149,13 +1150,13 @@ while [[ $# -gt 0 ]]; do
 		BIN_TARGET="$(parse_option_value "--bin" "$@")"
 		;;
 	--bins)
-		BINS="true"
+		BUILD_BINS="true"
 		;;
 	--lib)
-		LIB="true"
+		BUILD_LIB="true"
 		;;
 	--all-targets)
-		ALL_TARGETS="true"
+		BUILD_ALL_TARGETS="true"
 		;;
 	-r | --release)
 		PROFILE="release"
@@ -1196,7 +1197,7 @@ while [[ $# -gt 0 ]]; do
 		FUTURE_INCOMPAT_REPORT="true"
 		;;
 	--workspace)
-		WORKSPACE="true"
+		BUILD_WORKSPACE="true"
 		;;
 	--manifest-path=*)
 		MANIFEST_PATH="${1#*=}"
@@ -1345,10 +1346,10 @@ echo -e "  Command: ${COMMAND}"
 echo -e "  Source directory: ${SOURCE_DIR}"
 [[ -n "$PACKAGE" ]] && echo -e "  Package: ${PACKAGE}"
 [[ -n "$BIN_TARGET" ]] && echo -e "  Binary target: ${BIN_TARGET}"
-[[ "$BINS" == "true" ]] && echo -e "  Build all binaries: true"
-[[ "$LIB" == "true" ]] && echo -e "  Build library: true"
-[[ "$ALL_TARGETS" == "true" ]] && echo -e "  Build all targets: true"
-[[ "$WORKSPACE" == "true" ]] && echo -e "  Building workspace: true"
+[[ "$BUILD_BINS" == "true" ]] && echo -e "  Build all binaries: true"
+[[ "$BUILD_LIB" == "true" ]] && echo -e "  Build library: true"
+[[ "$BUILD_ALL_TARGETS" == "true" ]] && echo -e "  Build all targets: true"
+[[ "$BUILD_WORKSPACE" == "true" ]] && echo -e "  Building workspace: true"
 echo -e "  Profile: ${PROFILE}"
 [[ -n "$TOOLCHAIN" ]] && echo -e "  Toolchain: ${TOOLCHAIN}"
 echo -e "  Targets: ${TARGETS}"

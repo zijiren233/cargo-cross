@@ -104,6 +104,9 @@ inputs:
   args:
     description: "Additional arguments to pass to cargo build"
     required: false
+  cross-args:
+    description: "Additional cross arguments"
+    required: false
   toolchain:
     description: "Rust toolchain to use (stable, nightly, etc.)"
     required: false
@@ -200,10 +203,10 @@ runs:
         ALL_FEATURES: ${{ inputs.all-features }}
         PACKAGE: ${{ inputs.package }}
         BIN_TARGET: ${{ inputs.bin }}
-        BINS: ${{ inputs.bins }}
-        LIB: ${{ inputs.lib }}
-        ALL_TARGETS: ${{ inputs.all-targets }}
-        WORKSPACE: ${{ inputs.workspace }}
+        BUILD_BINS: ${{ inputs.bins }}
+        BUILD_LIB: ${{ inputs.lib }}
+        BUILD_ALL_TARGETS: ${{ inputs.all-targets }}
+        BUILD_WORKSPACE: ${{ inputs.workspace }}
         MESSAGE_FORMAT: ${{ inputs.message-format }}
         IGNORE_RUST_VERSION: ${{ inputs.ignore-rust-version }}
         LOCKED: ${{ inputs.locked }}
@@ -233,7 +236,7 @@ runs:
         QUIET: ${{ inputs.quiet }}
         RELEASE: ${{ inputs.release }}
       run: |
-        "${{ github.action_path }}/cross.sh"
+        "${{ github.action_path }}/cross.sh" ${{ inputs.cross-args }}
 
         # Determine targets for output
         OUTPUT_TARGETS="${TARGETS}"
