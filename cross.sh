@@ -1019,6 +1019,11 @@ set_default "NDK_VERSION" "${DEFAULT_NDK_VERSION}"
 set_default "COMMAND" "${DEFAULT_COMMAND}"
 set_default "TOOLCHAIN" "${DEFAULT_TOOLCHAIN}"
 
+# Initialize ADDITIONAL_RUSTFLAGS_ARRAY from environment variable if set
+if [[ -n "$ADDITIONAL_RUSTFLAGS" ]]; then
+	ADDITIONAL_RUSTFLAGS_ARRAY=("$ADDITIONAL_RUSTFLAGS")
+fi
+
 # Helper function to check if the next argument is an option
 is_next_arg_option() {
 	if [[ $# -le 1 ]]; then
