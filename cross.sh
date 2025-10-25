@@ -403,7 +403,7 @@ get_build_std_config() {
 	local rust_target="$1"
 
 	case "$rust_target" in
-		wasm*|*-freebsd|*-netbsd|*-openbsd)
+		wasm*|*-freebsd|*-netbsd|*-openbsd|*-darwin)
 			echo "std,panic_abort"
 			;;
 		*)

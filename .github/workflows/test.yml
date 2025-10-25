@@ -95,7 +95,7 @@ jobs:
 
   # Test the GitHub Action itself
   test-action-windows:
-    name: Test GitHub Action
+    name: Test GitHub Action on Windows
     runs-on: windows-latest
 
     steps:
