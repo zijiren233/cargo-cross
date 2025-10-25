@@ -1026,7 +1026,7 @@ execute_target() {
 	add_flag "$KEEP_GOING" "--keep-going"
 	add_flag "$FUTURE_INCOMPAT_REPORT" "--future-incompat-report"
 	add_flag "$NO_EMBED_METADATA" "-Zno-embed-metadata"
-	add_option "$TARGET_DIR" "--target-dir"
+	add_option "$CARGO_TARGET_DIR" "--target-dir"
 
 	# Additional arguments
 	[[ -n "$ADDITIONAL_ARGS" ]] && add_args "$ADDITIONAL_ARGS"
@@ -1427,11 +1427,11 @@ while [[ $# -gt 0 ]]; do
 		NO_EMBED_METADATA="true"
 		;;
 	--target-dir=*)
-		TARGET_DIR="${1#*=}"
+		CARGO_TARGET_DIR="${1#*=}"
 		;;
 	--target-dir)
 		shift
-		TARGET_DIR="$(parse_option_value "--target-dir" "$@")"
+		CARGO_TARGET_DIR="$(parse_option_value "--target-dir" "$@")"
 		;;
 	--clean-cache)
 		CLEAN_CACHE="true"
