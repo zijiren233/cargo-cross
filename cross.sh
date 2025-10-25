@@ -176,14 +176,14 @@ parse_option_value() {
 # Prints help information
 print_help() {
 	echo -e "${COLOR_LIGHT_GREEN}Usage:${COLOR_RESET}"
-	echo -e "  [command] [options]"
+	echo -e "  ${COLOR_LIGHT_CYAN}[command] [options]${COLOR_RESET}"
 	echo -e ""
-	echo -e "${COLOR_LIGHT_RED}Commands:${COLOR_RESET}"
+	echo -e "${COLOR_LIGHT_MAGENTA}Commands:${COLOR_RESET}"
 	echo -e "  ${COLOR_LIGHT_BLUE}build${COLOR_RESET}                               - Build the project (default)"
 	echo -e "  ${COLOR_LIGHT_BLUE}test${COLOR_RESET}                                - Run tests"
 	echo -e "  ${COLOR_LIGHT_BLUE}check${COLOR_RESET}                               - Check the project"
 	echo -e ""
-	echo -e "${COLOR_LIGHT_RED}Options:${COLOR_RESET}"
+	echo -e "${COLOR_LIGHT_MAGENTA}Options:${COLOR_RESET}"
 	echo -e "  ${COLOR_LIGHT_BLUE}--profile=<profile>${COLOR_RESET}               - Set the build profile (debug/release, default: ${DEFAULT_PROFILE})"
 	echo -e "  ${COLOR_LIGHT_BLUE}--cross-compiler-dir=<dir>${COLOR_RESET}        - Specify the cross compiler directory"
 	echo -e "  ${COLOR_LIGHT_BLUE}--features=<features>${COLOR_RESET}             - Comma-separated list of features to activate"
@@ -250,7 +250,7 @@ download_and_extract() {
 	if [ "$(ls -A "${file}")" ]; then
 		rm -rf "${file}"/* || return $?
 	fi
-	log_info "Downloading \"${url}\" to \"${file}\""
+	log_info "Downloading \"${COLOR_LIGHT_YELLOW}${url}${COLOR_LIGHT_BLUE}\" to \"${COLOR_LIGHT_YELLOW}${file}${COLOR_LIGHT_BLUE}\""
 
 	local start_time=$(date +%s)
 
@@ -276,7 +276,7 @@ download_and_extract() {
 	esac
 
 	local end_time=$(date +%s)
-	log_success "Download and extraction successful (took $((end_time - start_time))s)"
+	log_success "Download and extraction successful (took ${COLOR_LIGHT_YELLOW}$((end_time - start_time))s${COLOR_LIGHT_GREEN})"
 }
 
 # Download cross-compiler if needed
@@ -359,7 +359,7 @@ add_rust_src() {
 	local toolchain_flag=""
 	[[ -n "$toolchain" ]] && toolchain_flag="--toolchain=$toolchain"
 
-	log_info "Adding rust-src component for target: $target${toolchain:+ and toolchain: $toolchain}"
+	log_info "Adding rust-src component for target: ${COLOR_LIGHT_YELLOW}$target${COLOR_LIGHT_BLUE}${toolchain:+ and toolchain: ${COLOR_LIGHT_YELLOW}$toolchain${COLOR_LIGHT_BLUE}}"
 	rustup component add rust-src --target="$target" $toolchain_flag || return $?
 }
 
@@ -370,7 +370,7 @@ install_target() {
 	local toolchain_flag=""
 	[[ -n "$toolchain" ]] && toolchain_flag="--toolchain=$toolchain"
 
-	log_info "Installing Rust target: $rust_target${toolchain:+ for toolchain: $toolchain}"
+	log_info "Installing Rust target: ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_BLUE}${toolchain:+ for toolchain: ${COLOR_LIGHT_YELLOW}$toolchain${COLOR_LIGHT_BLUE}}"
 	rustup target add "$rust_target" $toolchain_flag || return $?
 }
 
@@ -418,10 +418,10 @@ get_cross_env() {
 		else
 			# Check if target exists in rustc --print=target-list
 			if rustc --print=target-list | grep -q "^$rust_target$"; then
-				log_warning "Target $rust_target not available in rustup but exists in rustc, using build-std"
+				log_warning "Target ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_YELLOW} not available in rustup but exists in rustc, using build-std"
 				TARGET_BUILD_STD=true
 			else
-				log_error "Target $rust_target not found in rustup or rustc target list"
+				log_error "Target ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_RED} not found in rustup or rustc target list"
 				return 1
 			fi
 		fi
@@ -429,7 +429,7 @@ get_cross_env() {
 
 	# Skip toolchain setup if using default linker
 	if [[ "$USE_DEFAULT_LINKER" == "true" ]]; then
-		log_warning "Using system default linker for $rust_target"
+		log_warning "Using system default linker for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_YELLOW}"
 		return 0
 	fi
 
@@ -443,7 +443,7 @@ get_cross_env() {
 	local linker_var="CARGO_TARGET_${target_upper}_LINKER"
 
 	if [[ -n "${!cc_var}" ]]; then
-		log_success "Using pre-configured ${cc_var}=${!cc_var}"
+		log_success "Using pre-configured ${COLOR_LIGHT_YELLOW}${cc_var}${COLOR_LIGHT_GREEN}=${COLOR_LIGHT_CYAN}${!cc_var}${COLOR_LIGHT_GREEN}"
 		TARGET_CC="${!cc_var}"
 		if [[ -n "${!cxx_var}" ]]; then
 			TARGET_CXX="${!cxx_var}"
@@ -475,7 +475,7 @@ get_cross_env() {
 
 	local toolchain_info="$(get_toolchain_config "$rust_target")"
 	if [[ -z "$toolchain_info" ]]; then
-		log_warning "No specific toolchain configuration for $rust_target, using default"
+		log_warning "No specific toolchain configuration for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_YELLOW}, using default"
 		return 0
 	fi
 
@@ -506,7 +506,7 @@ get_cross_env() {
 		get_ios_env "$arch" "$rust_target" || return $?
 		;;
 	*)
-		log_warning "No cross-compilation setup needed for $rust_target"
+		log_warning "No cross-compilation setup needed for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_YELLOW}"
 		;;
 	esac
 }
@@ -547,7 +547,7 @@ get_linux_env() {
 	# Add library search paths from gcc to rustc
 	set_gcc_lib_paths "${compiler_dir}" "${arch_prefix}-linux-${libc}${abi}"
 
-	log_success "Configured Linux ${libc} toolchain for $rust_target"
+	log_success "Configured Linux ${COLOR_LIGHT_YELLOW}${libc}${COLOR_LIGHT_GREEN} toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 }
 
 # Get Windows cross-compilation environment
@@ -559,7 +559,7 @@ get_windows_gnu_env() {
 	case "$arch" in
 	"i686" | "x86_64") ;;
 	*)
-		log_error "Unsupported Windows architecture: $arch"
+		log_error "Unsupported Windows architecture: ${COLOR_LIGHT_YELLOW}$arch${COLOR_LIGHT_RED}"
 		return 1
 		;;
 	esac
@@ -586,7 +586,7 @@ get_windows_gnu_env() {
 	# Add library search paths from gcc to rustc
 	set_gcc_lib_paths "${compiler_dir}" "${arch}-w64-mingw32"
 
-	log_success "Configured Windows toolchain for $rust_target"
+	log_success "Configured Windows toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 }
 
 # Get FreeBSD cross-compilation environment
@@ -598,7 +598,7 @@ get_freebsd_env() {
 	case "$arch" in
 	"x86_64" | "aarch64" | "powerpc" | "powerpc64" | "powerpc64le" | "riscv64") ;;
 	*)
-		log_error "Unsupported FreeBSD architecture: $arch"
+		log_error "Unsupported FreeBSD architecture: ${COLOR_LIGHT_YELLOW}$arch${COLOR_LIGHT_RED}"
 		return 1
 		;;
 	esac
@@ -625,7 +625,7 @@ get_freebsd_env() {
 	# Add library search paths from gcc to rustc
 	set_gcc_lib_paths "${compiler_dir}" "${arch}-unknown-freebsd13"
 
-	log_success "Configured FreeBSD toolchain for $rust_target"
+	log_success "Configured FreeBSD toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 }
 
 # Get Darwin (macOS) environment
@@ -637,7 +637,7 @@ get_darwin_env() {
 	case "${HOST_OS}" in
 	"darwin")
 		# Native compilation on macOS
-		log_success "Using native macOS toolchain for $rust_target"
+		log_success "Using native macOS toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 		;;
 	"linux")
 		# Cross-compilation from Linux to macOS using osxcross
@@ -654,7 +654,7 @@ get_darwin_env() {
 			host_arch_name="aarch64"
 			;;
 		*)
-			log_warning "Cross-compilation to macOS not supported on ${HOST_OS}/${HOST_ARCH}"
+			log_warning "Cross-compilation to macOS not supported on ${COLOR_LIGHT_YELLOW}${HOST_OS}/${HOST_ARCH}${COLOR_LIGHT_YELLOW}"
 			return 1
 			;;
 		esac
@@ -684,10 +684,10 @@ get_darwin_env() {
 
 		export MACOSX_DEPLOYMENT_TARGET="10.12"
 
-		log_success "Configured osxcross toolchain for $rust_target"
+		log_success "Configured osxcross toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 		;;
 	*)
-		log_warning "Cross-compilation to macOS not supported on ${HOST_OS}"
+		log_warning "Cross-compilation to macOS not supported on ${COLOR_LIGHT_YELLOW}${HOST_OS}${COLOR_LIGHT_YELLOW}"
 		return 1
 		;;
 	esac
@@ -717,7 +717,7 @@ get_android_env() {
 	"i686") clang_prefix="i686-linux-android${API}" ;;
 	"x86_64") clang_prefix="x86_64-linux-android${API}" ;;
 	*)
-		log_error "Unsupported Android architecture: $arch"
+		log_error "Unsupported Android architecture: ${COLOR_LIGHT_YELLOW}$arch${COLOR_LIGHT_RED}"
 		return 1
 		;;
 	esac
@@ -730,7 +730,7 @@ get_android_env() {
 		"${clang_prefix}-clang" \
 		"${clang_base_dir}"
 
-	log_success "Configured Android toolchain for $rust_target"
+	log_success "Configured Android toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 }
 
 # Get iOS environment
@@ -741,7 +741,7 @@ get_ios_env() {
 	case "${HOST_OS}" in
 	"darwin")
 		# Native compilation on macOS
-		log_success "Using native macOS toolchain for $rust_target"
+		log_success "Using native macOS toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 		;;
 	"linux")
 		# Map architecture to cross-compiler prefix
@@ -753,7 +753,7 @@ get_ios_env() {
 			local arch_prefix="x86_64"
 			;;
 		*)
-			log_warning "Unknown iOS architecture: ${arch}"
+			log_warning "Unknown iOS architecture: ${COLOR_LIGHT_YELLOW}${arch}${COLOR_LIGHT_YELLOW}"
 			return 2
 			;;
 		esac
@@ -803,10 +803,10 @@ get_ios_env() {
 			"${arch_prefix}-apple-darwin11-ld" \
 			"${compiler_dir}/bin:${compiler_dir}/clang/bin"
 
-		log_success "Configured iOS toolchain for $rust_target"
+		log_success "Configured iOS toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 		;;
 	*)
-		log_warning "Cross-compilation to macOS not supported on ${HOST_OS}"
+		log_warning "Cross-compilation to iOS not supported on ${COLOR_LIGHT_YELLOW}${HOST_OS}${COLOR_LIGHT_YELLOW}"
 		return 1
 		;;
 	esac
@@ -819,7 +819,7 @@ get_ios_env() {
 # Clean cache
 clean_cache() {
 	if [[ "$CLEAN_CACHE" == "true" ]]; then
-		log_info "Cleaning cache..."
+		log_info "Cleaning cache for ${COLOR_LIGHT_YELLOW}$1${COLOR_LIGHT_BLUE}..."
 		cargo clean --target "$1" 2>/dev/null || true
 	fi
 }
@@ -946,7 +946,7 @@ execute_target() {
 
 	log_info "Environment variables:"
 	for env_var in "${build_env[@]}"; do
-		echo -e "  ${COLOR_LIGHT_CYAN}${env_var}${COLOR_RESET}"
+		echo -e "  ${COLOR_LIGHT_YELLOW}${env_var}${COLOR_RESET}"
 	done
 
 	log_info "Run command:"
@@ -965,7 +965,7 @@ execute_target() {
 
 	# Report success
 	local command_capitalized="$(echo "${command:0:1}" | tr '[:lower:]' '[:upper:]')${command:1}"
-	log_success "${command_capitalized} successful: ${rust_target} (took $((end_time - start_time))s)"
+	log_success "${command_capitalized} successful: ${COLOR_LIGHT_YELLOW}${rust_target}${COLOR_LIGHT_GREEN} (took ${COLOR_LIGHT_YELLOW}$((end_time - start_time))s${COLOR_LIGHT_GREEN})"
 }
 
 # -----------------------------------------------------------------------------
@@ -1110,7 +1110,7 @@ while [[ $# -gt 0 ]]; do
 	--show-all-targets)
 		echo -e "${COLOR_LIGHT_GREEN}Supported Rust targets:${COLOR_RESET}"
 		echo "$TOOLCHAIN_CONFIG" | grep -v '^$' | cut -d'=' -f1 | sort | while read -r target; do
-			[[ -n "$target" ]] && echo "  $target"
+			[[ -n "$target" ]] && echo "  ${COLOR_LIGHT_CYAN}$target${COLOR_RESET}"
 		done
 		exit 0
 		;;
@@ -1329,7 +1329,7 @@ done
 if [[ -z "$TARGETS" ]]; then
 	TARGETS="$HOST_TRIPLE"
 	USE_DEFAULT_LINKER="true"
-	log_info "No target specified, using host: ${TARGETS}"
+	log_info "No target specified, using host: ${COLOR_LIGHT_YELLOW}${TARGETS}${COLOR_LIGHT_BLUE}"
 else
 	# Expand target patterns
 	TARGETS=$(expand_targets "$TARGETS")
@@ -1342,25 +1342,25 @@ fi
 
 # Print execution information
 log_info "Execution configuration:"
-echo -e "  Command: ${COMMAND}"
-echo -e "  Source directory: ${SOURCE_DIR}"
-[[ -n "$PACKAGE" ]] && echo -e "  Package: ${PACKAGE}"
-[[ -n "$BIN_TARGET" ]] && echo -e "  Binary target: ${BIN_TARGET}"
-[[ "$BUILD_BINS" == "true" ]] && echo -e "  Build all binaries: true"
-[[ "$BUILD_LIB" == "true" ]] && echo -e "  Build library: true"
-[[ "$BUILD_ALL_TARGETS" == "true" ]] && echo -e "  Build all targets: true"
-[[ "$BUILD_WORKSPACE" == "true" ]] && echo -e "  Building workspace: true"
-echo -e "  Profile: ${PROFILE}"
-[[ -n "$TOOLCHAIN" ]] && echo -e "  Toolchain: ${TOOLCHAIN}"
-echo -e "  Targets: ${TARGETS}"
-[[ -n "$FEATURES" ]] && echo -e "  Features: ${FEATURES}"
-[[ "$NO_DEFAULT_FEATURES" == "true" ]] && echo -e "  No default features: true"
-[[ "$ALL_FEATURES" == "true" ]] && echo -e "  All features: true"
-[[ -n "$RUSTFLAGS" ]] && echo -e "  Default rustflags env: ${RUSTFLAGS}"
-[[ ${#ADDITIONAL_RUSTFLAGS_ARRAY[@]} -gt 0 ]] && echo -e "  Additional rustflags: ${ADDITIONAL_RUSTFLAGS_ARRAY[*]}"
-[[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]] && echo -e "  Build std: $([ "$BUILD_STD" == "true" ] && echo "true" || echo "$BUILD_STD")"
-[[ -n "$ADDITIONAL_ARGS" ]] && echo -e "  Additional args: ${ADDITIONAL_ARGS}"
-[[ "$NO_EMBED_METADATA" == "true" ]] && echo -e "  No embed metadata: true"
+echo -e "  ${COLOR_LIGHT_CYAN}Command:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${COMMAND}${COLOR_RESET}"
+echo -e "  ${COLOR_LIGHT_CYAN}Source directory:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${SOURCE_DIR}${COLOR_RESET}"
+[[ -n "$PACKAGE" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Package:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${PACKAGE}${COLOR_RESET}"
+[[ -n "$BIN_TARGET" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Binary target:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${BIN_TARGET}${COLOR_RESET}"
+[[ "$BUILD_BINS" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Build all binaries:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
+[[ "$BUILD_LIB" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Build library:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
+[[ "$BUILD_ALL_TARGETS" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Build all targets:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
+[[ "$BUILD_WORKSPACE" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Building workspace:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
+echo -e "  ${COLOR_LIGHT_CYAN}Profile:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${PROFILE}${COLOR_RESET}"
+[[ -n "$TOOLCHAIN" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Toolchain:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${TOOLCHAIN}${COLOR_RESET}"
+echo -e "  ${COLOR_LIGHT_CYAN}Targets:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${TARGETS}${COLOR_RESET}"
+[[ -n "$FEATURES" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Features:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${FEATURES}${COLOR_RESET}"
+[[ "$NO_DEFAULT_FEATURES" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}No default features:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
+[[ "$ALL_FEATURES" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}All features:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
+[[ -n "$RUSTFLAGS" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Default rustflags env:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${RUSTFLAGS}${COLOR_RESET}"
+[[ ${#ADDITIONAL_RUSTFLAGS_ARRAY[@]} -gt 0 ]] && echo -e "  ${COLOR_LIGHT_CYAN}Additional rustflags:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${ADDITIONAL_RUSTFLAGS_ARRAY[*]}${COLOR_RESET}"
+[[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Build std:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}$([ "$BUILD_STD" == "true" ] && echo "true" || echo "$BUILD_STD")${COLOR_RESET}"
+[[ -n "$ADDITIONAL_ARGS" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Additional args:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${ADDITIONAL_ARGS}${COLOR_RESET}"
+[[ "$NO_EMBED_METADATA" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}No embed metadata:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
 
 # Build for each target
 IFS=',' read -ra TARGET_ARRAY <<<"$TARGETS"
@@ -1370,10 +1370,10 @@ BUILD_START_TIME=$(date +%s)
 
 for target in "${TARGET_ARRAY[@]}"; do
 	CURRENT_TARGET=$((CURRENT_TARGET + 1))
-	log_success "[${CURRENT_TARGET}/${TOTAL_TARGETS}] Processing target: ${target}"
+	log_success "[${COLOR_LIGHT_YELLOW}${CURRENT_TARGET}${COLOR_LIGHT_GREEN}/${COLOR_LIGHT_YELLOW}${TOTAL_TARGETS}${COLOR_LIGHT_GREEN}] Processing target: ${COLOR_LIGHT_CYAN}${target}${COLOR_LIGHT_GREEN}"
 	execute_target "$target" "$COMMAND" || {
 		local command_capitalized="$(echo "${COMMAND:0:1}" | tr '[:lower:]' '[:upper:]')${COMMAND:1}"
-		log_error "${command_capitalized} failed for target: ${target}"
+		log_error "${command_capitalized} failed for target: ${COLOR_LIGHT_YELLOW}${target}${COLOR_LIGHT_RED}"
 		exit 1
 	}
 done
@@ -1382,5 +1382,5 @@ BUILD_END_TIME=$(date +%s)
 TOTAL_TIME=$((BUILD_END_TIME - BUILD_START_TIME))
 
 echo -e "${COLOR_LIGHT_GRAY}$(print_separator)${COLOR_RESET}"
-log_success "All ${COMMAND} operations completed successfully!"
-log_success "Total time: ${TOTAL_TIME}s"
+log_success "All ${COLOR_LIGHT_CYAN}${COMMAND}${COLOR_LIGHT_GREEN} operations completed successfully!"
+log_success "Total time: ${COLOR_LIGHT_YELLOW}${TOTAL_TIME}s${COLOR_LIGHT_GREEN}"
