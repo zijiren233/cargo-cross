@@ -590,7 +590,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 This action uses cross-compilation toolchains from:
 
-- [musl-cross-make](https://github.com/richfelker/musl-cross-make) for Linux targets
-- [osxcross](https://github.com/tpoechtrager/osxcross) for macOS targets
+- [cross-make](https://github.com/zijiren233/cross-make) for Linux/Windows/Freebsd targets
+- [osxcross](https://github.com/zijiren233/osxcross) for macOS targets
+- [cctools-port](https://github.com/zijiren233/cctools-port) for ios targets
 - Android NDK for Android targets
-- MinGW for Windows targets
