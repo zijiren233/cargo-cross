@@ -241,5 +241,5 @@ runs:
         RELEASE: ${{ inputs.release }}
       run: |
         "${{ github.action_path }}/cross.sh" ${{ inputs.cross-args }}
-
+        echo "targets=$TARGETS"
         echo "targets=$TARGETS" >> $GITHUB_OUTPUT
