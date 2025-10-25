@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Cross compile
-        uses: your-username/rust-cross-build@v1
+        uses: zijiren233/rust-cross-build@v1
         with:
           command: build
           targets: |
@@ -57,7 +57,7 @@ jobs:
       - uses: actions/checkout@v3
       
       - name: Build Release
-        uses: your-username/rust-cross-build@v1
+        uses: zijiren233/rust-cross-build@v1
         with:
           command: build
           targets: |
@@ -99,7 +99,7 @@ jobs:
     runs-on: ubuntu-latest  # Best for cross-compilation
     steps:
       - uses: actions/checkout@v3
-      - uses: your-username/rust-cross-build@v1
+      - uses: zijiren233/rust-cross-build@v1
         with:
           targets: |
             x86_64-unknown-linux-musl
@@ -117,7 +117,7 @@ jobs:
     runs-on: macos-latest  # Apple Silicon
     steps:
       - uses: actions/checkout@v3
-      - uses: your-username/rust-cross-build@v1
+      - uses: zijiren233/rust-cross-build@v1
         with:
           targets: |
             x86_64-unknown-linux-musl
@@ -258,7 +258,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 
 ```yaml
 - name: Build with features
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: build
     targets: x86_64-unknown-linux-musl
@@ -270,7 +270,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 
 ```yaml
 - name: Build specific binary
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: build
     targets: x86_64-unknown-linux-musl
@@ -282,7 +282,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 
 ```yaml
 - name: Build for Android
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: build
     targets: |
@@ -295,7 +295,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 
 ```yaml
 - name: Build with custom compiler
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: build
     targets: x86_64-unknown-linux-gnu
@@ -308,7 +308,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 ```yaml
 # musl targets: static by default, set to false for dynamic linking
 - name: Build musl with dynamic linking
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: build
     targets: x86_64-unknown-linux-musl
@@ -316,7 +316,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 
 # GNU targets: dynamic by default, set to true for static linking
 - name: Build GNU with static linking
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: build
     targets: x86_64-unknown-linux-gnu
@@ -324,7 +324,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 
 # Leave empty to use default behavior (musl=static, gnu=dynamic)
 - name: Build with default linking
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: build
     targets: |
@@ -337,7 +337,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 
 ```yaml
 - name: Build with custom rustflags
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: build
     targets: x86_64-unknown-linux-musl
@@ -349,7 +349,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 ```yaml
 # Build with default std crates
 - name: Build with build-std (default)
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: build
     targets: x86_64-unknown-linux-musl
@@ -358,7 +358,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 
 # Build with specific crates
 - name: Build with build-std (custom crates)
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: build
     targets: x86_64-unknown-linux-musl
@@ -383,7 +383,7 @@ jobs:
       - uses: actions/checkout@v3
       
       - name: Build
-        uses: your-username/rust-cross-build@v1
+        uses: zijiren233/rust-cross-build@v1
         with:
           command: build
           targets: ${{ matrix.target }}
@@ -399,7 +399,7 @@ jobs:
 
 ```yaml
 - name: Test cross-platform
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: test
     targets: |
@@ -411,7 +411,7 @@ jobs:
 
 ```yaml
 - name: Check code
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: check
     targets: x86_64-unknown-linux-musl
@@ -422,7 +422,7 @@ jobs:
 
 ```yaml
 - name: Build with nightly
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: build
     targets: x86_64-unknown-linux-musl
@@ -433,7 +433,7 @@ jobs:
 
 ```yaml
 - name: Build with reproducible paths
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: build
     targets: x86_64-unknown-linux-musl
@@ -444,7 +444,7 @@ jobs:
 
 ```yaml
 - name: Build without embedding metadata
-  uses: your-username/rust-cross-build@v1
+  uses: zijiren233/rust-cross-build@v1
   with:
     command: build
     targets: x86_64-unknown-linux-musl
