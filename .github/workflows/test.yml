@@ -53,6 +53,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Free Disk Space (Ubuntu)
+        uses: BRAINSia/free-disk-space@v2
+        if: ${{ contains(matrix.os, 'ubuntu') }}
+        with:
+          tool-cache: true
+          mandb: true
+          android: true
+          dotnet: true
+          haskell: true
+          docker-images: true
+          swap-storage: true
+
       - name: Build using action
         uses: ./
         with:
