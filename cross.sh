@@ -792,7 +792,7 @@ get_ios_env() {
 		esac
 
 		local cross_compiler_name="ios-${arch_prefix}-cross"
-		if [[ "${target_type}" == "simulator" ]]; then
+		if [[ "${arch}" == "x86_64" ]] || [[ "${target_type}" == "simulator" ]]; then
 			cross_compiler_name="${cross_compiler_name}-simulator"
 		fi
 
@@ -814,7 +814,7 @@ get_ios_env() {
 
 			local ios_sdk_type="iPhoneOS"
 			local ios_arch="${arch_prefix}"
-			if [[ "${target_type}" == "simulator" ]]; then
+			if [[ "${arch}" == "x86_64" ]] || [[ "${target_type}" == "simulator" ]]; then
 				ios_sdk_type="iPhoneSimulator"
 				ios_arch="${arch_prefix}"
 			fi
