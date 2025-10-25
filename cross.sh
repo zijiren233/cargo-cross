@@ -403,12 +403,12 @@ get_build_std_config() {
 	local rust_target="$1"
 
 	case "$rust_target" in
-		wasm*|*-freebsd|*-netbsd|*-openbsd|*-darwin|*-android)
-			echo "std,panic_abort"
-			;;
-		*)
-			echo "true"
-			;;
+	wasm* | *-freebsd | *-netbsd | *-openbsd | *-darwin | *-android)
+		echo "std,panic_abort"
+		;;
+	*)
+		echo "true"
+		;;
 	esac
 }
 
@@ -769,7 +769,7 @@ get_android_env() {
 get_ios_env() {
 	local arch="$1"
 	local rust_target="$2"
-	local target_type="${3:-device}"  # device or simulator
+	local target_type="${3:-device}" # device or simulator
 
 	case "${HOST_OS}" in
 	"darwin")
@@ -1093,6 +1093,34 @@ expand_targets() {
 	# Remove trailing comma and duplicates
 	expanded="${expanded%,}"
 	echo "$expanded" | tr ',' '\n' | sort -u | paste -sd ',' -
+}
+
+set_github_output() {
+	if [[ -z "$GITHUB_OUTPUT" ]]; then
+		return
+	fi
+
+	# Convert comma-separated targets to JSON array using jq
+	local json_array
+	if command -v jq &>/dev/null; then
+		# Use jq for proper JSON encoding (handles special characters and escaping)
+		json_array=$(echo "$TARGETS" | tr ',' '\n' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+	else
+		# Fallback: manual JSON array construction
+		json_array="["
+		IFS=',' read -ra TARGET_ARRAY <<<"$TARGETS"
+		local first=true
+		for target in "${TARGET_ARRAY[@]}"; do
+			if [[ "$first" == "true" ]]; then
+				first=false
+			else
+				json_array+=","
+			fi
+			json_array+="\"$target\""
+		done
+		json_array+="]"
+	fi
+	echo "targets=$json_array" >>$GITHUB_OUTPUT
 }
 
 # -----------------------------------------------------------------------------
@@ -1460,6 +1488,7 @@ echo -e "  ${COLOR_LIGHT_CYAN}Targets:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${TARG
 [[ "$NO_EMBED_METADATA" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}No embed metadata:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
 
 # Build for each target
+set_github_output
 IFS=',' read -ra TARGET_ARRAY <<<"$TARGETS"
 TOTAL_TARGETS=${#TARGET_ARRAY[@]}
 CURRENT_TARGET=0
