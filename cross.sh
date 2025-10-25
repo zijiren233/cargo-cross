@@ -397,6 +397,21 @@ is_target_available() {
 	rustup target list $toolchain_flag | grep -q "^$rust_target$"
 }
 
+# Helper function to get appropriate build-std configuration for a target
+# Some targets need panic_abort explicitly specified to avoid "can't find crate for `panic_abort`" errors
+get_build_std_config() {
+	local rust_target="$1"
+
+	case "$rust_target" in
+		wasm*|*-freebsd|*-netbsd|*-openbsd)
+			echo "std,panic_abort"
+			;;
+		*)
+			echo "true"
+			;;
+	esac
+}
+
 # -----------------------------------------------------------------------------
 # Cross-Compilation Environment Setup
 # -----------------------------------------------------------------------------
@@ -422,7 +437,7 @@ get_cross_env() {
 			# Check if target exists in rustc --print=target-list
 			if rustc --print=target-list | grep -q "^$rust_target$"; then
 				log_warning "Target ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_YELLOW} not available in rustup but exists in rustc, using build-std"
-				TARGET_BUILD_STD=true
+				TARGET_BUILD_STD=$(get_build_std_config "$rust_target")
 			else
 				log_error "Target ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_RED} not found in rustup or rustc target list"
 				return 1
@@ -826,10 +841,9 @@ get_ios_env() {
 # Print environment variables if any exist
 # Args: build_env array (passed by reference)
 print_env_vars() {
-	local -n env_array=$1
-	if [[ ${#env_array[@]} -gt 0 ]]; then
+	if [[ ${#build_env[@]} -gt 0 ]]; then
 		log_info "Environment variables:"
-		for env_var in "${env_array[@]}"; do
+		for env_var in "${build_env[@]}"; do
 			local key="${env_var%%=*}"
 			local value="${env_var#*=}"
 			echo -e "  ${COLOR_LIGHT_CYAN}${key}${COLOR_RESET}=${COLOR_LIGHT_YELLOW}${value}${COLOR_RESET}"
@@ -1006,7 +1020,7 @@ execute_target() {
 	# Additional arguments
 	[[ -n "$ADDITIONAL_ARGS" ]] && add_args "$ADDITIONAL_ARGS"
 
-	print_env_vars build_env
+	print_env_vars
 
 	log_info "Run command:"
 	echo -e "  ${COLOR_LIGHT_CYAN}${cargo_cmd}${COLOR_RESET}"
