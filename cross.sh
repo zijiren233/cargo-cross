@@ -223,6 +223,7 @@ print_help() {
 	echo -e "  ${COLOR_LIGHT_BLUE}--toolchain=<toolchain>${COLOR_RESET}           - Rust toolchain to use (stable, nightly, etc.)"
 	echo -e "  ${COLOR_LIGHT_BLUE}--cargo-trim-paths=<paths>${COLOR_RESET}        - Set CARGO_TRIM_PATHS environment variable"
 	echo -e "  ${COLOR_LIGHT_BLUE}--no-embed-metadata${COLOR_RESET}               - Add -Zno-embed-metadata flag to cargo"
+	echo -e "  ${COLOR_LIGHT_BLUE}--target-dir=<dir>${COLOR_RESET}                - Directory for all generated artifacts"
 	echo -e "  ${COLOR_LIGHT_BLUE}-v, --verbose${COLOR_RESET}                     - Use verbose output"
 	echo -e "  ${COLOR_LIGHT_BLUE}-h, --help${COLOR_RESET}                        - Display this help message"
 }
@@ -817,6 +818,44 @@ get_ios_env() {
 # Build Support Functions
 # -----------------------------------------------------------------------------
 
+# Add flag to cargo command if condition is true
+# Args: condition, flag
+add_flag() {
+	[[ "$1" == "true" ]] && cargo_cmd="$cargo_cmd $2"
+}
+
+# Add option with value to cargo command if value is non-empty
+# Args: value, option_name
+add_option() {
+	[[ -n "$1" ]] && cargo_cmd="$cargo_cmd $2 $1"
+}
+
+# Add argument(s) to cargo command if condition is true
+# Args: condition, args...
+add_arg_if() {
+	local condition="$1"
+	shift
+	[[ "$condition" == "true" ]] && cargo_cmd="$cargo_cmd $*"
+}
+
+# Add option with optional value (flag if true, flag=value otherwise)
+# Args: value, option_name
+add_option_or_flag() {
+	local value="$1"
+	local option="$2"
+	if [[ "$value" == "true" ]]; then
+		cargo_cmd="$cargo_cmd $option"
+	elif [[ -n "$value" && "$value" != "false" ]]; then
+		cargo_cmd="$cargo_cmd $option=$value"
+	fi
+}
+
+# Add arguments unconditionally to cargo command
+# Args: args...
+add_args() {
+	cargo_cmd="$cargo_cmd $*"
+}
+
 # Clean cache
 clean_cache() {
 	if [[ "$CLEAN_CACHE" == "true" ]]; then
@@ -898,52 +937,55 @@ execute_target() {
 
 	# Prepare command
 	local cargo_cmd="cargo"
-	if [[ -n "$TOOLCHAIN" ]]; then
-		cargo_cmd="cargo +$TOOLCHAIN"
-	fi
-	cargo_cmd="$cargo_cmd $command --target $rust_target"
+	[[ -n "$TOOLCHAIN" ]] && cargo_cmd="cargo +$TOOLCHAIN"
+	add_args "$command --target $rust_target"
 
-	# Only add profile for build command
-	[[ "$command" == "build" && "$PROFILE" == "release" ]] && cargo_cmd="$cargo_cmd --release"
-	[[ -n "$FEATURES" ]] && cargo_cmd="$cargo_cmd --features $FEATURES"
-	[[ "$NO_DEFAULT_FEATURES" == "true" ]] && cargo_cmd="$cargo_cmd --no-default-features"
-	[[ "$ALL_FEATURES" == "true" ]] && cargo_cmd="$cargo_cmd --all-features"
-	[[ -n "$PACKAGE" ]] && cargo_cmd="$cargo_cmd --package $PACKAGE"
-	[[ -n "$BIN_TARGET" ]] && cargo_cmd="$cargo_cmd --bin $BIN_TARGET"
-	[[ "$BUILD_BINS" == "true" ]] && cargo_cmd="$cargo_cmd --bins"
-	[[ "$BUILD_LIB" == "true" ]] && cargo_cmd="$cargo_cmd --lib"
-	[[ "$BUILD_ALL_TARGETS" == "true" ]] && cargo_cmd="$cargo_cmd --all-targets"
-	[[ "$BUILD_WORKSPACE" == "true" ]] && cargo_cmd="$cargo_cmd --workspace"
-	[[ -n "$MANIFEST_PATH" ]] && cargo_cmd="$cargo_cmd --manifest-path $MANIFEST_PATH"
-	# Add build-std flag if needed (either from args or target requirements)
+	# Build profile and features
+	[[ "$command" == "build" && "$PROFILE" == "release" ]] && add_args "--release"
+	add_option "$FEATURES" "--features"
+	add_flag "$NO_DEFAULT_FEATURES" "--no-default-features"
+	add_flag "$ALL_FEATURES" "--all-features"
+
+	# Package and target selection
+	add_option "$PACKAGE" "--package"
+	add_option "$BIN_TARGET" "--bin"
+	add_flag "$BUILD_BINS" "--bins"
+	add_flag "$BUILD_LIB" "--lib"
+	add_flag "$BUILD_ALL_TARGETS" "--all-targets"
+	add_flag "$BUILD_WORKSPACE" "--workspace"
+	add_option "$MANIFEST_PATH" "--manifest-path"
+
+	# Build-std flag (either from args or target requirements)
 	if [[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]] || [[ -n "$TARGET_BUILD_STD" && "$TARGET_BUILD_STD" != "false" ]]; then
-		if [[ "$TARGET_BUILD_STD" == "true" ]]; then
-			# Default for automatic build-std
-			cargo_cmd="$cargo_cmd -Zbuild-std"
-		elif [[ -n "$TARGET_BUILD_STD" ]]; then
-			# Custom build-std parameters
-			cargo_cmd="$cargo_cmd -Zbuild-std=$TARGET_BUILD_STD"
-		elif [[ "$BUILD_STD" == "true" ]]; then
-			# --build-std without parameters
-			cargo_cmd="$cargo_cmd -Zbuild-std"
-		elif [[ -n "$BUILD_STD" ]]; then
-			# Custom build-std parameters
-			cargo_cmd="$cargo_cmd -Zbuild-std=$BUILD_STD"
+		# Prefer TARGET_BUILD_STD over BUILD_STD
+		if [[ -n "$TARGET_BUILD_STD" && "$TARGET_BUILD_STD" != "false" ]]; then
+			add_option_or_flag "$TARGET_BUILD_STD" "-Zbuild-std"
+		else
+			add_option_or_flag "$BUILD_STD" "-Zbuild-std"
 		fi
 		add_rust_src "$rust_target" "$TOOLCHAIN" || return $?
 	fi
-	[[ "$VERBOSE" == "true" ]] && cargo_cmd="$cargo_cmd --verbose"
-	[[ "$QUIET" == "true" ]] && cargo_cmd="$cargo_cmd --quiet"
-	[[ -n "$MESSAGE_FORMAT" ]] && cargo_cmd="$cargo_cmd --message-format $MESSAGE_FORMAT"
-	[[ "$IGNORE_RUST_VERSION" == "true" ]] && cargo_cmd="$cargo_cmd --ignore-rust-version"
-	[[ "$LOCKED" == "true" ]] && cargo_cmd="$cargo_cmd --locked"
-	[[ "$OFFLINE" == "true" ]] && cargo_cmd="$cargo_cmd --offline"
-	[[ "$FROZEN" == "true" ]] && cargo_cmd="$cargo_cmd --frozen"
-	[[ -n "$JOBS" ]] && cargo_cmd="$cargo_cmd --jobs $JOBS"
-	[[ "$KEEP_GOING" == "true" ]] && cargo_cmd="$cargo_cmd --keep-going"
-	[[ "$FUTURE_INCOMPAT_REPORT" == "true" ]] && cargo_cmd="$cargo_cmd --future-incompat-report"
-	[[ "$NO_EMBED_METADATA" == "true" ]] && cargo_cmd="$cargo_cmd -Zno-embed-metadata"
-	[[ -n "$ADDITIONAL_ARGS" ]] && cargo_cmd="$cargo_cmd $ADDITIONAL_ARGS"
+
+	# Output and verbosity
+	add_flag "$VERBOSE" "--verbose"
+	add_flag "$QUIET" "--quiet"
+	add_option "$MESSAGE_FORMAT" "--message-format"
+
+	# Dependency and version management
+	add_flag "$IGNORE_RUST_VERSION" "--ignore-rust-version"
+	add_flag "$LOCKED" "--locked"
+	add_flag "$OFFLINE" "--offline"
+	add_flag "$FROZEN" "--frozen"
+
+	# Build configuration
+	add_option "$JOBS" "--jobs"
+	add_flag "$KEEP_GOING" "--keep-going"
+	add_flag "$FUTURE_INCOMPAT_REPORT" "--future-incompat-report"
+	add_flag "$NO_EMBED_METADATA" "-Zno-embed-metadata"
+	add_option "$TARGET_DIR" "--target-dir"
+
+	# Additional arguments
+	[[ -n "$ADDITIONAL_ARGS" ]] && add_args "$ADDITIONAL_ARGS"
 
 	log_info "Environment variables:"
 	for env_var in "${build_env[@]}"; do
@@ -1314,6 +1356,13 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--no-embed-metadata)
 		NO_EMBED_METADATA="true"
+		;;
+	--target-dir=*)
+		TARGET_DIR="${1#*=}"
+		;;
+	--target-dir)
+		shift
+		TARGET_DIR="$(parse_option_value "--target-dir" "$@")"
 		;;
 	--clean-cache)
 		CLEAN_CACHE="true"

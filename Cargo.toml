@@ -1,14 +1,25 @@
 [package]
 name = "cargo-cross"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["pyh1670605849@gmail.com"]
 description = "A cargo subcommand for cross-compilation using rust-build-action"
 license = "MIT"
-repository = "https://github.com/yourusername/rust-build-action"
+repository = "https://github.com/zijiren233/rust-build-action"
 
 [[bin]]
 name = "cargo-cross"
 path = "src/main.rs"
 
 [dependencies]
+
+[profile.release]
+opt-level = "z"
+debug = 0
+lto = "fat"
+codegen-units = 1
+incremental = false
+panic = "abort"
+strip = "symbols"
+debug-assertions = false
+overflow-checks = false

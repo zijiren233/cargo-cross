@@ -120,6 +120,9 @@ inputs:
     description: "Add -Zno-embed-metadata flag to cargo"
     required: false
     default: "false"
+  target-dir:
+    description: "Directory for all generated artifacts"
+    required: false
   bins:
     description: "Build all binary targets"
     required: false
@@ -233,6 +236,7 @@ runs:
         TOOLCHAIN: ${{ inputs.toolchain }}
         CARGO_TRIM_PATHS: ${{ inputs.cargo-trim-paths || inputs.trim-paths }}
         NO_EMBED_METADATA: ${{ inputs.no-embed-metadata }}
+        TARGET_DIR: ${{ inputs.target-dir }}
         QUIET: ${{ inputs.quiet }}
         RELEASE: ${{ inputs.release }}
       run: |
