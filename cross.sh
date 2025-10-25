@@ -818,6 +818,20 @@ get_ios_env() {
 # Build Support Functions
 # -----------------------------------------------------------------------------
 
+# Print environment variables if any exist
+# Args: build_env array (passed by reference)
+print_env_vars() {
+	local -n env_array=$1
+	if [[ ${#env_array[@]} -gt 0 ]]; then
+		log_info "Environment variables:"
+		for env_var in "${env_array[@]}"; do
+			local key="${env_var%%=*}"
+			local value="${env_var#*=}"
+			echo -e "  ${COLOR_LIGHT_CYAN}${key}${COLOR_RESET}=${COLOR_LIGHT_YELLOW}${value}${COLOR_RESET}"
+		done
+	fi
+}
+
 # Add flag to cargo command if condition is true
 # Args: condition, flag
 add_flag() {
@@ -987,10 +1001,7 @@ execute_target() {
 	# Additional arguments
 	[[ -n "$ADDITIONAL_ARGS" ]] && add_args "$ADDITIONAL_ARGS"
 
-	log_info "Environment variables:"
-	for env_var in "${build_env[@]}"; do
-		echo -e "  ${COLOR_LIGHT_YELLOW}${env_var}${COLOR_RESET}"
-	done
+	print_env_vars build_env
 
 	log_info "Run command:"
 	echo -e "  ${COLOR_LIGHT_CYAN}${cargo_cmd}${COLOR_RESET}"
