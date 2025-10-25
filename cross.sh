@@ -403,7 +403,7 @@ get_build_std_config() {
 	local rust_target="$1"
 
 	case "$rust_target" in
-		wasm*|*-freebsd|*-netbsd|*-openbsd|*-darwin)
+		wasm*|*-freebsd|*-netbsd|*-openbsd|*-darwin|*-android)
 			echo "std,panic_abort"
 			;;
 		*)
@@ -743,10 +743,11 @@ get_android_env() {
 	local API="${API:-24}"
 	local clang_prefix
 	case "$arch" in
-	"armv7") clang_prefix="armv7a-linux-androideabi${API}" ;;
-	"aarch64") clang_prefix="aarch64-linux-android${API}" ;;
-	"i686") clang_prefix="i686-linux-android${API}" ;;
-	"x86_64") clang_prefix="x86_64-linux-android${API}" ;;
+	"armv7") clang_prefix="armv7a-linux-androideabi24" ;;
+	"aarch64") clang_prefix="aarch64-linux-android24" ;;
+	"i686") clang_prefix="i686-linux-android24" ;;
+	"x86_64") clang_prefix="x86_64-linux-android24" ;;
+	"riscv64") clang_prefix="riscv64-linux-android35" ;;
 	*)
 		log_error "Unsupported Android architecture: ${COLOR_LIGHT_YELLOW}$arch${COLOR_LIGHT_RED}"
 		return 1
