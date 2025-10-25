@@ -1372,7 +1372,7 @@ for target in "${TARGET_ARRAY[@]}"; do
 	CURRENT_TARGET=$((CURRENT_TARGET + 1))
 	log_success "[${COLOR_LIGHT_YELLOW}${CURRENT_TARGET}${COLOR_LIGHT_GREEN}/${COLOR_LIGHT_YELLOW}${TOTAL_TARGETS}${COLOR_LIGHT_GREEN}] Processing target: ${COLOR_LIGHT_CYAN}${target}${COLOR_LIGHT_GREEN}"
 	execute_target "$target" "$COMMAND" || {
-		local command_capitalized="$(echo "${COMMAND:0:1}" | tr '[:lower:]' '[:upper:]')${COMMAND:1}"
+		command_capitalized="$(echo "${COMMAND:0:1}" | tr '[:lower:]' '[:upper:]')${COMMAND:1}"
 		log_error "${command_capitalized} failed for target: ${COLOR_LIGHT_YELLOW}${target}${COLOR_LIGHT_RED}"
 		exit 1
 	}
