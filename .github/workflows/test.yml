@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build using action
-        uses: ./action.yml
+        uses: ./
         with:
           command: build
           profile: release
@@ -103,7 +103,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build using action
-        uses: ./action.yml
+        uses: ./
         with:
           command: build
           profile: release
