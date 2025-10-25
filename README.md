@@ -459,6 +459,9 @@ jobs:
 You can install this tool as a cargo subcommand for easy cross-compilation:
 
 ```bash
+# Install from crate
+cargo install cargo-cross
+
 # Install from GitHub
 cargo install cargo-cross --git https://github.com/zijiren233/rust-build-action
 
