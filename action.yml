@@ -242,9 +242,4 @@ runs:
       run: |
         "${{ github.action_path }}/cross.sh" ${{ inputs.cross-args }}
 
-        # Determine targets for output
-        OUTPUT_TARGETS="${TARGETS}"
-        if [ -z "$OUTPUT_TARGETS" ]; then
-          OUTPUT_TARGETS="$(rustc -vV | grep host | cut -d' ' -f2)"
-        fi
-        echo "targets=$OUTPUT_TARGETS" >> $GITHUB_OUTPUT
+        echo "targets=$TARGETS" >> $GITHUB_OUTPUT
