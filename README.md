@@ -4,7 +4,7 @@ A powerful GitHub Action for building, testing, and checking Rust projects with 
 
 ## Features
 
-- 🚀 **Cross-compilation support** for Linux (GNU/musl), Windows, macOS, Android, and iOS
+- 🚀 **Cross-compilation support** for Linux (GNU/musl), Windows, macOS, FreeBSD, Android, and iOS
 - 🖥️ **Multi-platform hosts** - runs on Linux (x86_64/aarch64/armv7) and macOS (x86_64/aarch64)
 - 📦 **Automatic toolchain setup** - downloads and configures cross-compilers as needed
 - 🎯 **Multiple target support** - build for 63+ target platforms in a single run
@@ -181,6 +181,14 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 - `i686-pc-windows-gnu` - Windows i686 (MinGW)
 - `x86_64-pc-windows-gnu` - Windows x86_64 (MinGW)
 
+### FreeBSD
+
+- `x86_64-unknown-freebsd` - FreeBSD x86_64
+- `aarch64-unknown-freebsd` - FreeBSD ARM64
+- `powerpc64-unknown-freebsd` - FreeBSD PowerPC64
+- `powerpc64le-unknown-freebsd` - FreeBSD PowerPC64 little-endian
+- `riscv64gc-unknown-freebsd` - FreeBSD RISC-V 64-bit
+
 ### macOS
 
 - `x86_64-apple-darwin` - macOS Intel (x86_64)
@@ -201,6 +209,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 
 - `x86_64-apple-ios` - iOS Simulator (x86_64)
 - `aarch64-apple-ios` - iOS ARM64
+- `aarch64-apple-ios-sim` - iOS ARM64 Simulator
 
 ## Inputs
 

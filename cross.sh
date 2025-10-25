@@ -98,6 +98,7 @@ aarch64-apple-darwin=darwin:aarch64
 arm64e-apple-darwin=darwin:arm64e
 x86_64-apple-ios=ios:x86_64
 aarch64-apple-ios=ios:aarch64
+aarch64-apple-ios-sim=ios-sim:aarch64
 aarch64-linux-android=android:aarch64
 arm-linux-androideabi=android:armv7
 armv7-linux-androideabi=android:armv7
@@ -505,7 +506,10 @@ get_cross_env() {
 		get_android_env "$arch" "$rust_target" || return $?
 		;;
 	"ios")
-		get_ios_env "$arch" "$rust_target" || return $?
+		get_ios_env "$arch" "$rust_target" "device" || return $?
+		;;
+	"ios-sim")
+		get_ios_env "$arch" "$rust_target" "simulator" || return $?
 		;;
 	*)
 		log_warning "No cross-compilation setup needed for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_YELLOW}"
@@ -739,6 +743,7 @@ get_android_env() {
 get_ios_env() {
 	local arch="$1"
 	local rust_target="$2"
+	local target_type="${3:-device}"  # device or simulator
 
 	case "${HOST_OS}" in
 	"darwin")
@@ -761,7 +766,7 @@ get_ios_env() {
 		esac
 
 		local cross_compiler_name="ios-${arch_prefix}-cross"
-		if [[ "${arch}" == "x86_64" ]]; then
+		if [[ "${target_type}" == "simulator" ]]; then
 			cross_compiler_name="${cross_compiler_name}-simulator"
 		fi
 
@@ -783,9 +788,9 @@ get_ios_env() {
 
 			local ios_sdk_type="iPhoneOS"
 			local ios_arch="${arch_prefix}"
-			if [[ "${arch}" == "x86_64" ]]; then
+			if [[ "${target_type}" == "simulator" ]]; then
 				ios_sdk_type="iPhoneSimulator"
-				ios_arch="x86_64"
+				ios_arch="${arch_prefix}"
 			fi
 
 			local download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.6/ioscross-${ios_sdk_type}18-5-${ios_arch}-${host_platform}-gnu-ubuntu-${ubuntu_version}.tar.gz"
