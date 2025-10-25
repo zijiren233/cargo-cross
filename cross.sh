@@ -33,6 +33,7 @@ readonly DEFAULT_TTY_WIDTH="40"
 readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
 readonly DEFAULT_TOOLCHAIN=""
+readonly SUPPORTED_COMMANDS="run|bench|build|test|check"
 
 # -----------------------------------------------------------------------------
 # Host Environment Detection
@@ -1025,13 +1026,18 @@ set_default "NDK_VERSION" "${DEFAULT_NDK_VERSION}"
 set_default "COMMAND" "${DEFAULT_COMMAND}"
 set_default "TOOLCHAIN" "${DEFAULT_TOOLCHAIN}"
 
-# Helper function to check if the next argument is an option
+# Helper function to check if the next argument is an option or command
 is_next_arg_option() {
 	if [[ $# -le 1 ]]; then
 		return 1
 	fi
 
 	local next_arg="$2"
+
+	# Check if it's a command
+	if [[ "$next_arg" =~ ^(${SUPPORTED_COMMANDS})$ ]]; then
+		return 0
+	fi
 
 	# Check if it's a long option (starts with --)
 	if [[ "$next_arg" =~ ^-- ]]; then
@@ -1059,13 +1065,14 @@ is_next_arg_option() {
 }
 
 # Parse command-line arguments
-# First argument might be a command
-if [[ $# -gt 0 ]] && [[ "$1" =~ ^(build|test|check)$ ]]; then
-	COMMAND="$1"
-	shift
-fi
-
 while [[ $# -gt 0 ]]; do
+	# Check if current argument is a command
+	if [[ "$1" =~ ^(${SUPPORTED_COMMANDS})$ ]]; then
+		COMMAND="$1"
+		shift
+		continue
+	fi
+
 	case "${1}" in
 	-h | --help)
 		print_help
