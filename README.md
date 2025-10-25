@@ -67,12 +67,12 @@ jobs:
             x86_64-apple-darwin
             aarch64-apple-darwin
           profile: release
-          
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
           name: binaries-${{ matrix.os }}
-          path: target/cross/*
+          path: target/*/release/*
 ```
 
 ## Host Platforms (Runners)
@@ -226,7 +226,6 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 | `workspace` | Build all workspace members | `false` |
 | `manifest-path` | Path to Cargo.toml | |
 | `source-dir` | Directory containing the Rust project | `${{ github.workspace }}` |
-| `result-dir` | Directory to store build results | `target/cross` |
 | `bin-name-no-suffix` | Don't append target suffix to binary name | `false` |
 | `github-proxy-mirror` | GitHub proxy mirror URL | |
 | `cross-compiler-dir` | Directory to store cross compilers | |
@@ -249,7 +248,6 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 
 | Output | Description |
 |--------|-------------|
-| `result-dir` | Directory containing built artifacts |
 | `targets` | Targets that were processed |
 
 ## Advanced Examples
@@ -392,7 +390,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.target }}
-          path: target/cross/*
+          path: target/${{ matrix.target }}/release/*
 ```
 
 ### Test Across Multiple Targets
@@ -558,7 +556,7 @@ You can also use the execution script directly:
 3. **Toolchain Setup**: Automatically downloads and configures the necessary cross-compilation toolchains
 4. **Environment Configuration**: Sets up the correct environment variables for cross-compilation
 5. **Command Execution**: Runs the specified cargo command with the appropriate flags and configuration
-6. **Artifact Collection**: For build commands, collects all built binaries and libraries in the result directory
+6. **Artifact Output**: Built binaries and libraries are placed in `target/{target}/{profile}/` directories following Cargo's standard structure
 
 ## Troubleshooting
 

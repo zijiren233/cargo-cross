@@ -554,7 +554,7 @@ get_linux_env() {
 	# Download compiler if not present
 	if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
 		local host_platform=$(get_host_platform)
-		local download_url="${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
+		local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
 		download_cross_compiler "${compiler_dir}" "${cross_compiler_name}" "${download_url}" || return 2
 	fi
 
@@ -601,7 +601,7 @@ get_windows_gnu_env() {
 		# Download compiler if not present
 		if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
 			local host_platform=$(get_host_platform)
-			local download_url="${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
+			local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
 			download_cross_compiler "${compiler_dir}" "${cross_compiler_name}" "${download_url}" || return 2
 		fi
 
@@ -642,7 +642,7 @@ get_freebsd_env() {
 	# Download compiler if not present
 	if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
 		local host_platform=$(get_host_platform)
-		local download_url="${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
+		local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
 		download_cross_compiler "${compiler_dir}" "${cross_compiler_name}" "${download_url}" || return 2
 	fi
 
