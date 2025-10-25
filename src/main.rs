@@ -8,15 +8,18 @@ const CROSS_SCRIPT: &str = include_str!("../cross.sh");
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    // Remove the first argument (program name)
-    // For cargo subcommands, args will be: ["cargo-cross", "cross", ...]
-    // We need to skip both "cargo-cross" and potentially "cross"
-    let filtered_args: Vec<String> = args
-        .iter()
-        .skip(1)
-        .filter(|arg| *arg != "cross")
-        .map(std::string::ToString::to_string)
-        .collect();
+    // When invoked as `cargo cross`, cargo sets the CARGO env var and passes
+    // args as ["cargo-cross", "cross", ...]. We need to skip both.
+    // When invoked directly as `cargo-cross`, only skip the program name.
+    let skip_count = if env::var("CARGO").is_ok()
+        && env::var("CARGO_HOME").is_ok()
+        && args.get(1).map(std::string::String::as_str) == Some("cross")
+    {
+        2
+    } else {
+        1
+    };
+    let filtered_args: Vec<String> = args.iter().skip(skip_count).cloned().collect();
 
     // Build the bash command with arguments
     // We use 'bash -s' to read the script from stdin, followed by '--' and the arguments
