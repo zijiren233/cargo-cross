@@ -3,7 +3,7 @@ use std::io::Write;
 use std::process::{exit, Command, Stdio};
 
 /// The embedded cross.sh script
-const CROSS_SCRIPT: &str = include_str!("../cross.sh");
+const CROSS_SCRIPT: &[u8] = include_bytes!("../cross.sh");
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -43,7 +43,7 @@ fn main() {
 
     // Write the script to bash's stdin
     if let Some(mut stdin) = child.stdin.take() {
-        if let Err(e) = stdin.write_all(CROSS_SCRIPT.as_bytes()) {
+        if let Err(e) = stdin.write_all(CROSS_SCRIPT) {
             eprintln!("Failed to write script to bash: {e}");
             exit(1);
         }
