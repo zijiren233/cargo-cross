@@ -585,29 +585,39 @@ get_windows_gnu_env() {
 		;;
 	esac
 
-	local cross_compiler_name="${arch}-w64-mingw32-cross"
-	local gcc_name="${arch}-w64-mingw32-gcc"
-	local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}"
+	case "${HOST_OS}" in
+	*"mingw"* | *"msys"* | *"cygwin"*)
+		# Native compilation on Windows (MinGW/MSYS2/Cygwin environment)
+		log_success "Using native Windows toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
+		return 0
+		;;
+	*)
+		# Cross-compilation from Linux/macOS to Windows
+		local cross_compiler_name="${arch}-w64-mingw32-cross"
+		local gcc_name="${arch}-w64-mingw32-gcc"
+		local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}"
 
-	# Download compiler if not present
-	if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
-		local host_platform=$(get_host_platform)
-		local download_url="${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
-		download_cross_compiler "${compiler_dir}" "${cross_compiler_name}" "${download_url}" || return 2
-	fi
+		# Download compiler if not present
+		if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
+			local host_platform=$(get_host_platform)
+			local download_url="${GH_PROXY}https://github.com/zijiren233/musl-cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
+			download_cross_compiler "${compiler_dir}" "${cross_compiler_name}" "${download_url}" || return 2
+		fi
 
-	# Set environment variables
-	set_cross_env \
-		"${gcc_name}" \
-		"${arch}-w64-mingw32-g++" \
-		"${arch}-w64-mingw32-ar" \
-		"${gcc_name}" \
-		"${compiler_dir}/bin"
+		# Set environment variables
+		set_cross_env \
+			"${gcc_name}" \
+			"${arch}-w64-mingw32-g++" \
+			"${arch}-w64-mingw32-ar" \
+			"${gcc_name}" \
+			"${compiler_dir}/bin"
 
-	# Add library search paths from gcc to rustc
-	set_gcc_lib_paths "${compiler_dir}" "${arch}-w64-mingw32"
+		# Add library search paths from gcc to rustc
+		set_gcc_lib_paths "${compiler_dir}" "${arch}-w64-mingw32"
 
-	log_success "Configured Windows toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
+		log_success "Configured Windows toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
+		;;
+	esac
 }
 
 # Get FreeBSD cross-compilation environment
