@@ -903,8 +903,8 @@ add_args() {
 # Clean cache
 clean_cache() {
 	if [[ "$CLEAN_CACHE" == "true" ]]; then
-		log_info "Cleaning cache for ${COLOR_LIGHT_YELLOW}$1${COLOR_LIGHT_BLUE}..."
-		cargo clean --target "$1" 2>/dev/null || true
+		log_info "Cleaning cache..."
+		cargo clean 2>/dev/null || true
 	fi
 }
 
