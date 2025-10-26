@@ -1,6 +1,6 @@
 # Rust Cross Build Action
 
-A powerful GitHub Action for building, testing, and checking Rust projects with cross-compilation support. This action automatically downloads and configures the necessary cross-compilation toolchains, making it easy to execute various Rust commands for multiple platforms.
+A powerful GitHub Action for building, testing, and checking Rust projects with cross-compilation support. This action automatically downloads and configures the necessary cross-compilation toolchains, making it easy to execute various Rust commands for multiple platforms. No Need Docker!
 
 ## Features
 

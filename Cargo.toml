@@ -1,9 +1,9 @@
 [package]
 name = "cargo-cross"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2021"
 authors = ["pyh1670605849@gmail.com"]
-description = "A cargo subcommand for cross-compilation using rust-build-action"
+description = "A cargo subcommand for cross-compilation using rust-build-action, no need docker!"
 license = "MIT"
 repository = "https://github.com/zijiren233/rust-build-action"
 
