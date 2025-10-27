@@ -304,7 +304,7 @@ set_cross_env() {
 	TARGET_CXX="$2"
 	TARGET_AR="$3"
 	TARGET_LINKER="$4"
-	EXTRA_PATH="$5"
+	TARGET_PATH="$5"
 }
 
 # Set gcc library search paths for rustc
@@ -345,11 +345,29 @@ add_env_if_set() {
 
 # Fix rpath for Darwin/iOS linkers
 # Args: compiler_dir, arch_prefix
+# Returns: 0 on success, sets TARGET_LD_LIBRARY_PATH if using environment variable fallback
 fix_darwin_linker_rpath() {
 	local compiler_dir="$1"
 	local arch_prefix="$2"
-	patchelf --set-rpath "${compiler_dir}/lib" \
-		${compiler_dir}/bin/${arch_prefix}-apple-darwin*-ld || return 2
+	local linker_path="${compiler_dir}/bin/${arch_prefix}-apple-darwin"*"-ld"
+
+	# Try patchelf first
+	if command -v patchelf &>/dev/null; then
+		if patchelf --set-rpath "${compiler_dir}/lib" ${linker_path} 2>/dev/null; then
+			return 0
+		fi
+	fi
+
+	# Try chrpath as fallback
+	if command -v chrpath &>/dev/null; then
+		if chrpath -r "${compiler_dir}/lib" ${linker_path} 2>/dev/null; then
+			return 0
+		fi
+	fi
+
+	# Fallback to environment variable approach
+	TARGET_LD_LIBRARY_PATH="${compiler_dir}/lib"
+	return 0
 }
 
 # -----------------------------------------------------------------------------
@@ -417,14 +435,18 @@ get_build_std_config() {
 # Cross-Compilation Environment Setup
 # -----------------------------------------------------------------------------
 
+clean_cross_env() {
+	TARGET_CC="" TARGET_CXX="" TARGET_AR="" TARGET_LINKER="" TARGET_RUSTFLAGS="" TARGET_BUILD_STD=""
+	TARGET_LD_LIBRARY_PATH="" TARGET_PATH="" SDKROOT=""
+}
+
 # Get cross-compilation environment variables
 # Returns environment variables as a string suitable for use with env command
 get_cross_env() {
 	local rust_target="$1"
 
 	# Clear target-specific variables
-	TARGET_CC="" TARGET_CXX="" TARGET_AR="" TARGET_LINKER="" TARGET_RUSTFLAGS="" TARGET_BUILD_STD=""
-	EXTRA_PATH="" SDKROOT=""
+	clean_cross_env
 
 	# Install Rust target if not already installed, or use build-std if target not available in rustup
 	# curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -661,7 +683,6 @@ get_freebsd_env() {
 }
 
 # Get Darwin (macOS) environment
-# Need install patchelf
 get_darwin_env() {
 	local arch="$1"
 	local rust_target="$2"
@@ -705,6 +726,7 @@ get_darwin_env() {
 			download_and_extract "${download_url}" "${osxcross_dir}" || return 2
 		fi
 
+		# Fix linker rpath (sets TARGET_LD_LIBRARY_PATH if using env var fallback)
 		fix_darwin_linker_rpath "${osxcross_dir}" "${arch}"
 
 		set_cross_env \
@@ -824,6 +846,7 @@ get_ios_env() {
 			download_and_extract "$download_url" "${compiler_dir}" || return 2
 		fi
 
+		# Fix linker rpath (sets TARGET_LD_LIBRARY_PATH if using env var fallback)
 		fix_darwin_linker_rpath "${compiler_dir}" "${arch_prefix}"
 
 		# Set SDKROOT to first folder in SDK directory
@@ -928,8 +951,17 @@ execute_target() {
 	local build_env=()
 
 	# Set up PATH with target-specific tools if needed
-	if [[ -n "$EXTRA_PATH" ]]; then
-		build_env+=("PATH=${EXTRA_PATH}:${PATH}")
+	if [[ -n "$TARGET_PATH" ]]; then
+		build_env+=("PATH=${TARGET_PATH}:${PATH}")
+	fi
+
+	# Set up LD_LIBRARY_PATH if needed (e.g., for Darwin linker when patchelf/chrpath not available)
+	if [[ -n "$TARGET_LD_LIBRARY_PATH" ]]; then
+		if [[ "$HOST_OS" == "darwin" ]]; then
+			build_env+=("DYLD_LIBRARY_PATH=${TARGET_LD_LIBRARY_PATH}${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}")
+		else
+			build_env+=("LD_LIBRARY_PATH=${TARGET_LD_LIBRARY_PATH}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}")
+		fi
 	fi
 
 	# Set up environment based on target
