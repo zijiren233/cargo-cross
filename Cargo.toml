@@ -1,11 +1,11 @@
 [package]
 name = "cargo-cross"
-version = "1.0.6"
+version = "1.0.7"
 edition = "2021"
 authors = ["pyh1670605849@gmail.com"]
-description = "A cargo subcommand for cross-compilation using rust-build-action, no need docker!"
+description = "A cargo subcommand for cross-compilation, no need docker!"
 license = "MIT"
-repository = "https://github.com/zijiren233/rust-build-action"
+repository = "https://github.com/zijiren233/cargo-cross"
 
 [[bin]]
 name = "cargo-cross"
