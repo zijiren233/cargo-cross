@@ -213,14 +213,8 @@ inputs:
   timings:
     description: "Output information about compilation timing"
     required: false
-  cargo-config:
-    description: "Override a Cargo configuration value (KEY=VALUE)"
-    required: false
   cargo-cwd:
     description: "Change current working directory before executing"
-    required: false
-  cargo-z-flags:
-    description: "Unstable (nightly-only) flags to Cargo"
     required: false
 
 outputs:
@@ -279,9 +273,7 @@ runs:
         COLOR: ${{ inputs.color }}
         BUILD_PLAN: ${{ inputs.build-plan }}
         TIMINGS: ${{ inputs.timings }}
-        CARGO_CONFIG: ${{ inputs.cargo-config }}
         CARGO_CWD: ${{ inputs.cargo-cwd }}
-        CARGO_Z_FLAGS: ${{ inputs.cargo-z-flags }}
         MANIFEST_PATH: ${{ inputs.manifest-path }}
         BIN_NAME_NO_SUFFIX: ${{ inputs.bin-name-no-suffix }}
         GH_PROXY: ${{ inputs.github-proxy-mirror }}

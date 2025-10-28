@@ -1253,30 +1253,6 @@ is_next_arg_option() {
 	esac
 }
 
-# Helper function to parse environment variable values into arrays
-# Supports newline, comma, and space-separated values
-parse_env_to_array() {
-	local env_var="$1"
-	local -n result_array="$2"
-
-	if [[ -z "${!env_var}" ]]; then
-		return
-	fi
-
-	local value="${!env_var}"
-	# Split by newlines, commas, or spaces
-	IFS=$'\n,' read -ra items <<<"$value"
-	for item in "${items[@]}"; do
-		# Trim whitespace and skip empty items
-		item=$(echo "$item" | xargs)
-		[[ -n "$item" ]] && result_array+=("$item")
-	done
-}
-
-# Initialize arrays from environment variables (for GitHub Actions)
-parse_env_to_array "CARGO_CONFIG" CARGO_CONFIG_ARRAY
-parse_env_to_array "CARGO_Z_FLAGS" CARGO_Z_FLAGS_ARRAY
-
 # Parse command-line arguments
 while [[ $# -gt 0 ]]; do
 	# Check if current argument is a command
