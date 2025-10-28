@@ -345,7 +345,7 @@ add_env_if_set() {
 
 # Fix rpath for Darwin/iOS linkers
 # Args: compiler_dir, arch_prefix
-# Returns: 0 on success, sets TARGET_LD_LIBRARY_PATH if using environment variable fallback
+# Returns: 0 on success, sets TARGET_LIBRARY_PATH if using environment variable fallback
 fix_darwin_linker_rpath() {
 	local compiler_dir="$1"
 	local arch_prefix="$2"
@@ -366,7 +366,7 @@ fix_darwin_linker_rpath() {
 	fi
 
 	# Fallback to environment variable approach
-	TARGET_LD_LIBRARY_PATH="${compiler_dir}/lib"
+	TARGET_LIBRARY_PATH="${compiler_dir}/lib"
 	return 0
 }
 
@@ -437,7 +437,7 @@ get_build_std_config() {
 
 clean_cross_env() {
 	TARGET_CC="" TARGET_CXX="" TARGET_AR="" TARGET_LINKER="" TARGET_RUSTFLAGS="" TARGET_BUILD_STD=""
-	TARGET_LD_LIBRARY_PATH="" TARGET_PATH="" SDKROOT=""
+	TARGET_LIBRARY_PATH="" TARGET_PATH="" SDKROOT=""
 }
 
 # Get cross-compilation environment variables
@@ -726,7 +726,7 @@ get_darwin_env() {
 			download_and_extract "${download_url}" "${osxcross_dir}" || return 2
 		fi
 
-		# Fix linker rpath (sets TARGET_LD_LIBRARY_PATH if using env var fallback)
+		# Fix linker rpath (sets TARGET_LIBRARY_PATH if using env var fallback)
 		fix_darwin_linker_rpath "${osxcross_dir}" "${arch}"
 
 		set_cross_env \
@@ -846,7 +846,7 @@ get_ios_env() {
 			download_and_extract "$download_url" "${compiler_dir}" || return 2
 		fi
 
-		# Fix linker rpath (sets TARGET_LD_LIBRARY_PATH if using env var fallback)
+		# Fix linker rpath (sets TARGET_LIBRARY_PATH if using env var fallback)
 		fix_darwin_linker_rpath "${compiler_dir}" "${arch_prefix}"
 
 		# Set SDKROOT to first folder in SDK directory
@@ -956,11 +956,11 @@ execute_target() {
 	fi
 
 	# Set up LD_LIBRARY_PATH if needed (e.g., for Darwin linker when patchelf/chrpath not available)
-	if [[ -n "$TARGET_LD_LIBRARY_PATH" ]]; then
+	if [[ -n "$TARGET_LIBRARY_PATH" ]]; then
 		if [[ "$HOST_OS" == "darwin" ]]; then
-			build_env+=("DYLD_LIBRARY_PATH=${TARGET_LD_LIBRARY_PATH}${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}")
+			build_env+=("DYLD_LIBRARY_PATH=${TARGET_LIBRARY_PATH}${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}")
 		else
-			build_env+=("LD_LIBRARY_PATH=${TARGET_LD_LIBRARY_PATH}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}")
+			build_env+=("LD_LIBRARY_PATH=${TARGET_LIBRARY_PATH}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}")
 		fi
 	fi
 
