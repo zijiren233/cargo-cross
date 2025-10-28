@@ -1,4 +1,4 @@
-name: "Rust Cross Build"
+name: "Cargo Cross"
 description: "A configurable GitHub Action to build, test, and check Rust projects with cross-compilation support"
 
 branding:
