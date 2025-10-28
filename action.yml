@@ -36,6 +36,9 @@ inputs:
   package:
     description: "Package to build (workspace member)"
     required: false
+  exclude:
+    description: "Exclude packages from the build (must be used with workspace)"
+    required: false
   bin:
     description: "Binary target to build"
     required: false
@@ -131,6 +134,27 @@ inputs:
     description: "Build only the library target"
     required: false
     default: "false"
+  example:
+    description: "Example target to build"
+    required: false
+  examples:
+    description: "Build all example targets"
+    required: false
+    default: "false"
+  test:
+    description: "Integration test to build"
+    required: false
+  tests:
+    description: "Build all test targets"
+    required: false
+    default: "false"
+  bench:
+    description: "Benchmark target to build"
+    required: false
+  benches:
+    description: "Build all benchmark targets"
+    required: false
+    default: "false"
   all-targets:
     description: "Build all targets (equivalent to --lib --bins --tests --benches --examples)"
     required: false
@@ -162,6 +186,9 @@ inputs:
     description: "Equivalent to specifying both --locked and --offline"
     required: false
     default: "false"
+  lockfile-path:
+    description: "Path to Cargo.lock (unstable, requires nightly)"
+    required: false
   jobs:
     description: "Number of parallel jobs to run"
     required: false
@@ -173,6 +200,28 @@ inputs:
     description: "Displays a future-incompat report for warnings"
     required: false
     default: "false"
+  artifact-dir:
+    description: "Copy final artifacts to this directory (unstable, requires nightly)"
+    required: false
+  color:
+    description: "Control when colored output is used (auto, always, never)"
+    required: false
+  build-plan:
+    description: "Outputs a series of JSON messages (unstable, requires nightly)"
+    required: false
+    default: "false"
+  timings:
+    description: "Output information about compilation timing"
+    required: false
+  cargo-config:
+    description: "Override a Cargo configuration value (KEY=VALUE)"
+    required: false
+  cargo-cwd:
+    description: "Change current working directory before executing"
+    required: false
+  cargo-z-flags:
+    description: "Unstable (nightly-only) flags to Cargo"
+    required: false
 
 outputs:
   targets:
@@ -205,9 +254,16 @@ runs:
         NO_DEFAULT_FEATURES: ${{ inputs.no-default-features }}
         ALL_FEATURES: ${{ inputs.all-features }}
         PACKAGE: ${{ inputs.package }}
+        EXCLUDE: ${{ inputs.exclude }}
         BIN_TARGET: ${{ inputs.bin }}
         BUILD_BINS: ${{ inputs.bins }}
         BUILD_LIB: ${{ inputs.lib }}
+        EXAMPLE_TARGET: ${{ inputs.example }}
+        BUILD_EXAMPLES: ${{ inputs.examples }}
+        TEST_TARGET: ${{ inputs.test }}
+        BUILD_TESTS: ${{ inputs.tests }}
+        BENCH_TARGET: ${{ inputs.bench }}
+        BUILD_BENCHES: ${{ inputs.benches }}
         BUILD_ALL_TARGETS: ${{ inputs.all-targets }}
         BUILD_WORKSPACE: ${{ inputs.workspace }}
         MESSAGE_FORMAT: ${{ inputs.message-format }}
@@ -215,9 +271,17 @@ runs:
         LOCKED: ${{ inputs.locked }}
         OFFLINE: ${{ inputs.offline }}
         FROZEN: ${{ inputs.frozen }}
+        LOCKFILE_PATH: ${{ inputs.lockfile-path }}
         JOBS: ${{ inputs.jobs }}
         KEEP_GOING: ${{ inputs.keep-going }}
         FUTURE_INCOMPAT_REPORT: ${{ inputs.future-incompat-report }}
+        ARTIFACT_DIR: ${{ inputs.artifact-dir }}
+        COLOR: ${{ inputs.color }}
+        BUILD_PLAN: ${{ inputs.build-plan }}
+        TIMINGS: ${{ inputs.timings }}
+        CARGO_CONFIG: ${{ inputs.cargo-config }}
+        CARGO_CWD: ${{ inputs.cargo-cwd }}
+        CARGO_Z_FLAGS: ${{ inputs.cargo-z-flags }}
         MANIFEST_PATH: ${{ inputs.manifest-path }}
         BIN_NAME_NO_SUFFIX: ${{ inputs.bin-name-no-suffix }}
         GH_PROXY: ${{ inputs.github-proxy-mirror }}

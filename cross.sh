@@ -189,18 +189,25 @@ print_help() {
 	echo -e "${COLOR_LIGHT_GREEN}Options:${COLOR_RESET}"
 	echo -e "      ${COLOR_LIGHT_CYAN}--profile=${COLOR_RESET}${COLOR_LIGHT_CYAN}<profile>${COLOR_RESET}               Set the build profile (debug/release, default: ${DEFAULT_PROFILE})"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cross-compiler-dir=${COLOR_RESET}${COLOR_LIGHT_CYAN}<dir>${COLOR_RESET}        Specify the cross compiler directory"
-	echo -e "      ${COLOR_LIGHT_CYAN}--features=${COLOR_RESET}${COLOR_LIGHT_CYAN}<features>${COLOR_RESET}             Comma-separated list of features to activate"
+	echo -e "  ${COLOR_LIGHT_CYAN}-F=${COLOR_RESET}${COLOR_LIGHT_CYAN}<features>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--features=${COLOR_RESET}${COLOR_LIGHT_CYAN}<features>${COLOR_RESET}  Comma-separated list of features to activate"
 	echo -e "      ${COLOR_LIGHT_CYAN}--no-default-features${COLOR_RESET}             Do not activate default features"
 	echo -e "      ${COLOR_LIGHT_CYAN}--all-features${COLOR_RESET}                    Activate all available features"
 	echo -e "  ${COLOR_LIGHT_CYAN}-t=${COLOR_RESET}${COLOR_LIGHT_CYAN}<targets>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--targets=${COLOR_RESET}${COLOR_LIGHT_CYAN}<targets>${COLOR_RESET}     Rust target triple(s) (e.g., x86_64-unknown-linux-musl)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--show-all-targets${COLOR_RESET}                Display all supported target triples"
 	echo -e "      ${COLOR_LIGHT_CYAN}--github-proxy-mirror=${COLOR_RESET}${COLOR_LIGHT_CYAN}<url>${COLOR_RESET}       Use a GitHub proxy mirror"
 	echo -e "      ${COLOR_LIGHT_CYAN}--ndk-version=${COLOR_RESET}${COLOR_LIGHT_CYAN}<version>${COLOR_RESET}           Specify the Android NDK version"
-	echo -e "      ${COLOR_LIGHT_CYAN}--package=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}                  Package to build (workspace member)"
+	echo -e "  ${COLOR_LIGHT_CYAN}-p=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--package=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}          Package to build (workspace member)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--workspace${COLOR_RESET}                       Build all workspace members"
+	echo -e "      ${COLOR_LIGHT_CYAN}--exclude=${COLOR_RESET}${COLOR_LIGHT_CYAN}<spec>${COLOR_RESET}                  Exclude packages from the build (must be used with --workspace)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--bin=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}                      Binary target to build"
 	echo -e "      ${COLOR_LIGHT_CYAN}--bins${COLOR_RESET}                            Build all binary targets"
 	echo -e "      ${COLOR_LIGHT_CYAN}--lib${COLOR_RESET}                             Build only the library target"
+	echo -e "      ${COLOR_LIGHT_CYAN}--example=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}                  Example target to build"
+	echo -e "      ${COLOR_LIGHT_CYAN}--examples${COLOR_RESET}                        Build all example targets"
+	echo -e "      ${COLOR_LIGHT_CYAN}--test=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}                     Integration test to build"
+	echo -e "      ${COLOR_LIGHT_CYAN}--tests${COLOR_RESET}                           Build all test targets"
+	echo -e "      ${COLOR_LIGHT_CYAN}--bench=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}                    Benchmark target to build"
+	echo -e "      ${COLOR_LIGHT_CYAN}--benches${COLOR_RESET}                         Build all benchmark targets"
 	echo -e "      ${COLOR_LIGHT_CYAN}--all-targets${COLOR_RESET}                     Build all targets (equivalent to --lib --bins --tests --benches --examples)"
 	echo -e "  ${COLOR_LIGHT_CYAN}-r${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--release${COLOR_RESET}                         Build optimized artifacts with the release profile"
 	echo -e "  ${COLOR_LIGHT_CYAN}-q${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--quiet${COLOR_RESET}                           Do not print cargo log messages"
@@ -226,6 +233,14 @@ print_help() {
 	echo -e "      ${COLOR_LIGHT_CYAN}--cargo-trim-paths=${COLOR_RESET}${COLOR_LIGHT_CYAN}<paths>${COLOR_RESET}        Set CARGO_TRIM_PATHS environment variable"
 	echo -e "      ${COLOR_LIGHT_CYAN}--no-embed-metadata${COLOR_RESET}               Add -Zno-embed-metadata flag to cargo"
 	echo -e "      ${COLOR_LIGHT_CYAN}--target-dir=${COLOR_RESET}${COLOR_LIGHT_CYAN}<dir>${COLOR_RESET}                Directory for all generated artifacts"
+	echo -e "      ${COLOR_LIGHT_CYAN}--artifact-dir=${COLOR_RESET}${COLOR_LIGHT_CYAN}<dir>${COLOR_RESET}              Copy final artifacts to this directory (unstable, requires nightly)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--color=${COLOR_RESET}${COLOR_LIGHT_CYAN}<when>${COLOR_RESET}                    Control when colored output is used (auto, always, never)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--build-plan${COLOR_RESET}                      Outputs a series of JSON messages (unstable, requires nightly)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--timings=${COLOR_RESET}${COLOR_LIGHT_CYAN}<fmts>${COLOR_RESET}                 Output information about compilation timing"
+	echo -e "      ${COLOR_LIGHT_CYAN}--lockfile-path=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}           Path to Cargo.lock (unstable, requires nightly)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--config=${COLOR_RESET}${COLOR_LIGHT_CYAN}<KEY=VALUE>${COLOR_RESET}             Override a Cargo configuration value"
+	echo -e "  ${COLOR_LIGHT_CYAN}-C=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}                             Change current working directory before executing"
+	echo -e "  ${COLOR_LIGHT_CYAN}-Z=${COLOR_RESET}${COLOR_LIGHT_CYAN}<flag>${COLOR_RESET}                             Unstable (nightly-only) flags to Cargo"
 	echo -e "  ${COLOR_LIGHT_CYAN}-v${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--verbose${COLOR_RESET}                         Use verbose output"
 	echo -e "  ${COLOR_LIGHT_CYAN}-h${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--help${COLOR_RESET}                            Display this help message"
 }
@@ -254,7 +269,7 @@ download_and_extract() {
 	if [ "$(ls -A "${file}")" ]; then
 		rm -rf "${file}"/* || return $?
 	fi
-	log_info "Downloading \"${COLOR_LIGHT_YELLOW}${url}${COLOR_LIGHT_BLUE}\" to \"${COLOR_LIGHT_YELLOW}${file}${COLOR_LIGHT_BLUE}\""
+	log_info "Downloading \"${COLOR_LIGHT_GREEN}${url}${COLOR_LIGHT_BLUE}\" to \"${COLOR_LIGHT_GREEN}${file}${COLOR_LIGHT_BLUE}\""
 
 	local start_time=$(date +%s)
 
@@ -1015,6 +1030,24 @@ execute_target() {
 	# Prepare command
 	local cargo_cmd="cargo"
 	[[ -n "$TOOLCHAIN" ]] && cargo_cmd="cargo +$TOOLCHAIN"
+
+	# Add -C flag if specified (must come before command)
+	[[ -n "$CARGO_CWD" ]] && cargo_cmd="$cargo_cmd -C $CARGO_CWD"
+
+	# Add -Z flags if specified (must come before command)
+	if [[ ${#CARGO_Z_FLAGS_ARRAY[@]} -gt 0 ]]; then
+		for flag in "${CARGO_Z_FLAGS_ARRAY[@]}"; do
+			cargo_cmd="$cargo_cmd -Z $flag"
+		done
+	fi
+
+	# Add --config flags if specified (must come before command)
+	if [[ ${#CARGO_CONFIG_ARRAY[@]} -gt 0 ]]; then
+		for config in "${CARGO_CONFIG_ARRAY[@]}"; do
+			cargo_cmd="$cargo_cmd --config $config"
+		done
+	fi
+
 	add_args "$command --target $rust_target"
 
 	# Build profile and features
@@ -1025,11 +1058,18 @@ execute_target() {
 
 	# Package and target selection
 	add_option "$PACKAGE" "--package"
+	add_flag "$BUILD_WORKSPACE" "--workspace"
+	add_option "$EXCLUDE" "--exclude"
 	add_option "$BIN_TARGET" "--bin"
 	add_flag "$BUILD_BINS" "--bins"
 	add_flag "$BUILD_LIB" "--lib"
+	add_option "$EXAMPLE_TARGET" "--example"
+	add_flag "$BUILD_EXAMPLES" "--examples"
+	add_option "$TEST_TARGET" "--test"
+	add_flag "$BUILD_TESTS" "--tests"
+	add_option "$BENCH_TARGET" "--bench"
+	add_flag "$BUILD_BENCHES" "--benches"
 	add_flag "$BUILD_ALL_TARGETS" "--all-targets"
-	add_flag "$BUILD_WORKSPACE" "--workspace"
 	add_option "$MANIFEST_PATH" "--manifest-path"
 
 	# Build-std flag (either from args or target requirements)
@@ -1047,12 +1087,16 @@ execute_target() {
 	add_flag "$VERBOSE" "--verbose"
 	add_flag "$QUIET" "--quiet"
 	add_option "$MESSAGE_FORMAT" "--message-format"
+	add_option "$COLOR" "--color"
+	add_flag "$BUILD_PLAN" "--build-plan"
+	add_option_or_flag "$TIMINGS" "--timings"
 
 	# Dependency and version management
 	add_flag "$IGNORE_RUST_VERSION" "--ignore-rust-version"
 	add_flag "$LOCKED" "--locked"
 	add_flag "$OFFLINE" "--offline"
 	add_flag "$FROZEN" "--frozen"
+	add_option "$LOCKFILE_PATH" "--lockfile-path"
 
 	# Build configuration
 	add_option "$JOBS" "--jobs"
@@ -1060,6 +1104,7 @@ execute_target() {
 	add_flag "$FUTURE_INCOMPAT_REPORT" "--future-incompat-report"
 	add_flag "$NO_EMBED_METADATA" "-Zno-embed-metadata"
 	add_option "$CARGO_TARGET_DIR" "--target-dir"
+	add_option "$ARTIFACT_DIR" "--artifact-dir"
 
 	# Additional arguments
 	[[ -n "$ADDITIONAL_ARGS" ]] && add_args "$ADDITIONAL_ARGS"
@@ -1194,11 +1239,11 @@ is_next_arg_option() {
 		# These short options don't support = form
 		return 0
 		;;
-	-t | -j)
+	-t | -j | -p | -F)
 		# These short options exist without =
 		return 0
 		;;
-	-t=* | -j=*)
+	-t=* | -j=* | -p=* | -F=*)
 		# These short options support = form
 		return 0
 		;;
@@ -1207,6 +1252,30 @@ is_next_arg_option() {
 		;;
 	esac
 }
+
+# Helper function to parse environment variable values into arrays
+# Supports newline, comma, and space-separated values
+parse_env_to_array() {
+	local env_var="$1"
+	local -n result_array="$2"
+
+	if [[ -z "${!env_var}" ]]; then
+		return
+	fi
+
+	local value="${!env_var}"
+	# Split by newlines, commas, or spaces
+	IFS=$'\n,' read -ra items <<<"$value"
+	for item in "${items[@]}"; do
+		# Trim whitespace and skip empty items
+		item=$(echo "$item" | xargs)
+		[[ -n "$item" ]] && result_array+=("$item")
+	done
+}
+
+# Initialize arrays from environment variables (for GitHub Actions)
+parse_env_to_array "CARGO_CONFIG" CARGO_CONFIG_ARRAY
+parse_env_to_array "CARGO_Z_FLAGS" CARGO_Z_FLAGS_ARRAY
 
 # Parse command-line arguments
 while [[ $# -gt 0 ]]; do
@@ -1229,10 +1298,10 @@ while [[ $# -gt 0 ]]; do
 		shift
 		PROFILE="$(parse_option_value "--profile" "$@")"
 		;;
-	--features=*)
+	-F=* | --features=*)
 		FEATURES="${1#*=}"
 		;;
-	--features)
+	-F | --features)
 		shift
 		FEATURES="$(parse_option_value "--features" "$@")"
 		;;
@@ -1286,12 +1355,19 @@ while [[ $# -gt 0 ]]; do
 		shift
 		NDK_VERSION="$(parse_option_value "--ndk-version" "$@")"
 		;;
-	--package=*)
+	-p=* | --package=*)
 		PACKAGE="${1#*=}"
 		;;
-	--package)
+	-p | --package)
 		shift
 		PACKAGE="$(parse_option_value "--package" "$@")"
+		;;
+	--exclude=*)
+		EXCLUDE="${1#*=}"
+		;;
+	--exclude)
+		shift
+		EXCLUDE="$(parse_option_value "--exclude" "$@")"
 		;;
 	--bin=*)
 		BIN_TARGET="${1#*=}"
@@ -1305,6 +1381,36 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--lib)
 		BUILD_LIB="true"
+		;;
+	--example=*)
+		EXAMPLE_TARGET="${1#*=}"
+		;;
+	--example)
+		shift
+		EXAMPLE_TARGET="$(parse_option_value "--example" "$@")"
+		;;
+	--examples)
+		BUILD_EXAMPLES="true"
+		;;
+	--test=*)
+		TEST_TARGET="${1#*=}"
+		;;
+	--test)
+		shift
+		TEST_TARGET="$(parse_option_value "--test" "$@")"
+		;;
+	--tests)
+		BUILD_TESTS="true"
+		;;
+	--bench=*)
+		BENCH_TARGET="${1#*=}"
+		;;
+	--bench)
+		shift
+		BENCH_TARGET="$(parse_option_value "--bench" "$@")"
+		;;
+	--benches)
+		BUILD_BENCHES="true"
 		;;
 	--all-targets)
 		BUILD_ALL_TARGETS="true"
@@ -1465,6 +1571,66 @@ while [[ $# -gt 0 ]]; do
 	--target-dir)
 		shift
 		CARGO_TARGET_DIR="$(parse_option_value "--target-dir" "$@")"
+		;;
+	--artifact-dir=*)
+		ARTIFACT_DIR="${1#*=}"
+		;;
+	--artifact-dir)
+		shift
+		ARTIFACT_DIR="$(parse_option_value "--artifact-dir" "$@")"
+		;;
+	--color=*)
+		COLOR="${1#*=}"
+		;;
+	--color)
+		shift
+		COLOR="$(parse_option_value "--color" "$@")"
+		;;
+	--build-plan)
+		BUILD_PLAN="true"
+		;;
+	--timings=*)
+		TIMINGS="${1#*=}"
+		;;
+	--timings)
+		if is_next_arg_option "$@"; then
+			TIMINGS="true"
+		else
+			if [[ $# -gt 1 ]]; then
+				shift
+				TIMINGS="$1"
+			else
+				TIMINGS="true"
+			fi
+		fi
+		;;
+	--lockfile-path=*)
+		LOCKFILE_PATH="${1#*=}"
+		;;
+	--lockfile-path)
+		shift
+		LOCKFILE_PATH="$(parse_option_value "--lockfile-path" "$@")"
+		;;
+	--config=*)
+		CARGO_CONFIG_ARRAY+=("${1#*=}")
+		;;
+	--config)
+		shift
+		CARGO_CONFIG_ARRAY+=("$(parse_option_value "--config" "$@")")
+		;;
+	-C=*)
+		CARGO_CWD="${1#*=}"
+		;;
+	-C)
+		shift
+		CARGO_CWD="$(parse_option_value "-C" "$@")"
+		;;
+	-Z=*)
+		CARGO_Z_FLAGS_ARRAY+=("${1#*=}")
+		;;
+	-Z)
+		shift
+		CARGO_Z_FLAGS_ARRAY+=("$(parse_option_value "-Z" "$@")")
 		;;
 	--clean-cache)
 		CLEAN_CACHE="true"
