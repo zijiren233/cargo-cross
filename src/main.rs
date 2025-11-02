@@ -38,7 +38,7 @@ fn main() {
         Err(e) => {
             eprintln!("Failed to spawn bash: {e}");
             exit(1);
-        },
+        }
     };
 
     // Write the script to bash's stdin
@@ -54,10 +54,10 @@ fn main() {
     match child.wait() {
         Ok(exit_status) => {
             exit(exit_status.code().unwrap_or(1));
-        },
+        }
         Err(e) => {
             eprintln!("Failed to wait for bash: {e}");
             exit(1);
-        },
+        }
     }
 }

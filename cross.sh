@@ -1031,26 +1031,30 @@ execute_target() {
 
 	# Prepare command
 	local cargo_cmd="cargo"
-	[[ -n "$TOOLCHAIN" ]] && cargo_cmd="cargo +$TOOLCHAIN"
+	[[ -n "$TOOLCHAIN" ]] && add_args "+$TOOLCHAIN"
+
+	add_args "$command"
 
 	# Add -C flag if specified (must come before command)
-	[[ -n "$CARGO_CWD" ]] && cargo_cmd="$cargo_cmd -C $CARGO_CWD"
+	[[ -n "$CARGO_CWD" ]] && add_args "-C $CARGO_CWD"
 
 	# Add -Z flags if specified (must come before command)
 	if [[ ${#CARGO_Z_FLAGS_ARRAY[@]} -gt 0 ]]; then
 		for flag in "${CARGO_Z_FLAGS_ARRAY[@]}"; do
-			cargo_cmd="$cargo_cmd -Z $flag"
+			add_args "-Z $flag"
 		done
 	fi
 
 	# Add --config flags if specified (must come before command)
 	if [[ ${#CARGO_CONFIG_ARRAY[@]} -gt 0 ]]; then
 		for config in "${CARGO_CONFIG_ARRAY[@]}"; do
-			cargo_cmd="$cargo_cmd --config $config"
+			add_args "--config $config"
 		done
 	fi
 
-	add_args "$command --target $rust_target"
+	if [[ "$NO_CARGO_TARGET" != "true" ]]; then
+		add_args "--target $rust_target"
+	fi
 
 	# Build profile and features
 	[[ "$command" == "build" && "$PROFILE" == "release" ]] && add_args "--release"
@@ -1638,6 +1642,7 @@ done
 if [[ -z "$TARGETS" ]]; then
 	TARGETS="$HOST_TRIPLE"
 	USE_DEFAULT_LINKER="true"
+	NO_CARGO_TARGET="true"
 	log_info "No target specified, using host: ${COLOR_LIGHT_YELLOW}${TARGETS}${COLOR_LIGHT_BLUE}"
 else
 	# Expand target patterns
@@ -1647,6 +1652,7 @@ else
 		log_error "Error: Target expansion resulted in no valid targets"
 		exit 1
 	fi
+	NO_CARGO_TARGET=""
 fi
 
 # Print execution information
