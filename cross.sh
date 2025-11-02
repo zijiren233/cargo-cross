@@ -33,7 +33,7 @@ readonly DEFAULT_TTY_WIDTH="40"
 readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
 readonly DEFAULT_TOOLCHAIN=""
-readonly SUPPORTED_COMMANDS="run|bench|build|test|check"
+readonly SUPPORTED_COMMANDS="bench|build|check|doc|run|test"
 
 # -----------------------------------------------------------------------------
 # Host Environment Detection
@@ -180,13 +180,15 @@ print_help() {
 	echo -e "${COLOR_LIGHT_GREEN}Usage:${COLOR_RESET} ${COLOR_LIGHT_CYAN}[command] [options]${COLOR_RESET}"
 	echo -e ""
 	echo -e "${COLOR_LIGHT_GREEN}Commands:${COLOR_RESET}"
-	echo -e "  ${COLOR_LIGHT_CYAN}build${COLOR_RESET}       Build the project (default)"
-	echo -e "  ${COLOR_LIGHT_CYAN}run${COLOR_RESET}         Run the project"
-	echo -e "  ${COLOR_LIGHT_CYAN}test${COLOR_RESET}        Run tests"
-	echo -e "  ${COLOR_LIGHT_CYAN}check${COLOR_RESET}       Check the project"
-	echo -e "  ${COLOR_LIGHT_CYAN}bench${COLOR_RESET}       Bench the project"
+	echo -e "  ${COLOR_LIGHT_CYAN}build${COLOR_RESET}       Compile the package (default)"
+	echo -e "  ${COLOR_LIGHT_CYAN}check${COLOR_RESET}       Analyze the package and report errors"
+	echo -e "  ${COLOR_LIGHT_CYAN}run${COLOR_RESET}         Run a binary or example of the package"
+	echo -e "  ${COLOR_LIGHT_CYAN}test${COLOR_RESET}        Run the tests"
+	echo -e "  ${COLOR_LIGHT_CYAN}bench${COLOR_RESET}       Run the benchmarks"
+	echo -e "  ${COLOR_LIGHT_CYAN}doc${COLOR_RESET}         Build the package's documentation"
 	echo -e ""
 	echo -e "${COLOR_LIGHT_GREEN}Options:${COLOR_RESET}"
+	echo -e "      ${COLOR_LIGHT_CYAN}--command=${COLOR_RESET}${COLOR_LIGHT_CYAN}<command>${COLOR_RESET}               Set the cargo command to run (build|check|run|test|bench|doc)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--profile=${COLOR_RESET}${COLOR_LIGHT_CYAN}<profile>${COLOR_RESET}               Set the build profile (debug/release, default: ${DEFAULT_PROFILE})"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cross-compiler-dir=${COLOR_RESET}${COLOR_LIGHT_CYAN}<dir>${COLOR_RESET}        Specify the cross compiler directory"
 	echo -e "  ${COLOR_LIGHT_CYAN}-F=${COLOR_RESET}${COLOR_LIGHT_CYAN}<features>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--features=${COLOR_RESET}${COLOR_LIGHT_CYAN}<features>${COLOR_RESET}  Comma-separated list of features to activate"
@@ -196,7 +198,7 @@ print_help() {
 	echo -e "      ${COLOR_LIGHT_CYAN}--show-all-targets${COLOR_RESET}                Display all supported target triples"
 	echo -e "      ${COLOR_LIGHT_CYAN}--github-proxy-mirror=${COLOR_RESET}${COLOR_LIGHT_CYAN}<url>${COLOR_RESET}       Use a GitHub proxy mirror"
 	echo -e "      ${COLOR_LIGHT_CYAN}--ndk-version=${COLOR_RESET}${COLOR_LIGHT_CYAN}<version>${COLOR_RESET}           Specify the Android NDK version"
-	echo -e "  ${COLOR_LIGHT_CYAN}-p=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--package=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}          Package to build (workspace member)"
+	echo -e "  ${COLOR_LIGHT_CYAN}-p=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--package=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}           Package to build (workspace member)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--workspace${COLOR_RESET}                       Build all workspace members"
 	echo -e "      ${COLOR_LIGHT_CYAN}--exclude=${COLOR_RESET}${COLOR_LIGHT_CYAN}<spec>${COLOR_RESET}                  Exclude packages from the build (must be used with --workspace)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--bin=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}                      Binary target to build"
@@ -228,7 +230,7 @@ print_help() {
 	echo -e "      ${COLOR_LIGHT_CYAN}--rustflags=${COLOR_RESET}${COLOR_LIGHT_CYAN}<flags>${COLOR_RESET}               Additional rustflags (can be specified multiple times)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--static-crt${COLOR_RESET}[${COLOR_LIGHT_CYAN}=${COLOR_RESET}${COLOR_LIGHT_CYAN}<true|false>${COLOR_RESET}]       Add -C target-feature=+crt-static to rustflags (default: true)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--build-std${COLOR_RESET}[${COLOR_LIGHT_CYAN}=${COLOR_RESET}${COLOR_LIGHT_CYAN}<crates>${COLOR_RESET}]            Use -Zbuild-std for building standard library from source"
-	echo -e "      ${COLOR_LIGHT_CYAN}--args=${COLOR_RESET}${COLOR_LIGHT_CYAN}<args>${COLOR_RESET}                     Additional arguments to pass to cargo build"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cargo-args=${COLOR_RESET}${COLOR_LIGHT_CYAN}<args>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--args=${COLOR_RESET}${COLOR_LIGHT_CYAN}<args>${COLOR_RESET}  Additional arguments to pass to cargo command"
 	echo -e "      ${COLOR_LIGHT_CYAN}--toolchain=${COLOR_RESET}${COLOR_LIGHT_CYAN}<toolchain>${COLOR_RESET}           Rust toolchain to use (stable, nightly, etc.)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cargo-trim-paths=${COLOR_RESET}${COLOR_LIGHT_CYAN}<paths>${COLOR_RESET}        Set CARGO_TRIM_PATHS environment variable"
 	echo -e "      ${COLOR_LIGHT_CYAN}--no-embed-metadata${COLOR_RESET}               Add -Zno-embed-metadata flag to cargo"
@@ -236,9 +238,9 @@ print_help() {
 	echo -e "      ${COLOR_LIGHT_CYAN}--artifact-dir=${COLOR_RESET}${COLOR_LIGHT_CYAN}<dir>${COLOR_RESET}              Copy final artifacts to this directory (unstable, requires nightly)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--color=${COLOR_RESET}${COLOR_LIGHT_CYAN}<when>${COLOR_RESET}                    Control when colored output is used (auto, always, never)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--build-plan${COLOR_RESET}                      Outputs a series of JSON messages (unstable, requires nightly)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--timings=${COLOR_RESET}${COLOR_LIGHT_CYAN}<fmts>${COLOR_RESET}                 Output information about compilation timing"
-	echo -e "      ${COLOR_LIGHT_CYAN}--lockfile-path=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}           Path to Cargo.lock (unstable, requires nightly)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--config=${COLOR_RESET}${COLOR_LIGHT_CYAN}<KEY=VALUE>${COLOR_RESET}             Override a Cargo configuration value"
+	echo -e "      ${COLOR_LIGHT_CYAN}--timings=${COLOR_RESET}${COLOR_LIGHT_CYAN}<fmts>${COLOR_RESET}                  Output information about compilation timing"
+	echo -e "      ${COLOR_LIGHT_CYAN}--lockfile-path=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}            Path to Cargo.lock (unstable, requires nightly)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--config=${COLOR_RESET}${COLOR_LIGHT_CYAN}<KEY=VALUE>${COLOR_RESET}              Override a Cargo configuration value"
 	echo -e "  ${COLOR_LIGHT_CYAN}-C=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}                             Change current working directory before executing"
 	echo -e "  ${COLOR_LIGHT_CYAN}-Z=${COLOR_RESET}${COLOR_LIGHT_CYAN}<flag>${COLOR_RESET}                             Unstable (nightly-only) flags to Cargo"
 	echo -e "  ${COLOR_LIGHT_CYAN}-v${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--verbose${COLOR_RESET}                         Use verbose output"
@@ -1107,7 +1109,7 @@ execute_target() {
 	add_option "$ARTIFACT_DIR" "--artifact-dir"
 
 	# Additional arguments
-	[[ -n "$ADDITIONAL_ARGS" ]] && add_args "$ADDITIONAL_ARGS"
+	[[ -n "$CARGO_ARGS" ]] && add_args "$CARGO_ARGS"
 
 	print_env_vars
 
@@ -1273,6 +1275,13 @@ while [[ $# -gt 0 ]]; do
 	--profile)
 		shift
 		PROFILE="$(parse_option_value "--profile" "$@")"
+		;;
+	--command=*)
+		COMMAND="${1#*=}"
+		;;
+	--command)
+		shift
+		COMMAND="$(parse_option_value "--command" "$@")"
 		;;
 	-F=* | --features=*)
 		FEATURES="${1#*=}"
@@ -1509,12 +1518,12 @@ while [[ $# -gt 0 ]]; do
 			fi
 		fi
 		;;
-	--args=*)
-		ADDITIONAL_ARGS="${1#*=}"
+	--args=* | --cargo-args=*)
+		CARGO_ARGS="${1#*=}"
 		;;
-	--args)
+	--args | --cargo-args)
 		shift
-		ADDITIONAL_ARGS="$(parse_option_value "--args" "$@")"
+		CARGO_ARGS="$(parse_option_value "--args" "$@")"
 		;;
 	--toolchain=*)
 		TOOLCHAIN="${1#*=}"
@@ -1659,7 +1668,7 @@ echo -e "  ${COLOR_LIGHT_CYAN}Targets:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${TARG
 [[ -n "$RUSTFLAGS" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Default rustflags env:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${RUSTFLAGS}${COLOR_RESET}"
 [[ ${#ADDITIONAL_RUSTFLAGS_ARRAY[@]} -gt 0 ]] && echo -e "  ${COLOR_LIGHT_CYAN}Additional rustflags:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${ADDITIONAL_RUSTFLAGS_ARRAY[*]}${COLOR_RESET}"
 [[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Build std:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}$([ "$BUILD_STD" == "true" ] && echo "true" || echo "$BUILD_STD")${COLOR_RESET}"
-[[ -n "$ADDITIONAL_ARGS" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Additional args:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${ADDITIONAL_ARGS}${COLOR_RESET}"
+[[ -n "$CARGO_ARGS" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Cargo args:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${CARGO_ARGS}${COLOR_RESET}"
 [[ "$NO_EMBED_METADATA" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}No embed metadata:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
 
 # Build for each target

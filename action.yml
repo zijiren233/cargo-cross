@@ -288,7 +288,7 @@ runs:
         CLEAN_CACHE: ${{ inputs.clean-cache }}
         NO_STRIP: ${{ inputs.no-strip }}
         VERBOSE: ${{ inputs.verbose }}
-        ADDITIONAL_ARGS: ${{ inputs.args }}
+        CARGO_ARGS: ${{ inputs.args }}
         TOOLCHAIN: ${{ inputs.toolchain }}
         CARGO_TRIM_PATHS: ${{ inputs.cargo-trim-paths || inputs.trim-paths }}
         NO_EMBED_METADATA: ${{ inputs.no-embed-metadata }}
