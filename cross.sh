@@ -434,18 +434,11 @@ is_target_available() {
 }
 
 # Helper function to get appropriate build-std configuration for a target
-# Some targets need panic_abort explicitly specified to avoid "can't find crate for `panic_abort`" errors
+# https://github.com/rust-lang/rust/tree/master/library
 get_build_std_config() {
-	local rust_target="$1"
+	# local rust_target="$1"
 
-	case "$rust_target" in
-	wasm* | *-freebsd | *-netbsd | *-openbsd | *-darwin | *-android)
-		echo "std,panic_abort"
-		;;
-	*)
-		echo "true"
-		;;
-	esac
+	echo "core,std,alloc,proc_macro,test,compiler_builtins,panic_abort,panic_unwind"
 }
 
 # -----------------------------------------------------------------------------
@@ -1078,13 +1071,16 @@ execute_target() {
 	add_flag "$BUILD_ALL_TARGETS" "--all-targets"
 	add_option "$MANIFEST_PATH" "--manifest-path"
 
-	# Build-std flag (either from args or target requirements)
-	if [[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]] || [[ -n "$TARGET_BUILD_STD" && "$TARGET_BUILD_STD" != "false" ]]; then
-		# Prefer TARGET_BUILD_STD over BUILD_STD
-		if [[ -n "$TARGET_BUILD_STD" && "$TARGET_BUILD_STD" != "false" ]]; then
-			add_option_or_flag "$TARGET_BUILD_STD" "-Zbuild-std"
+	# Build-std flag: BUILD_STD (user specified) takes precedence over TARGET_BUILD_STD (auto-detected)
+	local build_std_value=""
+	[[ -n "$TARGET_BUILD_STD" && "$TARGET_BUILD_STD" != "false" ]] && build_std_value="$TARGET_BUILD_STD"
+	[[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]] && build_std_value="$BUILD_STD"
+
+	if [[ -n "$build_std_value" ]]; then
+		if [[ "$build_std_value" == "true" ]]; then
+			add_option_or_flag "$(get_build_std_config "$rust_target")" "-Zbuild-std"
 		else
-			add_option_or_flag "$BUILD_STD" "-Zbuild-std"
+			add_option_or_flag "$build_std_value" "-Zbuild-std"
 		fi
 		add_rust_src "$rust_target" "$TOOLCHAIN" || return $?
 	fi
