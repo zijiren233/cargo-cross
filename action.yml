@@ -123,6 +123,9 @@ inputs:
     description: "Add -Zno-embed-metadata flag to cargo"
     required: false
     default: "false"
+  rustc-bootstrap:
+    description: "Set RUSTC_BOOTSTRAP environment variable (1 for all crates, -1 for stable behavior, or crate_name for specific crate)"
+    required: false
   target-dir:
     description: "Directory for all generated artifacts"
     required: false
@@ -292,6 +295,7 @@ runs:
         TOOLCHAIN: ${{ inputs.toolchain }}
         CARGO_TRIM_PATHS: ${{ inputs.cargo-trim-paths || inputs.trim-paths }}
         NO_EMBED_METADATA: ${{ inputs.no-embed-metadata }}
+        RUSTC_BOOTSTRAP: ${{ inputs.rustc-bootstrap }}
         TARGET_DIR: ${{ inputs.target-dir }}
         QUIET: ${{ inputs.quiet }}
         RELEASE: ${{ inputs.release }}

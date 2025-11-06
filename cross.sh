@@ -234,6 +234,7 @@ print_help() {
 	echo -e "      ${COLOR_LIGHT_CYAN}--toolchain=${COLOR_RESET}${COLOR_LIGHT_CYAN}<toolchain>${COLOR_RESET}           Rust toolchain to use (stable, nightly, etc.)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cargo-trim-paths=${COLOR_RESET}${COLOR_LIGHT_CYAN}<paths>${COLOR_RESET}        Set CARGO_TRIM_PATHS environment variable"
 	echo -e "      ${COLOR_LIGHT_CYAN}--no-embed-metadata${COLOR_RESET}               Add -Zno-embed-metadata flag to cargo"
+	echo -e "      ${COLOR_LIGHT_CYAN}--rustc-bootstrap${COLOR_RESET}[${COLOR_LIGHT_CYAN}=${COLOR_RESET}${COLOR_LIGHT_CYAN}<value>${COLOR_RESET}]       Set RUSTC_BOOTSTRAP (default: 1, or specify -1/crate_name)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--target-dir=${COLOR_RESET}${COLOR_LIGHT_CYAN}<dir>${COLOR_RESET}                Directory for all generated artifacts"
 	echo -e "      ${COLOR_LIGHT_CYAN}--artifact-dir=${COLOR_RESET}${COLOR_LIGHT_CYAN}<dir>${COLOR_RESET}              Copy final artifacts to this directory (unstable, requires nightly)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--color=${COLOR_RESET}${COLOR_LIGHT_CYAN}<when>${COLOR_RESET}                    Control when colored output is used (auto, always, never)"
@@ -340,6 +341,7 @@ set_gcc_lib_paths() {
 }
 
 # Set iOS/Darwin SDK root from compiler directory
+# https://doc.rust-lang.org/unstable-book/compiler-environment-variables/SDKROOT.html
 # Args: cross_compiler_name
 set_ios_sdk_root() {
 	local cross_compiler_name="$1"
@@ -1021,6 +1023,8 @@ execute_target() {
 
 	add_env_if_set "RUSTFLAGS" "$rustflags"
 	add_env_if_set "CARGO_TRIM_PATHS" "$CARGO_TRIM_PATHS"
+	# https://doc.rust-lang.org/unstable-book/compiler-environment-variables/RUSTC_BOOTSTRAP.html
+	add_env_if_set "RUSTC_BOOTSTRAP" "$RUSTC_BOOTSTRAP"
 
 	# Prepare command
 	local cargo_cmd="cargo"
@@ -1550,6 +1554,22 @@ while [[ $# -gt 0 ]]; do
 	--no-embed-metadata)
 		NO_EMBED_METADATA="true"
 		;;
+	--rustc-bootstrap=*)
+		RUSTC_BOOTSTRAP="${1#*=}"
+		[[ -z "$RUSTC_BOOTSTRAP" ]] && RUSTC_BOOTSTRAP="1"
+		;;
+	--rustc-bootstrap)
+		if is_next_arg_option "$@"; then
+			RUSTC_BOOTSTRAP="1"
+		else
+			if [[ $# -gt 1 ]]; then
+				shift
+				RUSTC_BOOTSTRAP="$1"
+			else
+				RUSTC_BOOTSTRAP="1"
+			fi
+		fi
+		;;
 	--target-dir=*)
 		CARGO_TARGET_DIR="${1#*=}"
 		;;
@@ -1672,6 +1692,7 @@ echo -e "  ${COLOR_LIGHT_CYAN}Targets:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${TARG
 [[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Build std:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}$([ "$BUILD_STD" == "true" ] && echo "true" || echo "$BUILD_STD")${COLOR_RESET}"
 [[ -n "$CARGO_ARGS" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Cargo args:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${CARGO_ARGS}${COLOR_RESET}"
 [[ "$NO_EMBED_METADATA" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}No embed metadata:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
+[[ -n "$RUSTC_BOOTSTRAP" ]] && echo -e "  ${COLOR_LIGHT_CYAN}RUSTC_BOOTSTRAP:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${RUSTC_BOOTSTRAP}${COLOR_RESET}"
 
 # Build for each target
 set_github_output

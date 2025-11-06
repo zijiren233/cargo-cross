@@ -240,6 +240,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 | `toolchain` | Rust toolchain to use (stable, nightly, etc.) | `stable` |
 | `cargo-trim-paths` | Set CARGO_TRIM_PATHS environment variable for reproducible builds | |
 | `no-embed-metadata` | Add -Zno-embed-metadata flag to cargo | `false` |
+| `rustc-bootstrap` | Set RUSTC_BOOTSTRAP environment variable: `1` for all crates, `-1` for stable behavior, or `crate_name` for specific crate | |
 | `clean-cache` | Clean build cache before building | `false` |
 | `no-strip` | Do not strip binaries | `false` |
 | `verbose` | Use verbose output | `false` |
@@ -450,6 +451,37 @@ jobs:
     toolchain: nightly
 ```
 
+### Build with RUSTC_BOOTSTRAP
+
+The RUSTC_BOOTSTRAP environment variable tells rustc to act as if it is a nightly compiler, allowing use of `#![feature(...)]` attributes and `-Z` flags even on the stable release channel.
+
+```yaml
+# Enable nightly features for all crates
+- name: Build with nightly features on stable
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-musl
+    rustc-bootstrap: "1"
+
+# Enable nightly features for specific crate
+- name: Build with nightly features for specific crate
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-musl
+    rustc-bootstrap: "my_crate_name"
+
+# Force stable behavior even on nightly
+- name: Build with stable behavior on nightly
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-musl
+    toolchain: nightly
+    rustc-bootstrap: "-1"
+```
+
 ## Local Usage
 
 ### Installation as Cargo Subcommand
@@ -547,6 +579,15 @@ You can also use the execution script directly:
 
 # Build without embedding metadata (requires nightly toolchain)
 ./cross.sh build --targets=x86_64-unknown-linux-musl --no-embed-metadata --toolchain=nightly
+
+# Build with RUSTC_BOOTSTRAP (enable nightly features for all crates)
+./cross.sh build --targets=x86_64-unknown-linux-musl --rustc-bootstrap=1
+
+# Build with RUSTC_BOOTSTRAP for specific crate
+./cross.sh build --targets=x86_64-unknown-linux-musl --rustc-bootstrap=my_crate_name
+
+# Build with RUSTC_BOOTSTRAP=-1 (force stable behavior on nightly)
+./cross.sh build --targets=x86_64-unknown-linux-musl --rustc-bootstrap=-1 --toolchain=nightly
 ```
 
 ## How It Works
