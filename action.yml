@@ -77,6 +77,82 @@ inputs:
   cxx:
     description: "Force set the C++ compiler"
     required: false
+  ar:
+    description: "Force set the archiver for target"
+    required: false
+  linker:
+    description: "Force set the linker for target"
+    required: false
+  cflags:
+    description: "C compiler flags (cc crate)"
+    required: false
+  cxxflags:
+    description: "C++ compiler flags (cc crate)"
+    required: false
+  cxxstdlib:
+    description: "C++ standard library to link against (cc crate)"
+    required: false
+  rustc-wrapper:
+    description: "Compiler wrapper for caching tools like sccache, ccache, etc."
+    required: false
+  enable-sccache:
+    description: "Enable sccache for compilation caching (automatically sets rustc-wrapper)"
+    required: false
+    default: "false"
+  sccache-dir:
+    description: "Sccache local cache directory"
+    required: false
+  sccache-cache-size:
+    description: "Maximum sccache cache size (e.g., 2G, 10G)"
+    required: false
+  sccache-idle-timeout:
+    description: "Sccache daemon idle timeout in seconds (0 for permanent)"
+    required: false
+  sccache-log:
+    description: "Sccache log level (error, warn, info, debug, trace)"
+    required: false
+  sccache-no-daemon:
+    description: "Disable sccache background daemon"
+    required: false
+    default: "false"
+  sccache-direct:
+    description: "Enable sccache preprocessor caching"
+    required: false
+    default: "false"
+  sccache-s3-bucket:
+    description: "S3 bucket name for sccache storage"
+    required: false
+  sccache-s3-endpoint:
+    description: "S3 endpoint for sccache (e.g., for R2, MinIO)"
+    required: false
+  sccache-s3-region:
+    description: "S3 region for sccache"
+    required: false
+  sccache-redis-endpoint:
+    description: "Redis endpoint URL for sccache"
+    required: false
+  sccache-gcs-bucket:
+    description: "Google Cloud Storage bucket for sccache"
+    required: false
+  sccache-azure-connection-string:
+    description: "Azure storage connection string for sccache"
+    required: false
+  sccache-gha-enabled:
+    description: "Enable GitHub Actions cache backend for sccache"
+    required: false
+    default: "false"
+  cc-no-defaults:
+    description: "Disable default cc crate compiler flags (sets CRATE_CC_NO_DEFAULTS)"
+    required: false
+    default: "false"
+  cc-shell-escaped-flags:
+    description: "Parse *FLAGS variables using shell argument parsing rules (cc crate)"
+    required: false
+    default: "false"
+  cc-enable-debug:
+    description: "Enable cc crate debug output to see compiler commands"
+    required: false
+    default: "false"
   rustflags:
     description: "Additional rustflags"
     required: false
@@ -285,6 +361,30 @@ runs:
         USE_DEFAULT_LINKER: ${{ inputs.use-default-linker }}
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
+        AR: ${{ inputs.ar }}
+        LINKER: ${{ inputs.linker }}
+        CFLAGS: ${{ inputs.cflags }}
+        CXXFLAGS: ${{ inputs.cxxflags }}
+        CXXSTDLIB: ${{ inputs.cxxstdlib }}
+        RUSTC_WRAPPER: ${{ inputs.rustc-wrapper }}
+        ENABLE_SCCACHE: ${{ inputs.enable-sccache }}
+        SCCACHE_DIR: ${{ inputs.sccache-dir }}
+        SCCACHE_CACHE_SIZE: ${{ inputs.sccache-cache-size }}
+        SCCACHE_IDLE_TIMEOUT: ${{ inputs.sccache-idle-timeout }}
+        SCCACHE_LOG: ${{ inputs.sccache-log }}
+        SCCACHE_NO_DAEMON: ${{ inputs.sccache-no-daemon == 'true' && '1' || '' }}
+        SCCACHE_DIRECT: ${{ inputs.sccache-direct == 'true' && 'true' || '' }}
+        SCCACHE_BUCKET: ${{ inputs.sccache-s3-bucket }}
+        SCCACHE_ENDPOINT: ${{ inputs.sccache-s3-endpoint }}
+        SCCACHE_REGION: ${{ inputs.sccache-s3-region }}
+        SCCACHE_REDIS_ENDPOINT: ${{ inputs.sccache-redis-endpoint }}
+        SCCACHE_GCS_BUCKET: ${{ inputs.sccache-gcs-bucket }}
+        SCCACHE_AZURE_CONNECTION_STRING: ${{ inputs.sccache-azure-connection-string }}
+        SCCACHE_GHA_CACHE_TO: ${{ inputs.sccache-gha-enabled == 'true' && github.ref || '' }}
+        SCCACHE_GHA_CACHE_FROM: ${{ inputs.sccache-gha-enabled == 'true' && format('{0},{1}', github.ref, github.base_ref) || '' }}
+        CRATE_CC_NO_DEFAULTS: ${{ inputs.cc-no-defaults == 'true' && '1' || '' }}
+        CC_SHELL_ESCAPED_FLAGS: ${{ inputs.cc-shell-escaped-flags == 'true' && '1' || '' }}
+        CC_ENABLE_DEBUG_OUTPUT: ${{ inputs.cc-enable-debug == 'true' && '1' || '' }}
         ADDITIONAL_RUSTFLAGS: ${{ inputs.rustflags }}
         STATIC_CRT: ${{ inputs.static-crt }}
         BUILD_STD: ${{ inputs.build-std }}

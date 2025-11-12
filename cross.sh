@@ -228,6 +228,20 @@ print_help() {
 	echo -e "      ${COLOR_LIGHT_CYAN}--ar=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}                       Force set the ar for target"
 	echo -e "      ${COLOR_LIGHT_CYAN}--linker=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}                   Force set the linker for target"
 	echo -e "      ${COLOR_LIGHT_CYAN}--rustflags=${COLOR_RESET}${COLOR_LIGHT_CYAN}<flags>${COLOR_RESET}               Additional rustflags (can be specified multiple times)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cflags=${COLOR_RESET}${COLOR_LIGHT_CYAN}<flags>${COLOR_RESET}                  C compiler flags (cc crate)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cxxflags=${COLOR_RESET}${COLOR_LIGHT_CYAN}<flags>${COLOR_RESET}                C++ compiler flags (cc crate)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cxxstdlib=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}                C++ standard library (cc crate)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--rustc-wrapper=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}            Compiler wrapper for caching (sccache, ccache, etc.)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--enable-sccache${COLOR_RESET}                    Enable sccache for compilation caching"
+	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-dir=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}               Sccache local cache directory"
+	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-cache-size=${COLOR_RESET}${COLOR_LIGHT_CYAN}<size>${COLOR_RESET}       Maximum sccache cache size (e.g., 2G, 10G)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-idle-timeout=${COLOR_RESET}${COLOR_LIGHT_CYAN}<sec>${COLOR_RESET}      Sccache daemon idle timeout in seconds"
+	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-log=${COLOR_RESET}${COLOR_LIGHT_CYAN}<level>${COLOR_RESET}             Sccache log level (error, warn, info, debug, trace)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-no-daemon${COLOR_RESET}                Disable sccache background daemon"
+	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-direct${COLOR_RESET}                   Enable sccache preprocessor caching"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cc-no-defaults${COLOR_RESET}                  Disable default cc crate compiler flags"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cc-shell-escaped-flags${COLOR_RESET}          Parse *FLAGS using shell argument parsing"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cc-enable-debug${COLOR_RESET}                 Enable cc crate debug output"
 	echo -e "      ${COLOR_LIGHT_CYAN}--static-crt${COLOR_RESET}[${COLOR_LIGHT_CYAN}=${COLOR_RESET}${COLOR_LIGHT_CYAN}<true|false>${COLOR_RESET}]       Add -C target-feature=+crt-static to rustflags (default: true)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--build-std${COLOR_RESET}[${COLOR_LIGHT_CYAN}=${COLOR_RESET}${COLOR_LIGHT_CYAN}<crates>${COLOR_RESET}]            Use -Zbuild-std for building standard library from source"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cargo-args=${COLOR_RESET}${COLOR_LIGHT_CYAN}<args>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--args=${COLOR_RESET}${COLOR_LIGHT_CYAN}<args>${COLOR_RESET}  Additional arguments to pass to cargo command"
@@ -979,6 +993,61 @@ execute_target() {
 	# Set up environment based on target
 	local target_upper=$(echo "$rust_target" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
 
+	# Enable sccache if requested
+	if [[ "$ENABLE_SCCACHE" == "true" ]]; then
+		RUSTC_WRAPPER="sccache"
+	fi
+
+	# Sccache environment variables
+	add_env_if_set "SCCACHE_DIR" "$SCCACHE_DIR"
+	add_env_if_set "SCCACHE_CACHE_SIZE" "$SCCACHE_CACHE_SIZE"
+	add_env_if_set "SCCACHE_IDLE_TIMEOUT" "$SCCACHE_IDLE_TIMEOUT"
+	add_env_if_set "SCCACHE_LOG" "$SCCACHE_LOG"
+	add_env_if_set "SCCACHE_NO_DAEMON" "$SCCACHE_NO_DAEMON"
+	add_env_if_set "SCCACHE_DIRECT" "$SCCACHE_DIRECT"
+	add_env_if_set "SCCACHE_ERROR_LOG" "$SCCACHE_ERROR_LOG"
+	add_env_if_set "SCCACHE_RECACHE" "$SCCACHE_RECACHE"
+	add_env_if_set "SCCACHE_IGNORE_SERVER_IO_ERROR" "$SCCACHE_IGNORE_SERVER_IO_ERROR"
+
+	# Sccache S3 backend
+	add_env_if_set "SCCACHE_BUCKET" "$SCCACHE_BUCKET"
+	add_env_if_set "SCCACHE_ENDPOINT" "$SCCACHE_ENDPOINT"
+	add_env_if_set "SCCACHE_REGION" "$SCCACHE_REGION"
+	add_env_if_set "SCCACHE_S3_USE_SSL" "$SCCACHE_S3_USE_SSL"
+	add_env_if_set "SCCACHE_S3_KEY_PREFIX" "$SCCACHE_S3_KEY_PREFIX"
+
+	# Sccache Redis backend
+	add_env_if_set "SCCACHE_REDIS_ENDPOINT" "$SCCACHE_REDIS_ENDPOINT"
+	add_env_if_set "SCCACHE_REDIS_USERNAME" "$SCCACHE_REDIS_USERNAME"
+	add_env_if_set "SCCACHE_REDIS_PASSWORD" "$SCCACHE_REDIS_PASSWORD"
+	add_env_if_set "SCCACHE_REDIS_DB" "$SCCACHE_REDIS_DB"
+	add_env_if_set "SCCACHE_REDIS_EXPIRATION" "$SCCACHE_REDIS_EXPIRATION"
+	add_env_if_set "SCCACHE_REDIS_KEY_PREFIX" "$SCCACHE_REDIS_KEY_PREFIX"
+
+	# Sccache GCS backend
+	add_env_if_set "SCCACHE_GCS_BUCKET" "$SCCACHE_GCS_BUCKET"
+	add_env_if_set "SCCACHE_GCS_KEY_PREFIX" "$SCCACHE_GCS_KEY_PREFIX"
+	add_env_if_set "SCCACHE_GCS_RW_MODE" "$SCCACHE_GCS_RW_MODE"
+	add_env_if_set "SCCACHE_GCS_KEY_PATH" "$SCCACHE_GCS_KEY_PATH"
+
+	# Sccache Azure backend
+	add_env_if_set "SCCACHE_AZURE_CONNECTION_STRING" "$SCCACHE_AZURE_CONNECTION_STRING"
+	add_env_if_set "SCCACHE_AZURE_BLOB_CONTAINER" "$SCCACHE_AZURE_BLOB_CONTAINER"
+	add_env_if_set "SCCACHE_AZURE_KEY_PREFIX" "$SCCACHE_AZURE_KEY_PREFIX"
+
+	# Sccache GitHub Actions backend
+	add_env_if_set "SCCACHE_GHA_CACHE_TO" "$SCCACHE_GHA_CACHE_TO"
+	add_env_if_set "SCCACHE_GHA_CACHE_FROM" "$SCCACHE_GHA_CACHE_FROM"
+
+	# CC crate environment variables
+	add_env_if_set "CC_ENABLE_DEBUG_OUTPUT" "${CC_ENABLE_DEBUG_OUTPUT:-$VERBOSE}"
+	add_env_if_set "CRATE_CC_NO_DEFAULTS" "$CRATE_CC_NO_DEFAULTS"
+	add_env_if_set "CC_SHELL_ESCAPED_FLAGS" "$CC_SHELL_ESCAPED_FLAGS"
+	add_env_if_set "CC_FORCE_DISABLE" "$CC_FORCE_DISABLE"
+	add_env_if_set "RUSTC_WRAPPER" "$RUSTC_WRAPPER"
+	add_env_if_set "CC_KNOWN_WRAPPER_CUSTOM" "$CC_KNOWN_WRAPPER_CUSTOM"
+
+	# Compiler and flags - target-specific
 	add_env_if_set "CC_${target_upper}" "$TARGET_CC"
 	add_env_if_set "CC" "$TARGET_CC"
 	add_env_if_set "CXX_${target_upper}" "$TARGET_CXX"
@@ -986,6 +1055,16 @@ execute_target() {
 	add_env_if_set "AR_${target_upper}" "$TARGET_AR"
 	add_env_if_set "AR" "$TARGET_AR"
 	add_env_if_set "CARGO_TARGET_${target_upper}_LINKER" "$TARGET_LINKER"
+
+	# Compiler flags
+	add_env_if_set "CFLAGS_${target_upper}" "$CFLAGS"
+	add_env_if_set "CFLAGS" "$CFLAGS"
+	add_env_if_set "CXXFLAGS_${target_upper}" "$CXXFLAGS"
+	add_env_if_set "CXXFLAGS" "$CXXFLAGS"
+	add_env_if_set "CXXSTDLIB_${target_upper}" "$CXXSTDLIB"
+	add_env_if_set "CXXSTDLIB" "$CXXSTDLIB"
+
+	# SDK and library paths
 	add_env_if_set "SDKROOT" "$SDKROOT"
 
 	if [ "$rust_target" = "$HOST_TRIPLE" ]; then
@@ -1482,6 +1561,80 @@ while [[ $# -gt 0 ]]; do
 	--linker)
 		shift
 		LINKER="$(parse_option_value "--linker" "$@")"
+		;;
+	--cflags=*)
+		CFLAGS="${1#*=}"
+		;;
+	--cflags)
+		shift
+		CFLAGS="$(parse_option_value "--cflags" "$@")"
+		;;
+	--cxxflags=*)
+		CXXFLAGS="${1#*=}"
+		;;
+	--cxxflags)
+		shift
+		CXXFLAGS="$(parse_option_value "--cxxflags" "$@")"
+		;;
+	--cxxstdlib=*)
+		CXXSTDLIB="${1#*=}"
+		;;
+	--cxxstdlib)
+		shift
+		CXXSTDLIB="$(parse_option_value "--cxxstdlib" "$@")"
+		;;
+	--rustc-wrapper=*)
+		RUSTC_WRAPPER="${1#*=}"
+		;;
+	--rustc-wrapper)
+		shift
+		RUSTC_WRAPPER="$(parse_option_value "--rustc-wrapper" "$@")"
+		;;
+	--enable-sccache)
+		ENABLE_SCCACHE="true"
+		;;
+	--sccache-dir=*)
+		SCCACHE_DIR="${1#*=}"
+		;;
+	--sccache-dir)
+		shift
+		SCCACHE_DIR="$(parse_option_value "--sccache-dir" "$@")"
+		;;
+	--sccache-cache-size=*)
+		SCCACHE_CACHE_SIZE="${1#*=}"
+		;;
+	--sccache-cache-size)
+		shift
+		SCCACHE_CACHE_SIZE="$(parse_option_value "--sccache-cache-size" "$@")"
+		;;
+	--sccache-idle-timeout=*)
+		SCCACHE_IDLE_TIMEOUT="${1#*=}"
+		;;
+	--sccache-idle-timeout)
+		shift
+		SCCACHE_IDLE_TIMEOUT="$(parse_option_value "--sccache-idle-timeout" "$@")"
+		;;
+	--sccache-log=*)
+		SCCACHE_LOG="${1#*=}"
+		;;
+	--sccache-log)
+		shift
+		SCCACHE_LOG="$(parse_option_value "--sccache-log" "$@")"
+		;;
+	--sccache-no-daemon)
+		SCCACHE_NO_DAEMON="1"
+		;;
+	--sccache-direct)
+		SCCACHE_DIRECT="true"
+		;;
+	--cc-no-defaults)
+		CRATE_CC_NO_DEFAULTS="1"
+		;;
+	--cc-shell-escaped-flags)
+		CC_SHELL_ESCAPED_FLAGS="1"
+		;;
+	--cc-enable-debug)
+		CC_ENABLE_DEBUG_OUTPUT="1"
 		;;
 	--rustflags=*)
 		ADDITIONAL_RUSTFLAGS_ARRAY+=("${1#*=}")
