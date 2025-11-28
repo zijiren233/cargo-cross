@@ -177,7 +177,7 @@ parse_option_value() {
 
 # Prints help information
 print_help() {
-	echo -e "${COLOR_LIGHT_GREEN}Usage:${COLOR_RESET} ${COLOR_LIGHT_CYAN}[command] [options]${COLOR_RESET}"
+	echo -e "${COLOR_LIGHT_GREEN}Usage:${COLOR_RESET} ${COLOR_LIGHT_CYAN}[+toolchain] [command] [options]${COLOR_RESET}"
 	echo -e ""
 	echo -e "${COLOR_LIGHT_GREEN}Commands:${COLOR_RESET}"
 	echo -e "  ${COLOR_LIGHT_CYAN}build${COLOR_RESET}       Compile the package (default)"
@@ -244,6 +244,7 @@ print_help() {
 	echo -e "      ${COLOR_LIGHT_CYAN}--cc-enable-debug${COLOR_RESET}                 Enable cc crate debug output"
 	echo -e "      ${COLOR_LIGHT_CYAN}--static-crt${COLOR_RESET}[${COLOR_LIGHT_CYAN}=${COLOR_RESET}${COLOR_LIGHT_CYAN}<true|false>${COLOR_RESET}]       Add -C target-feature=+crt-static to rustflags (default: true)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--build-std${COLOR_RESET}[${COLOR_LIGHT_CYAN}=${COLOR_RESET}${COLOR_LIGHT_CYAN}<crates>${COLOR_RESET}]            Use -Zbuild-std for building standard library from source"
+	echo -e "      ${COLOR_LIGHT_CYAN}--build-std-features=${COLOR_RESET}${COLOR_LIGHT_CYAN}<features>${COLOR_RESET}  Features to enable for -Zbuild-std (e.g., panic-unwind)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cargo-args=${COLOR_RESET}${COLOR_LIGHT_CYAN}<args>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--args=${COLOR_RESET}${COLOR_LIGHT_CYAN}<args>${COLOR_RESET}  Additional arguments to pass to cargo command"
 	echo -e "      ${COLOR_LIGHT_CYAN}--toolchain=${COLOR_RESET}${COLOR_LIGHT_CYAN}<toolchain>${COLOR_RESET}           Rust toolchain to use (stable, nightly, etc.)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cargo-trim-paths=${COLOR_RESET}${COLOR_LIGHT_CYAN}<paths>${COLOR_RESET}        Set CARGO_TRIM_PATHS environment variable"
@@ -1168,6 +1169,9 @@ execute_target() {
 		add_rust_src "$rust_target" "$TOOLCHAIN" || return $?
 	fi
 
+	# Build-std-features flag
+	add_option "$BUILD_STD_FEATURES" "-Zbuild-std-features"
+
 	# Output and verbosity
 	add_flag "$VERBOSE" "--verbose"
 	add_flag "$QUIET" "--quiet"
@@ -1318,28 +1322,25 @@ is_next_arg_option() {
 		return 0
 	fi
 
-	# Check if it's a known short option (exact match or with = for those that support it)
-	case "$next_arg" in
-	-h | -r | -v | -q)
-		# These short options don't support = form
+	# Check if it's a short option (-X or -X=*)
+	# This matches single letter options like -h, -v, -Z, -C, -t, -j, -p, -F, etc.
+	if [[ "$next_arg" =~ ^-[a-zA-Z](=.*)?$ ]]; then
 		return 0
-		;;
-	-t | -j | -p | -F)
-		# These short options exist without =
-		return 0
-		;;
-	-t=* | -j=* | -p=* | -F=*)
-		# These short options support = form
-		return 0
-		;;
-	*)
-		return 1
-		;;
-	esac
+	fi
+
+	return 1
 }
 
 # Parse command-line arguments
 while [[ $# -gt 0 ]]; do
+	# Check if current argument is +toolchain (e.g., +nightly, +stable, +1.70.0)
+	# Only parse if TOOLCHAIN is not already set to avoid affecting other arguments
+	if [[ -z "$TOOLCHAIN" && "$1" =~ ^\+(.+)$ ]]; then
+		TOOLCHAIN="${BASH_REMATCH[1]}"
+		shift
+		continue
+	fi
+
 	# Check if current argument is a command
 	if [[ "$1" =~ ^(${SUPPORTED_COMMANDS})$ ]]; then
 		COMMAND="$1"
@@ -1675,6 +1676,13 @@ while [[ $# -gt 0 ]]; do
 			fi
 		fi
 		;;
+	--build-std-features=*)
+		BUILD_STD_FEATURES="${1#*=}"
+		;;
+	--build-std-features)
+		shift
+		BUILD_STD_FEATURES="$(parse_option_value "--build-std-features" "$@")"
+		;;
 	--args=* | --cargo-args=*)
 		CARGO_ARGS="${1#*=}"
 		;;
@@ -1843,6 +1851,7 @@ echo -e "  ${COLOR_LIGHT_CYAN}Targets:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${TARG
 [[ -n "$RUSTFLAGS" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Default rustflags env:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${RUSTFLAGS}${COLOR_RESET}"
 [[ ${#ADDITIONAL_RUSTFLAGS_ARRAY[@]} -gt 0 ]] && echo -e "  ${COLOR_LIGHT_CYAN}Additional rustflags:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${ADDITIONAL_RUSTFLAGS_ARRAY[*]}${COLOR_RESET}"
 [[ -n "$BUILD_STD" && "$BUILD_STD" != "false" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Build std:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}$([ "$BUILD_STD" == "true" ] && echo "true" || echo "$BUILD_STD")${COLOR_RESET}"
+[[ -n "$BUILD_STD_FEATURES" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Build std features:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${BUILD_STD_FEATURES}${COLOR_RESET}"
 [[ -n "$CARGO_ARGS" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Cargo args:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${CARGO_ARGS}${COLOR_RESET}"
 [[ "$NO_EMBED_METADATA" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}No embed metadata:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
 [[ -n "$RUSTC_BOOTSTRAP" ]] && echo -e "  ${COLOR_LIGHT_CYAN}RUSTC_BOOTSTRAP:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${RUSTC_BOOTSTRAP}${COLOR_RESET}"
