@@ -919,10 +919,16 @@ add_flag() {
 	[[ "$1" == "true" ]] && cargo_cmd="$cargo_cmd $2"
 }
 
-# Add option with value to cargo command if value is non-empty
+# Add option with value to cargo command if value is non-empty (space separated)
 # Args: value, option_name
 add_option() {
 	[[ -n "$1" ]] && cargo_cmd="$cargo_cmd $2 $1"
+}
+
+# Add option with value using = separator (e.g., -Zbuild-std-features=value)
+# Args: value, option_name
+add_option_eq() {
+	[[ -n "$1" ]] && cargo_cmd="$cargo_cmd $2=$1"
 }
 
 # Add argument(s) to cargo command if condition is true
@@ -933,9 +939,21 @@ add_arg_if() {
 	[[ "$condition" == "true" ]] && cargo_cmd="$cargo_cmd $*"
 }
 
-# Add option with optional value (flag if true, flag=value otherwise)
+# Add option with optional value using space separator (flag if true, flag value otherwise)
 # Args: value, option_name
 add_option_or_flag() {
+	local value="$1"
+	local option="$2"
+	if [[ "$value" == "true" ]]; then
+		cargo_cmd="$cargo_cmd $option"
+	elif [[ -n "$value" && "$value" != "false" ]]; then
+		cargo_cmd="$cargo_cmd $option $value"
+	fi
+}
+
+# Add option with optional value using = separator (flag if true, flag=value otherwise)
+# Args: value, option_name
+add_option_eq_or_flag() {
 	local value="$1"
 	local option="$2"
 	if [[ "$value" == "true" ]]; then
@@ -1162,15 +1180,15 @@ execute_target() {
 
 	if [[ -n "$build_std_value" ]]; then
 		if [[ "$build_std_value" == "true" ]]; then
-			add_option_or_flag "$(get_build_std_config "$rust_target")" "-Zbuild-std"
+			add_option_eq_or_flag "$(get_build_std_config "$rust_target")" "-Zbuild-std"
 		else
-			add_option_or_flag "$build_std_value" "-Zbuild-std"
+			add_option_eq_or_flag "$build_std_value" "-Zbuild-std"
 		fi
 		add_rust_src "$rust_target" "$TOOLCHAIN" || return $?
 	fi
 
-	# Build-std-features flag
-	add_option "$BUILD_STD_FEATURES" "-Zbuild-std-features"
+	# Build-std-features flag (requires = separator)
+	add_option_eq "$BUILD_STD_FEATURES" "-Zbuild-std-features"
 
 	# Output and verbosity
 	add_flag "$VERBOSE" "--verbose"
@@ -1178,7 +1196,7 @@ execute_target() {
 	add_option "$MESSAGE_FORMAT" "--message-format"
 	add_option "$COLOR" "--color"
 	add_flag "$BUILD_PLAN" "--build-plan"
-	add_option_or_flag "$TIMINGS" "--timings"
+	add_option_eq_or_flag "$TIMINGS" "--timings"
 
 	# Dependency and version management
 	add_flag "$IGNORE_RUST_VERSION" "--ignore-rust-version"
