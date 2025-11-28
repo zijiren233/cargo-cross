@@ -164,6 +164,9 @@ inputs:
     description: "Use -Zbuild-std for building standard library from source (true for default, or specify crates like 'core,alloc')"
     required: false
     default: "false"
+  build-std-features:
+    description: "Features to enable for -Zbuild-std (e.g., panic_immediate_abort, optimize_for_size)"
+    required: false
   clean-cache:
     description: "Clean build cache before building"
     required: false
@@ -388,6 +391,7 @@ runs:
         ADDITIONAL_RUSTFLAGS: ${{ inputs.rustflags }}
         STATIC_CRT: ${{ inputs.static-crt }}
         BUILD_STD: ${{ inputs.build-std }}
+        BUILD_STD_FEATURES: ${{ inputs.build-std-features }}
         CLEAN_CACHE: ${{ inputs.clean-cache }}
         NO_STRIP: ${{ inputs.no-strip }}
         VERBOSE: ${{ inputs.verbose }}
