@@ -28,7 +28,7 @@ readonly COLOR_RESET='\033[0m'
 readonly DEFAULT_SOURCE_DIR="$(pwd)"
 readonly DEFAULT_PROFILE="release"
 readonly DEFAULT_CROSS_COMPILER_DIR="$(dirname $(mktemp -u))/rust-cross-compiler"
-readonly DEFAULT_CROSS_DEPS_VERSION="v0.6.7"
+readonly DEFAULT_CROSS_DEPS_VERSION="v0.6.8"
 readonly DEFAULT_TTY_WIDTH="40"
 readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
@@ -598,7 +598,7 @@ get_linux_env() {
 	local arch_prefix="$arch"
 	local cross_compiler_name="${arch_prefix}-linux-${libc}${abi}-cross"
 	local gcc_name="${arch_prefix}-linux-${libc}${abi}-gcc"
-	local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}"
+	local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}-${CROSS_DEPS_VERSION}"
 
 	# Download compiler if not present
 	if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
@@ -645,7 +645,7 @@ get_windows_gnu_env() {
 		# Cross-compilation from Linux/macOS to Windows
 		local cross_compiler_name="${arch}-w64-mingw32-cross"
 		local gcc_name="${arch}-w64-mingw32-gcc"
-		local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}"
+		local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}-${CROSS_DEPS_VERSION}"
 
 		# Download compiler if not present
 		if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
@@ -686,7 +686,7 @@ get_freebsd_env() {
 
 	local cross_compiler_name="${arch}-unknown-freebsd13-cross"
 	local gcc_name="${arch}-unknown-freebsd13-gcc"
-	local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}"
+	local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}-${CROSS_DEPS_VERSION}"
 
 	# Download compiler if not present
 	if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
