@@ -34,6 +34,7 @@ readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
 readonly DEFAULT_TOOLCHAIN=""
 readonly SUPPORTED_COMMANDS="bench|build|check|doc|run|test"
+readonly DEFAULT_QEMU_VERSION="v10.2.0-rc1"
 
 # -----------------------------------------------------------------------------
 # Host Environment Detection
@@ -464,7 +465,7 @@ get_build_std_config() {
 
 clean_cross_env() {
 	TARGET_CC="" TARGET_CXX="" TARGET_AR="" TARGET_LINKER="" TARGET_RUSTFLAGS="" TARGET_BUILD_STD=""
-	TARGET_LIBRARY_PATH="" TARGET_PATH="" SDKROOT=""
+	TARGET_LIBRARY_PATH="" TARGET_PATH="" SDKROOT="" TARGET_RUNNER=""
 }
 
 # Get cross-compilation environment variables
@@ -586,6 +587,132 @@ get_cross_env() {
 # Platform-Specific Environment Functions
 # -----------------------------------------------------------------------------
 
+# Map toolchain architecture to QEMU binary name
+# Args: arch (from TOOLCHAIN_CONFIG)
+# Returns: QEMU binary name (e.g., qemu-aarch64)
+# Supported QEMU binaries:
+#   qemu-aarch64, qemu-aarch64_be, qemu-alpha, qemu-arm, qemu-armeb,
+#   qemu-hexagon, qemu-hppa, qemu-i386, qemu-loongarch64, qemu-m68k,
+#   qemu-microblaze, qemu-microblazeel, qemu-mips, qemu-mips64, qemu-mips64el,
+#   qemu-mipsel, qemu-mipsn32, qemu-mipsn32el, qemu-or1k, qemu-ppc, qemu-ppc64,
+#   qemu-ppc64le, qemu-riscv32, qemu-riscv64, qemu-s390x, qemu-sh4, qemu-sh4eb,
+#   qemu-sparc, qemu-sparc32plus, qemu-sparc64, qemu-x86_64, qemu-xtensa, qemu-xtensaeb
+get_qemu_binary_name() {
+	local arch="$1"
+	case "$arch" in
+	"aarch64") echo "qemu-aarch64" ;;
+	"aarch64_be") echo "qemu-aarch64_be" ;;
+	"alpha") echo "qemu-alpha" ;;
+	"armv5" | "armv6" | "armv7" | "arm") echo "qemu-arm" ;;
+	"armeb") echo "qemu-armeb" ;;
+	"hexagon") echo "qemu-hexagon" ;;
+	"hppa") echo "qemu-hppa" ;;
+	"i586" | "i686" | "i386") echo "qemu-i386" ;;
+	"loongarch64") echo "qemu-loongarch64" ;;
+	"m68k") echo "qemu-m68k" ;;
+	"microblaze") echo "qemu-microblaze" ;;
+	"microblazeel") echo "qemu-microblazeel" ;;
+	"mips") echo "qemu-mips" ;;
+	"mips64") echo "qemu-mips64" ;;
+	"mips64el") echo "qemu-mips64el" ;;
+	"mipsel") echo "qemu-mipsel" ;;
+	"mipsn32") echo "qemu-mipsn32" ;;
+	"mipsn32el") echo "qemu-mipsn32el" ;;
+	"or1k") echo "qemu-or1k" ;;
+	"powerpc" | "ppc") echo "qemu-ppc" ;;
+	"powerpc64" | "ppc64") echo "qemu-ppc64" ;;
+	"powerpc64le" | "ppc64le") echo "qemu-ppc64le" ;;
+	"riscv32") echo "qemu-riscv32" ;;
+	"riscv64") echo "qemu-riscv64" ;;
+	"s390x") echo "qemu-s390x" ;;
+	"sh4") echo "qemu-sh4" ;;
+	"sh4eb") echo "qemu-sh4eb" ;;
+	"sparc") echo "qemu-sparc" ;;
+	"sparc32plus") echo "qemu-sparc32plus" ;;
+	"sparc64") echo "qemu-sparc64" ;;
+	"x86_64") echo "qemu-x86_64" ;;
+	"xtensa") echo "qemu-xtensa" ;;
+	"xtensaeb") echo "qemu-xtensaeb" ;;
+	*) echo "" ;;
+	esac
+}
+
+# Check if host can natively run the target architecture
+# Args: target_arch (from TOOLCHAIN_CONFIG)
+# Returns: 0 if native execution is possible, 1 otherwise
+can_run_natively() {
+	local target_arch="$1"
+	local host_arch="${HOST_ARCH}"
+
+	# Normalize host architecture
+	[[ "$host_arch" == "arm64" ]] && host_arch="aarch64"
+	[[ "$host_arch" == "amd64" ]] && host_arch="x86_64"
+
+	# Check if target can run natively on host
+	case "$host_arch" in
+	"x86_64")
+		# x86_64 can run x86_64, i686, i586
+		[[ "$target_arch" == "x86_64" || "$target_arch" == "i686" || "$target_arch" == "i586" ]] && return 0
+		;;
+	"aarch64")
+		# aarch64 can run aarch64 and arm variants (with kernel support)
+		[[ "$target_arch" == "aarch64" || "$target_arch" =~ ^arm ]] && return 0
+		;;
+	"i686" | "i586")
+		[[ "$target_arch" == "i686" || "$target_arch" == "i586" ]] && return 0
+		;;
+	*)
+		[[ "$host_arch" == "$target_arch" ]] && return 0
+		;;
+	esac
+
+	return 1
+}
+
+# Setup QEMU runner for cross-compiled Linux binaries
+# Args: arch, target_prefix (e.g., armv6-linux-musleabihf), compiler_dir
+# Sets: TARGET_RUNNER, TARGET_PATH (appends qemu directory)
+setup_qemu_runner() {
+	local arch="$1"
+	local target_prefix="$2"
+	local compiler_dir="$3"
+
+	# Only setup QEMU on Linux hosts
+	[[ "$HOST_OS" != "linux" ]] && return 0
+
+	# Check if native execution is possible
+	if can_run_natively "$arch"; then
+		return 0
+	fi
+
+	local qemu_binary=$(get_qemu_binary_name "$arch")
+	[[ -z "$qemu_binary" ]] && return 0
+
+	local qemu_dir="${CROSS_COMPILER_DIR}/qemu-user-static-${QEMU_VERSION}"
+	local qemu_path="${qemu_dir}/${qemu_binary}"
+
+	# Download QEMU if not present
+	if [[ ! -x "$qemu_path" ]]; then
+		local host_platform=$(get_host_platform)
+		local download_url="${GH_PROXY}https://github.com/zijiren233/qemu-user-static/releases/download/${QEMU_VERSION}/qemu-user-static-${host_platform}-musl.tgz"
+		download_and_extract "${download_url}" "${qemu_dir}" || return 2
+	fi
+
+	if [[ -x "$qemu_path" ]]; then
+		# Add QEMU directory to TARGET_PATH
+		TARGET_PATH="${qemu_dir}${TARGET_PATH:+:$TARGET_PATH}"
+
+		# Set runner using command name (relies on PATH) with sysroot
+		local sysroot="${compiler_dir}/${target_prefix}"
+		if [[ -d "${sysroot}/lib" ]]; then
+			TARGET_RUNNER="${qemu_binary} -L ${sysroot}"
+		else
+			TARGET_RUNNER="${qemu_binary}"
+		fi
+		log_success "Configured QEMU runner: ${COLOR_LIGHT_YELLOW}${qemu_binary}${COLOR_LIGHT_GREEN} for ${COLOR_LIGHT_YELLOW}${arch}${COLOR_LIGHT_GREEN}"
+	fi
+}
+
 # Get Linux cross-compilation environment
 get_linux_env() {
 	local arch="$1"
@@ -617,6 +744,11 @@ get_linux_env() {
 
 	# Add library search paths from gcc to rustc
 	set_gcc_lib_paths "${compiler_dir}" "${arch_prefix}-linux-${libc}${abi}"
+
+	# Setup QEMU runner for musl targets on Linux hosts
+	if [[ "$libc" == "musl" ]]; then
+		setup_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}"
+	fi
 
 	log_success "Configured Linux ${COLOR_LIGHT_YELLOW}${libc}${COLOR_LIGHT_GREEN} toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 }
@@ -1059,7 +1191,7 @@ execute_target() {
 	add_env_if_set "SCCACHE_GHA_CACHE_FROM" "$SCCACHE_GHA_CACHE_FROM"
 
 	# CC crate environment variables
-	add_env_if_set "CC_ENABLE_DEBUG_OUTPUT" "${CC_ENABLE_DEBUG_OUTPUT:-$VERBOSE}"
+	add_env_if_set "CC_ENABLE_DEBUG_OUTPUT" "${CC_ENABLE_DEBUG_OUTPUT:-$([[ $VERBOSE_LEVEL -gt 0 ]] && echo 1)}"
 	add_env_if_set "CRATE_CC_NO_DEFAULTS" "$CRATE_CC_NO_DEFAULTS"
 	add_env_if_set "CC_SHELL_ESCAPED_FLAGS" "$CC_SHELL_ESCAPED_FLAGS"
 	add_env_if_set "CC_FORCE_DISABLE" "$CC_FORCE_DISABLE"
@@ -1074,6 +1206,7 @@ execute_target() {
 	add_env_if_set "AR_${target_upper}" "$TARGET_AR"
 	add_env_if_set "AR" "$TARGET_AR"
 	add_env_if_set "CARGO_TARGET_${target_upper}_LINKER" "$TARGET_LINKER"
+	add_env_if_set "CARGO_TARGET_${target_upper}_RUNNER" "$TARGET_RUNNER"
 
 	# Compiler flags
 	add_env_if_set "CFLAGS_${target_upper}" "$CFLAGS"
@@ -1191,7 +1324,9 @@ execute_target() {
 	add_option_eq "$BUILD_STD_FEATURES" "-Zbuild-std-features"
 
 	# Output and verbosity
-	add_flag "$VERBOSE" "--verbose"
+	for ((i = 0; i < VERBOSE_LEVEL; i++)); do
+		add_args "--verbose"
+	done
 	add_flag "$QUIET" "--quiet"
 	add_option "$MESSAGE_FORMAT" "--message-format"
 	add_option "$COLOR" "--color"
@@ -1215,6 +1350,9 @@ execute_target() {
 
 	# Additional arguments
 	[[ -n "$CARGO_ARGS" ]] && add_args "$CARGO_ARGS"
+
+	# Passthrough arguments (must be last, after --)
+	[[ -n "$CARGO_PASSTHROUGH_ARGS" ]] && add_args "$CARGO_PASSTHROUGH_ARGS"
 
 	print_env_vars
 
@@ -1313,12 +1451,14 @@ set_github_output() {
 # -----------------------------------------------------------------------------
 
 # Initialize variables
+set_default "VERBOSE_LEVEL" "0"
 set_default "SOURCE_DIR" "${DEFAULT_SOURCE_DIR}"
 SOURCE_DIR="$(cd "${SOURCE_DIR}" && pwd)"
 set_default "PROFILE" "${DEFAULT_PROFILE}"
 set_default "CROSS_COMPILER_DIR" "${DEFAULT_CROSS_COMPILER_DIR}"
 set_default "CROSS_DEPS_VERSION" "${DEFAULT_CROSS_DEPS_VERSION}"
 set_default "NDK_VERSION" "${DEFAULT_NDK_VERSION}"
+set_default "QEMU_VERSION" "${DEFAULT_QEMU_VERSION}"
 set_default "COMMAND" "${DEFAULT_COMMAND}"
 set_default "TOOLCHAIN" "${DEFAULT_TOOLCHAIN}"
 
@@ -1362,6 +1502,14 @@ while [[ $# -gt 0 ]]; do
 	# Check if current argument is a command
 	if [[ "$1" =~ ^(${SUPPORTED_COMMANDS})$ ]]; then
 		COMMAND="$1"
+		shift
+		continue
+	fi
+
+	# Support arbitrary number of v's: -v, -vv, -vvv, -vvvvv, etc.
+	if [[ "$1" =~ ^-v+$ ]]; then
+		local v_str=${1#-}
+		VERBOSE_LEVEL=$((VERBOSE_LEVEL + ${#v_str}))
 		shift
 		continue
 	fi
@@ -1822,8 +1970,14 @@ while [[ $# -gt 0 ]]; do
 	--no-strip)
 		NO_STRIP="true"
 		;;
-	-v | --verbose)
-		VERBOSE="true"
+	--verbose)
+		VERBOSE_LEVEL=$((VERBOSE_LEVEL + 1))
+		;;
+	--)
+		# Stop parsing options, pass remaining args to cargo
+		shift
+		CARGO_PASSTHROUGH_ARGS="-- $*"
+		break
 		;;
 	*)
 		log_error "Invalid option: $1"

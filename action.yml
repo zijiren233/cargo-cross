@@ -67,6 +67,10 @@ inputs:
     description: "Android NDK version for Android builds"
     required: false
     default: "r27"
+  qemu-version:
+    description: "QEMU version for Linux cross-compilation runner"
+    required: false
+    default: "v10.2.0-rc1"
   use-default-linker:
     description: "Use system default linker (no cross-compiler download)"
     required: false
@@ -176,15 +180,18 @@ inputs:
     required: false
     default: "false"
   verbose:
-    description: "Use verbose output"
+    description: "Verbose level (0-4, or 'true' for level 1)"
     required: false
-    default: "false"
+    default: "0"
   show-all-targets:
     description: "Show all supported targets and exit"
     required: false
     default: "false"
   args:
     description: "Additional arguments to pass to cargo build"
+    required: false
+  passthrough-args:
+    description: "Arguments to pass after -- (e.g., for cargo test: --show-output)"
     required: false
   cross-args:
     description: "Additional cross arguments"
@@ -361,6 +368,7 @@ runs:
         GH_PROXY: ${{ inputs.github-proxy-mirror }}
         CROSS_COMPILER_DIR: ${{ inputs.cross-compiler-dir }}
         NDK_VERSION: ${{ inputs.ndk-version }}
+        QEMU_VERSION: ${{ inputs.qemu-version }}
         USE_DEFAULT_LINKER: ${{ inputs.use-default-linker }}
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
@@ -394,8 +402,9 @@ runs:
         BUILD_STD_FEATURES: ${{ inputs.build-std-features }}
         CLEAN_CACHE: ${{ inputs.clean-cache }}
         NO_STRIP: ${{ inputs.no-strip }}
-        VERBOSE: ${{ inputs.verbose }}
+        VERBOSE_LEVEL: ${{ inputs.verbose == 'true' && '1' || inputs.verbose }}
         CARGO_ARGS: ${{ inputs.args }}
+        CARGO_PASSTHROUGH_ARGS: ${{ inputs.passthrough-args && format('-- {0}', inputs.passthrough-args) || '' }}
         TOOLCHAIN: ${{ inputs.toolchain }}
         CARGO_TRIM_PATHS: ${{ inputs.cargo-trim-paths || inputs.trim-paths }}
         NO_EMBED_METADATA: ${{ inputs.no-embed-metadata }}
