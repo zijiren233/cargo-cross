@@ -510,6 +510,7 @@ get_cross_env() {
 	local cxx_var="CXX_${target_upper}"
 	local ar_var="AR_${target_upper}"
 	local linker_var="CARGO_TARGET_${target_upper}_LINKER"
+	local runner_var="CARGO_TARGET_${target_upper}_RUNNER"
 
 	if [[ -n "${!cc_var}" ]]; then
 		log_success "Using pre-configured ${COLOR_LIGHT_YELLOW}${cc_var}${COLOR_LIGHT_GREEN}=${COLOR_LIGHT_CYAN}${!cc_var}${COLOR_LIGHT_GREEN}"
@@ -522,6 +523,9 @@ get_cross_env() {
 		fi
 		if [[ -n "${!linker_var}" ]]; then
 			TARGET_LINKER="${!linker_var}"
+		fi
+		if [[ -n "${!runner_var}" ]]; then
+			TARGET_RUNNER="${!runner_var}"
 		fi
 		return 0
 	fi
@@ -538,6 +542,9 @@ get_cross_env() {
 			TARGET_LINKER="$LINKER"
 		else
 			TARGET_LINKER="$CC"
+		fi
+		if [[ -n "$RUNNER" ]]; then
+			TARGET_RUNNER="$RUNNER"
 		fi
 		return 0
 	fi
@@ -796,6 +803,12 @@ get_windows_gnu_env() {
 
 		# Add library search paths from gcc to rustc
 		set_gcc_lib_paths "${compiler_dir}" "${arch}-w64-mingw32"
+
+		# Setup wine runner for cross-compiled Windows binaries
+		if command -v wine &>/dev/null; then
+			TARGET_RUNNER="wine"
+			log_success "Configured Wine runner for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
+		fi
 
 		log_success "Configured Windows toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 		;;
