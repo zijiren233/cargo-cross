@@ -720,6 +720,29 @@ setup_qemu_runner() {
 	fi
 }
 
+# Setup Rosetta runner for x86_64 Darwin binaries on ARM Darwin hosts
+# Args: arch, rust_target
+# Sets: TARGET_RUNNER
+setup_rosetta_runner() {
+	local arch="$1"
+	local rust_target="$2"
+
+	# Only setup Rosetta on Darwin hosts
+	[[ "$HOST_OS" != "darwin" ]] && return 0
+
+	# Only for x86_64 Darwin targets
+	[[ "$arch" != "x86_64" ]] && return 0
+	[[ "$rust_target" != *"-apple-darwin"* ]] && return 0
+
+	# Check if host is ARM
+	local host_arch="${HOST_ARCH}"
+	[[ "$host_arch" == "arm64" ]] && host_arch="aarch64"
+	[[ "$host_arch" != "aarch64" ]] && return 0
+
+	TARGET_RUNNER="arch -x86_64"
+	log_success "Configured Rosetta runner for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
+}
+
 # Get Linux cross-compilation environment
 get_linux_env() {
 	local arch="$1"
@@ -862,6 +885,7 @@ get_darwin_env() {
 	case "${HOST_OS}" in
 	"darwin")
 		# Native compilation on macOS
+		setup_rosetta_runner "$arch" "$rust_target"
 		log_success "Using native macOS toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 		;;
 	"linux")
