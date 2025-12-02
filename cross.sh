@@ -720,6 +720,118 @@ setup_qemu_runner() {
 	fi
 }
 
+# Setup Docker QEMU runner for cross-compiled Linux binaries on macOS
+# Args: arch, target_prefix (e.g., armv6-linux-musleabihf), compiler_dir, libc (musl/gnu)
+# Sets: TARGET_RUNNER
+# Note: Uses docker cp instead of volume mounts for compatibility with various Docker implementations
+setup_docker_qemu_runner() {
+	local arch="$1"
+	local target_prefix="$2"
+	local compiler_dir="$3"
+	local libc="$4"
+
+	# Only setup Docker QEMU on macOS hosts
+	[[ "$HOST_OS" != "darwin" ]] && return 0
+
+	# Check if Docker is available
+	if ! command -v docker &>/dev/null; then
+		log_warning "Docker not found, skipping Docker QEMU runner setup"
+		return 0
+	fi
+
+	local qemu_binary=$(get_qemu_binary_name "$arch")
+	[[ -z "$qemu_binary" ]] && return 0
+
+	# Determine host architecture for downloading Linux QEMU binary
+	local host_arch="${HOST_ARCH}"
+	[[ "$host_arch" == "arm64" ]] && host_arch="aarch64"
+	[[ "$host_arch" == "amd64" ]] && host_arch="x86_64"
+
+	# Download QEMU for Linux (to run inside Docker container)
+	local qemu_dir="${CROSS_COMPILER_DIR}/qemu-user-static-${QEMU_VERSION}-linux-${host_arch}"
+	local qemu_path="${qemu_dir}/${qemu_binary}"
+
+	if [[ ! -x "$qemu_path" ]]; then
+		local download_url="${GH_PROXY}https://github.com/zijiren233/qemu-user-static/releases/download/${QEMU_VERSION}/qemu-user-static-linux-${host_arch}-musl.tgz"
+		download_and_extract "${download_url}" "${qemu_dir}" || return 2
+	fi
+
+	[[ ! -x "$qemu_path" ]] && return 1
+
+	# Select Docker image based on libc type
+	local docker_image
+	if [[ "$libc" == "musl" ]]; then
+		docker_image="alpine:latest"
+	else
+		docker_image="ubuntu:latest"
+	fi
+
+	# Create runner script
+	local runner_script="${CROSS_COMPILER_DIR}/docker-qemu-runner-${arch}-${libc}.sh"
+	local sysroot="${compiler_dir}/${target_prefix}"
+
+	cat >"$runner_script" <<RUNNER_SCRIPT_EOF
+#!/bin/bash
+set -e
+
+# Docker QEMU Runner Script
+# This script runs a binary inside a Docker container using QEMU user-mode emulation
+
+QEMU_PATH="${qemu_path}"
+QEMU_BINARY="${qemu_binary}"
+SYSROOT="${sysroot}"
+DOCKER_IMAGE="${docker_image}"
+
+if [[ \$# -lt 1 ]]; then
+	echo "Usage: \$0 <binary> [args...]" >&2
+	exit 1
+fi
+
+BINARY="\$1"
+shift
+
+if [[ ! -f "\$BINARY" ]]; then
+	echo "Error: Binary not found: \$BINARY" >&2
+	exit 1
+fi
+
+BINARY_NAME=\$(basename "\$BINARY")
+
+# Create container (detached, interactive mode to keep it running)
+CONTAINER_ID=\$(docker create --rm -i "\$DOCKER_IMAGE" /bin/sh -c "sleep infinity")
+
+cleanup() {
+	docker rm -f "\$CONTAINER_ID" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+# Start the container
+docker start "\$CONTAINER_ID" >/dev/null
+
+# Copy QEMU binary to container
+# docker cp "\$QEMU_PATH" "\$CONTAINER_ID:/usr/bin/\$QEMU_BINARY" >/dev/null
+# docker exec "\$CONTAINER_ID" chmod +x "/usr/bin/\$QEMU_BINARY"
+
+# Copy sysroot lib to container /lib
+if [[ -d "\$SYSROOT/lib" ]]; then
+	docker cp "\$SYSROOT" "\$CONTAINER_ID:/sysroot" >/dev/null
+fi
+
+# Copy the binary to execute
+docker cp "\$BINARY" "\$CONTAINER_ID:/tmp/\$BINARY_NAME" >/dev/null
+docker exec "\$CONTAINER_ID" chmod +x "/tmp/\$BINARY_NAME"
+
+# Run the binary with QEMU
+docker exec "\$CONTAINER_ID" apk add qemu
+docker exec "\$CONTAINER_ID" \$QEMU_BINARY -L /sysroot /tmp/\$BINARY_NAME "\$@"
+RUNNER_SCRIPT_EOF
+
+	chmod +x "$runner_script"
+
+	TARGET_RUNNER="$runner_script"
+	log_success "Configured Docker QEMU runner: ${COLOR_LIGHT_YELLOW}${qemu_binary}${COLOR_LIGHT_GREEN} for ${COLOR_LIGHT_YELLOW}${arch}${COLOR_LIGHT_GREEN} (image: ${COLOR_LIGHT_CYAN}${docker_image}${COLOR_LIGHT_GREEN})"
+}
+
 # Setup Rosetta runner for x86_64 Darwin binaries on ARM Darwin hosts
 # Args: arch, rust_target
 # Sets: TARGET_RUNNER
@@ -775,7 +887,9 @@ get_linux_env() {
 	# Add library search paths from gcc to rustc
 	set_gcc_lib_paths "${compiler_dir}" "${arch_prefix}-linux-${libc}${abi}"
 
+	# Setup QEMU runner (Linux host) or Docker QEMU runner (macOS host)
 	setup_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}"
+	setup_docker_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}" "$libc"
 
 	log_success "Configured Linux ${COLOR_LIGHT_YELLOW}${libc}${COLOR_LIGHT_GREEN} toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 }
