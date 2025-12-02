@@ -1542,7 +1542,7 @@ while [[ $# -gt 0 ]]; do
 
 	# Support arbitrary number of v's: -v, -vv, -vvv, -vvvvv, etc.
 	if [[ "$1" =~ ^-v+$ ]]; then
-		local v_str=${1#-}
+		v_str=${1#-}
 		VERBOSE_LEVEL=$((VERBOSE_LEVEL + ${#v_str}))
 		shift
 		continue
