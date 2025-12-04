@@ -317,17 +317,14 @@ download_and_extract() {
 }
 
 # Download cross-compiler if needed
-# Args: compiler_dir, compiler_name, download_url
+# Args: compiler_dir, download_url
 download_cross_compiler() {
 	local compiler_dir="$1"
-	local compiler_name="$2"
-	local download_url="$3"
+	local download_url="$2"
 
 	if [[ ! -d "${compiler_dir}" ]]; then
 		download_and_extract "${download_url}" "${compiler_dir}" || return 2
 	fi
-
-	echo "${compiler_dir}"
 }
 
 # Set cross-compilation environment variables
@@ -909,7 +906,7 @@ get_linux_env() {
 	if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
 		local host_platform=$(get_host_platform)
 		local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
-		download_cross_compiler "${compiler_dir}" "${cross_compiler_name}" "${download_url}" || return 2
+		download_cross_compiler "${compiler_dir}" "${download_url}" || return 2
 	fi
 
 	# Set environment variables
@@ -968,7 +965,7 @@ get_windows_gnu_env() {
 		if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
 			local host_platform=$(get_host_platform)
 			local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
-			download_cross_compiler "${compiler_dir}" "${cross_compiler_name}" "${download_url}" || return 2
+			download_cross_compiler "${compiler_dir}" "${download_url}" || return 2
 		fi
 
 		# Set environment variables
@@ -1015,7 +1012,7 @@ get_freebsd_env() {
 	if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
 		local host_platform=$(get_host_platform)
 		local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
-		download_cross_compiler "${compiler_dir}" "${cross_compiler_name}" "${download_url}" || return 2
+		download_cross_compiler "${compiler_dir}" "${download_url}" || return 2
 	fi
 
 	# Set environment variables
