@@ -57,8 +57,7 @@ fn main() {
     } else if command_exists("sh") {
         "sh"
     } else {
-        eprintln!("No shell found (tried bash and sh)");
-        exit(1);
+        "bash"
     };
 
     // Build the shell command with arguments
