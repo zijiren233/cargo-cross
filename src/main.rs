@@ -1,9 +1,31 @@
 use std::env;
+use std::fs;
 use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::process::{exit, Command, Stdio};
 
 /// The embedded cross.sh script
 const CROSS_SCRIPT: &[u8] = include_bytes!("../cross.sh");
+
+/// Check if a command exists in the system PATH
+fn command_exists(cmd: &str) -> bool {
+    env::var_os("PATH")
+        .map(|paths| {
+            env::split_paths(&paths).any(|dir| {
+                let full_path = dir.join(cmd);
+                is_executable(&full_path)
+            })
+        })
+        .unwrap_or(false)
+}
+
+/// Check if a path is an executable file
+fn is_executable(path: &Path) -> bool {
+    fs::metadata(path)
+        .map(|meta| meta.is_file() && (meta.permissions().mode() & 0o111 != 0))
+        .unwrap_or(false)
+}
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -21,9 +43,19 @@ fn main() {
     };
     let filtered_args: Vec<String> = args.iter().skip(skip_count).cloned().collect();
 
-    // Build the bash command with arguments
-    // We use 'bash -s' to read the script from stdin, followed by '--' and the arguments
-    let mut command = Command::new("bash");
+    // Detect available shell: prefer bash, fall back to sh
+    let shell = if command_exists("bash") {
+        "bash"
+    } else if command_exists("sh") {
+        "sh"
+    } else {
+        eprintln!("No shell found (tried bash and sh)");
+        exit(1);
+    };
+
+    // Build the shell command with arguments
+    // We use 'shell -s' to read the script from stdin, followed by '--' and the arguments
+    let mut command = Command::new(shell);
     command
         .arg("-s")
         .arg("--")
@@ -36,15 +68,15 @@ fn main() {
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(e) => {
-            eprintln!("Failed to spawn bash: {e}");
+            eprintln!("Failed to spawn {shell}: {e}");
             exit(1);
         }
     };
 
-    // Write the script to bash's stdin
+    // Write the script to shell's stdin
     if let Some(mut stdin) = child.stdin.take() {
         if let Err(e) = stdin.write_all(CROSS_SCRIPT) {
-            eprintln!("Failed to write script to bash: {e}");
+            eprintln!("Failed to write script to {shell}: {e}");
             exit(1);
         }
         // stdin is automatically closed when it goes out of scope
@@ -56,7 +88,7 @@ fn main() {
             exit(exit_status.code().unwrap_or(1));
         }
         Err(e) => {
-            eprintln!("Failed to wait for bash: {e}");
+            eprintln!("Failed to wait for {shell}: {e}");
             exit(1);
         }
     }

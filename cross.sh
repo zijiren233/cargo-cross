@@ -33,7 +33,7 @@ readonly DEFAULT_TTY_WIDTH="40"
 readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
 readonly DEFAULT_TOOLCHAIN=""
-readonly SUPPORTED_COMMANDS="bench|build|check|doc|run|test"
+readonly SUPPORTED_COMMANDS="bench|build|check|run|test"
 readonly DEFAULT_QEMU_VERSION="v10.2.0-rc1"
 
 # -----------------------------------------------------------------------------
@@ -181,15 +181,14 @@ print_help() {
 	echo -e "${COLOR_LIGHT_GREEN}Usage:${COLOR_RESET} ${COLOR_LIGHT_CYAN}[+toolchain] [command] [options]${COLOR_RESET}"
 	echo -e ""
 	echo -e "${COLOR_LIGHT_GREEN}Commands:${COLOR_RESET}"
-	echo -e "  ${COLOR_LIGHT_CYAN}build${COLOR_RESET}       Compile the package (default)"
-	echo -e "  ${COLOR_LIGHT_CYAN}check${COLOR_RESET}       Analyze the package and report errors"
-	echo -e "  ${COLOR_LIGHT_CYAN}run${COLOR_RESET}         Run a binary or example of the package"
-	echo -e "  ${COLOR_LIGHT_CYAN}test${COLOR_RESET}        Run the tests"
+	echo -e "  ${COLOR_LIGHT_CYAN}b${COLOR_RESET}, ${COLOR_LIGHT_CYAN}build${COLOR_RESET}    Compile the package (default)"
+	echo -e "  ${COLOR_LIGHT_CYAN}c${COLOR_RESET}, ${COLOR_LIGHT_CYAN}check${COLOR_RESET}    Analyze the package and report errors"
+	echo -e "  ${COLOR_LIGHT_CYAN}r${COLOR_RESET}, ${COLOR_LIGHT_CYAN}run${COLOR_RESET}      Run a binary or example of the package"
+	echo -e "  ${COLOR_LIGHT_CYAN}t${COLOR_RESET}, ${COLOR_LIGHT_CYAN}test${COLOR_RESET}     Run the tests"
 	echo -e "  ${COLOR_LIGHT_CYAN}bench${COLOR_RESET}       Run the benchmarks"
-	echo -e "  ${COLOR_LIGHT_CYAN}doc${COLOR_RESET}         Build the package's documentation"
 	echo -e ""
 	echo -e "${COLOR_LIGHT_GREEN}Options:${COLOR_RESET}"
-	echo -e "      ${COLOR_LIGHT_CYAN}--command=${COLOR_RESET}${COLOR_LIGHT_CYAN}<command>${COLOR_RESET}               Set the cargo command to run (build|check|run|test|bench|doc)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--command=${COLOR_RESET}${COLOR_LIGHT_CYAN}<command>${COLOR_RESET}               Set the cargo command to run (build|check|run|test|bench)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--profile=${COLOR_RESET}${COLOR_LIGHT_CYAN}<profile>${COLOR_RESET}               Set the build profile (debug/release, default: ${DEFAULT_PROFILE})"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cross-compiler-dir=${COLOR_RESET}${COLOR_LIGHT_CYAN}<dir>${COLOR_RESET}        Specify the cross compiler directory"
 	echo -e "  ${COLOR_LIGHT_CYAN}-F=${COLOR_RESET}${COLOR_LIGHT_CYAN}<features>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--features=${COLOR_RESET}${COLOR_LIGHT_CYAN}<features>${COLOR_RESET}  Comma-separated list of features to activate"
@@ -1648,7 +1647,13 @@ while [[ $# -gt 0 ]]; do
 		continue
 	fi
 
-	# Check if current argument is a command
+	# Check if current argument is a command (including short aliases)
+	case "$1" in
+		b) COMMAND="build"; shift; continue ;;
+		c) COMMAND="check"; shift; continue ;;
+		r) COMMAND="run"; shift; continue ;;
+		t) COMMAND="test"; shift; continue ;;
+	esac
 	if [[ "$1" =~ ^(${SUPPORTED_COMMANDS})$ ]]; then
 		COMMAND="$1"
 		shift
