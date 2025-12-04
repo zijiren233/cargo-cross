@@ -33,7 +33,7 @@ readonly DEFAULT_TTY_WIDTH="40"
 readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
 readonly DEFAULT_TOOLCHAIN=""
-readonly SUPPORTED_COMMANDS="bench|build|check|run|test"
+readonly SUPPORTED_COMMANDS="b|build|check|c|run|r|test|t|bench"
 readonly DEFAULT_QEMU_VERSION="v10.2.0-rc1"
 
 # -----------------------------------------------------------------------------
@@ -675,6 +675,49 @@ can_run_natively() {
 	return 1
 }
 
+# Check if the current command needs a runner (executes compiled binaries)
+# Args: command
+# Returns: 0 if runner is needed, 1 otherwise
+command_needs_runner() {
+	local cmd="$1"
+	case "$cmd" in
+	"run" | "r" | "test" | "t" | "bench")
+		return 0
+		;;
+	*)
+		return 1
+		;;
+	esac
+}
+
+# Setup native runner for cross-compiled binaries using sysroot's dynamic linker
+# Args: target_prefix (e.g., armv6-linux-musleabihf), compiler_dir
+# Sets: TARGET_RUNNER
+# This only can run dynamic link program
+setup_native_runner() {
+	local target_prefix="$1"
+	local compiler_dir="$2"
+
+	local sysroot="${compiler_dir}/${target_prefix}"
+	local lib_dir="${sysroot}/lib"
+
+	[[ ! -d "$lib_dir" ]] && return 0
+
+	# Find the dynamic linker in sysroot
+	local ld_so=""
+	for pattern in 'ld-linux*.so*' 'ld-musl*.so*'; do
+		local found=$(find "$lib_dir" -maxdepth 1 -name "$pattern" \( -type f -o -type l \) 2>/dev/null | head -n 1)
+		if [[ -n "$found" && -x "$found" ]]; then
+			ld_so="$found"
+			break
+		fi
+	done
+
+	if [[ -n "$ld_so" ]]; then
+		TARGET_RUNNER="${ld_so} --library-path ${lib_dir}"
+	fi
+}
+
 # Setup QEMU runner for cross-compiled Linux binaries
 # Args: arch, target_prefix (e.g., armv6-linux-musleabihf), compiler_dir
 # Sets: TARGET_RUNNER, TARGET_PATH (appends qemu directory)
@@ -683,13 +726,11 @@ setup_qemu_runner() {
 	local target_prefix="$2"
 	local compiler_dir="$3"
 
-	# Only setup QEMU on Linux hosts
-	[[ "$HOST_OS" != "linux" ]] && return 0
-
 	# Check if native execution is possible
-	if can_run_natively "$arch"; then
-		return 0
-	fi
+	# if can_run_natively "$arch"; then
+	# 	setup_native_runner "$target_prefix" "$compiler_dir"
+	# 	return 0
+	# fi
 
 	local qemu_binary=$(get_qemu_binary_name "$arch")
 	[[ -z "$qemu_binary" ]] && return 0
@@ -882,14 +923,17 @@ get_linux_env() {
 	# Add library search paths from gcc to rustc
 	set_gcc_lib_paths "${compiler_dir}" "${arch_prefix}-linux-${libc}${abi}"
 
-	case "$HOST_OS" in
-	"darwin")
-		setup_docker_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}" "$libc"
-		;;
-	*)
-		setup_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}"
-		;;
-	esac
+	# Setup runner only if the command needs to execute binaries
+	if command_needs_runner "$COMMAND"; then
+		case "$HOST_OS" in
+		"darwin")
+			setup_docker_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}" "$libc"
+			;;
+		"linux")
+			setup_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}"
+			;;
+		esac
+	fi
 
 	log_success "Configured Linux ${COLOR_LIGHT_YELLOW}${libc}${COLOR_LIGHT_GREEN} toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 }
@@ -1648,12 +1692,6 @@ while [[ $# -gt 0 ]]; do
 	fi
 
 	# Check if current argument is a command (including short aliases)
-	case "$1" in
-		b) COMMAND="build"; shift; continue ;;
-		c) COMMAND="check"; shift; continue ;;
-		r) COMMAND="run"; shift; continue ;;
-		t) COMMAND="test"; shift; continue ;;
-	esac
 	if [[ "$1" =~ ^(${SUPPORTED_COMMANDS})$ ]]; then
 		COMMAND="$1"
 		shift
