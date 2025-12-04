@@ -28,7 +28,7 @@ readonly COLOR_RESET='\033[0m'
 readonly DEFAULT_SOURCE_DIR="$(pwd)"
 readonly DEFAULT_PROFILE="release"
 readonly DEFAULT_CROSS_COMPILER_DIR="$(dirname $(mktemp -u))/rust-cross-compiler"
-readonly DEFAULT_CROSS_DEPS_VERSION="v0.6.8"
+readonly DEFAULT_CROSS_DEPS_VERSION="v0.6.9"
 readonly DEFAULT_TTY_WIDTH="40"
 readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
@@ -720,7 +720,7 @@ setup_qemu_runner() {
 	fi
 }
 
-# Setup Docker QEMU runner for cross-compiled Linux binaries on macOS
+# Setup Docker QEMU runner for cross-compiled Linux binaries
 # Args: arch, target_prefix (e.g., armv6-linux-musleabihf), compiler_dir, libc (musl/gnu)
 # Sets: TARGET_RUNNER
 # Note: Uses docker cp instead of volume mounts for compatibility with various Docker implementations
@@ -729,9 +729,6 @@ setup_docker_qemu_runner() {
 	local target_prefix="$2"
 	local compiler_dir="$3"
 	local libc="$4"
-
-	# Only setup Docker QEMU on macOS hosts
-	[[ "$HOST_OS" != "darwin" ]] && return 0
 
 	# Check if Docker is available
 	if ! command -v docker &>/dev/null; then
@@ -809,8 +806,8 @@ trap cleanup EXIT
 docker start "\$CONTAINER_ID" >/dev/null
 
 # Copy QEMU binary to container
-# docker cp "\$QEMU_PATH" "\$CONTAINER_ID:/usr/bin/\$QEMU_BINARY" >/dev/null
-# docker exec "\$CONTAINER_ID" chmod +x "/usr/bin/\$QEMU_BINARY"
+docker cp "\$QEMU_PATH" "\$CONTAINER_ID:/usr/bin/\$QEMU_BINARY" >/dev/null
+docker exec "\$CONTAINER_ID" chmod +x "/usr/bin/\$QEMU_BINARY"
 
 # Copy sysroot lib to container /lib
 if [[ -d "\$SYSROOT/lib" ]]; then
@@ -822,8 +819,7 @@ docker cp "\$BINARY" "\$CONTAINER_ID:/tmp/\$BINARY_NAME" >/dev/null
 docker exec "\$CONTAINER_ID" chmod +x "/tmp/\$BINARY_NAME"
 
 # Run the binary with QEMU
-docker exec "\$CONTAINER_ID" apk add qemu
-docker exec "\$CONTAINER_ID" \$QEMU_BINARY -L /sysroot /tmp/\$BINARY_NAME "\$@"
+docker exec "\$CONTAINER_ID" /usr/bin/\$QEMU_BINARY -L /sysroot /tmp/\$BINARY_NAME "\$@"
 RUNNER_SCRIPT_EOF
 
 	chmod +x "$runner_script"
@@ -887,9 +883,14 @@ get_linux_env() {
 	# Add library search paths from gcc to rustc
 	set_gcc_lib_paths "${compiler_dir}" "${arch_prefix}-linux-${libc}${abi}"
 
-	# Setup QEMU runner (Linux host) or Docker QEMU runner (macOS host)
-	setup_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}"
-	setup_docker_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}" "$libc"
+	case "$HOST_OS" in
+	"darwin")
+		setup_docker_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}" "$libc"
+		;;
+	*)
+		setup_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}"
+		;;
+	esac
 
 	log_success "Configured Linux ${COLOR_LIGHT_YELLOW}${libc}${COLOR_LIGHT_GREEN} toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 }
