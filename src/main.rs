@@ -1,29 +1,37 @@
 use std::env;
 use std::fs;
 use std::io::Write;
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::{exit, Command, Stdio};
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 /// The embedded cross.sh script
 const CROSS_SCRIPT: &[u8] = include_bytes!("../cross.sh");
 
 /// Check if a command exists in the system PATH
 fn command_exists(cmd: &str) -> bool {
-    env::var_os("PATH")
-        .map(|paths| {
-            env::split_paths(&paths).any(|dir| {
-                let full_path = dir.join(cmd);
-                is_executable(&full_path)
-            })
+    env::var_os("PATH").is_some_and(|paths| {
+        env::split_paths(&paths).any(|dir| {
+            let full_path = dir.join(cmd);
+            is_executable(&full_path)
         })
-        .unwrap_or(false)
+    })
 }
 
 /// Check if a path is an executable file
+#[cfg(unix)]
 fn is_executable(path: &Path) -> bool {
     fs::metadata(path)
         .map(|meta| meta.is_file() && (meta.permissions().mode() & 0o111 != 0))
+        .unwrap_or(false)
+}
+
+#[cfg(not(unix))]
+fn is_executable(path: &Path) -> bool {
+    fs::metadata(path)
+        .map(|meta| meta.is_file())
         .unwrap_or(false)
 }
 
