@@ -1,5 +1,14 @@
 #!/bin/bash
+
 set -e
+set -m
+
+cleanup() {
+	kill -TERM -$$ 2>/dev/null
+	exit 0
+}
+
+trap cleanup SIGTERM SIGINT
 
 # =============================================================================
 # Rust Cross-Compilation Build Script
