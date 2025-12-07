@@ -197,77 +197,79 @@ print_help() {
 	echo -e "  ${COLOR_LIGHT_CYAN}bench${COLOR_RESET}       Run the benchmarks"
 	echo -e ""
 	echo -e "${COLOR_LIGHT_GREEN}Options:${COLOR_RESET}"
-	echo -e "      ${COLOR_LIGHT_CYAN}--command=${COLOR_RESET}${COLOR_LIGHT_CYAN}<command>${COLOR_RESET}               Set the cargo command to run (build|check|run|test|bench)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--profile=${COLOR_RESET}${COLOR_LIGHT_CYAN}<profile>${COLOR_RESET}               Set the build profile (debug/release, default: ${DEFAULT_PROFILE})"
-	echo -e "      ${COLOR_LIGHT_CYAN}--cross-compiler-dir=${COLOR_RESET}${COLOR_LIGHT_CYAN}<dir>${COLOR_RESET}        Specify the cross compiler directory"
-	echo -e "  ${COLOR_LIGHT_CYAN}-F=${COLOR_RESET}${COLOR_LIGHT_CYAN}<features>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--features=${COLOR_RESET}${COLOR_LIGHT_CYAN}<features>${COLOR_RESET}  Comma-separated list of features to activate"
+	echo -e "      ${COLOR_LIGHT_CYAN}--command${COLOR_RESET} ${COLOR_LIGHT_CYAN}<COMMAND>${COLOR_RESET}               Set the cargo command to run (build|check|run|test|bench)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--profile${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PROFILE>${COLOR_RESET}               Set the build profile (debug/release, default: ${DEFAULT_PROFILE})"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cross-compiler-dir${COLOR_RESET} ${COLOR_LIGHT_CYAN}<DIR>${COLOR_RESET}        Specify the cross compiler directory"
+	echo -e "  ${COLOR_LIGHT_CYAN}-F${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--features${COLOR_RESET} ${COLOR_LIGHT_CYAN}<FEATURES>${COLOR_RESET}             Space or comma separated list of features to activate"
 	echo -e "      ${COLOR_LIGHT_CYAN}--no-default-features${COLOR_RESET}             Do not activate default features"
 	echo -e "      ${COLOR_LIGHT_CYAN}--all-features${COLOR_RESET}                    Activate all available features"
-	echo -e "  ${COLOR_LIGHT_CYAN}-t=${COLOR_RESET}${COLOR_LIGHT_CYAN}<targets>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--targets=${COLOR_RESET}${COLOR_LIGHT_CYAN}<targets>${COLOR_RESET}     Rust target triple(s) (e.g., x86_64-unknown-linux-musl)"
+	echo -e "  ${COLOR_LIGHT_CYAN}-t${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--target${COLOR_RESET} ${COLOR_LIGHT_CYAN}<TRIPLE>${COLOR_RESET}                 Rust target triple(s) (e.g., x86_64-unknown-linux-musl)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--show-all-targets${COLOR_RESET}                Display all supported target triples"
-	echo -e "      ${COLOR_LIGHT_CYAN}--github-proxy-mirror=${COLOR_RESET}${COLOR_LIGHT_CYAN}<url>${COLOR_RESET}       Use a GitHub proxy mirror"
-	echo -e "      ${COLOR_LIGHT_CYAN}--ndk-version=${COLOR_RESET}${COLOR_LIGHT_CYAN}<version>${COLOR_RESET}           Specify the Android NDK version"
-	echo -e "  ${COLOR_LIGHT_CYAN}-p=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--package=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}           Package to build (workspace member)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--github-proxy-mirror${COLOR_RESET} ${COLOR_LIGHT_CYAN}<URL>${COLOR_RESET}       Use a GitHub proxy mirror"
+	echo -e "      ${COLOR_LIGHT_CYAN}--ndk-version${COLOR_RESET} ${COLOR_LIGHT_CYAN}<VERSION>${COLOR_RESET}           Specify the Android NDK version"
+	echo -e "  ${COLOR_LIGHT_CYAN}-p${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--package${COLOR_RESET} ${COLOR_LIGHT_CYAN}<SPEC>${COLOR_RESET}                  Package to build (workspace member)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--workspace${COLOR_RESET}                       Build all workspace members"
-	echo -e "      ${COLOR_LIGHT_CYAN}--exclude=${COLOR_RESET}${COLOR_LIGHT_CYAN}<spec>${COLOR_RESET}                  Exclude packages from the build (must be used with --workspace)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--bin=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}                      Binary target to build"
+	echo -e "      ${COLOR_LIGHT_CYAN}--exclude${COLOR_RESET} ${COLOR_LIGHT_CYAN}<SPEC>${COLOR_RESET}                  Exclude packages from the build (must be used with --workspace)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--bin${COLOR_RESET} ${COLOR_LIGHT_CYAN}<NAME>${COLOR_RESET}                      Binary target to build"
 	echo -e "      ${COLOR_LIGHT_CYAN}--bins${COLOR_RESET}                            Build all binary targets"
 	echo -e "      ${COLOR_LIGHT_CYAN}--lib${COLOR_RESET}                             Build only the library target"
-	echo -e "      ${COLOR_LIGHT_CYAN}--example=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}                  Example target to build"
+	echo -e "      ${COLOR_LIGHT_CYAN}--example${COLOR_RESET} ${COLOR_LIGHT_CYAN}<NAME>${COLOR_RESET}                  Example target to build"
 	echo -e "      ${COLOR_LIGHT_CYAN}--examples${COLOR_RESET}                        Build all example targets"
-	echo -e "      ${COLOR_LIGHT_CYAN}--test=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}                     Integration test to build"
+	echo -e "      ${COLOR_LIGHT_CYAN}--test${COLOR_RESET} ${COLOR_LIGHT_CYAN}<NAME>${COLOR_RESET}                     Integration test to build"
 	echo -e "      ${COLOR_LIGHT_CYAN}--tests${COLOR_RESET}                           Build all test targets"
-	echo -e "      ${COLOR_LIGHT_CYAN}--bench=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}                    Benchmark target to build"
+	echo -e "      ${COLOR_LIGHT_CYAN}--bench${COLOR_RESET} ${COLOR_LIGHT_CYAN}<NAME>${COLOR_RESET}                    Benchmark target to build"
 	echo -e "      ${COLOR_LIGHT_CYAN}--benches${COLOR_RESET}                         Build all benchmark targets"
 	echo -e "      ${COLOR_LIGHT_CYAN}--all-targets${COLOR_RESET}                     Build all targets (equivalent to --lib --bins --tests --benches --examples)"
 	echo -e "  ${COLOR_LIGHT_CYAN}-r${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--release${COLOR_RESET}                         Build optimized artifacts with the release profile"
 	echo -e "  ${COLOR_LIGHT_CYAN}-q${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--quiet${COLOR_RESET}                           Do not print cargo log messages"
-	echo -e "      ${COLOR_LIGHT_CYAN}--message-format=${COLOR_RESET}${COLOR_LIGHT_CYAN}<fmt>${COLOR_RESET}            The output format for diagnostic messages"
+	echo -e "      ${COLOR_LIGHT_CYAN}--message-format${COLOR_RESET} ${COLOR_LIGHT_CYAN}<FMT>${COLOR_RESET}            The output format for diagnostic messages"
 	echo -e "      ${COLOR_LIGHT_CYAN}--ignore-rust-version${COLOR_RESET}             Ignore rust-version specification in packages"
 	echo -e "      ${COLOR_LIGHT_CYAN}--locked${COLOR_RESET}                          Asserts that exact same dependencies are used as Cargo.lock"
 	echo -e "      ${COLOR_LIGHT_CYAN}--offline${COLOR_RESET}                         Prevents Cargo from accessing the network"
 	echo -e "      ${COLOR_LIGHT_CYAN}--frozen${COLOR_RESET}                          Equivalent to specifying both --locked and --offline"
-	echo -e "  ${COLOR_LIGHT_CYAN}-j=${COLOR_RESET}${COLOR_LIGHT_CYAN}<N>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--jobs=${COLOR_RESET}${COLOR_LIGHT_CYAN}<N>${COLOR_RESET}                    Number of parallel jobs to run"
+	echo -e "  ${COLOR_LIGHT_CYAN}-j${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--jobs${COLOR_RESET} ${COLOR_LIGHT_CYAN}<N>${COLOR_RESET}                        Number of parallel jobs to run"
 	echo -e "      ${COLOR_LIGHT_CYAN}--keep-going${COLOR_RESET}                      Build as many crates as possible, don't abort on first failure"
 	echo -e "      ${COLOR_LIGHT_CYAN}--future-incompat-report${COLOR_RESET}          Displays a future-incompat report for warnings"
-	echo -e "      ${COLOR_LIGHT_CYAN}--manifest-path=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}            Path to Cargo.toml"
+	echo -e "      ${COLOR_LIGHT_CYAN}--manifest-path${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PATH>${COLOR_RESET}            Path to Cargo.toml"
 	echo -e "      ${COLOR_LIGHT_CYAN}--use-default-linker${COLOR_RESET}              Use system default linker (no cross-compiler download)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--cc=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}                       Force set the C compiler for target"
-	echo -e "      ${COLOR_LIGHT_CYAN}--cxx=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}                      Force set the C++ compiler for target"
-	echo -e "      ${COLOR_LIGHT_CYAN}--ar=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}                       Force set the ar for target"
-	echo -e "      ${COLOR_LIGHT_CYAN}--linker=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}                   Force set the linker for target"
-	echo -e "      ${COLOR_LIGHT_CYAN}--rustflags=${COLOR_RESET}${COLOR_LIGHT_CYAN}<flags>${COLOR_RESET}               Additional rustflags (can be specified multiple times)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--cflags=${COLOR_RESET}${COLOR_LIGHT_CYAN}<flags>${COLOR_RESET}                  C compiler flags (cc crate)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--cxxflags=${COLOR_RESET}${COLOR_LIGHT_CYAN}<flags>${COLOR_RESET}                C++ compiler flags (cc crate)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--cxxstdlib=${COLOR_RESET}${COLOR_LIGHT_CYAN}<name>${COLOR_RESET}                C++ standard library (cc crate)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--rustc-wrapper=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}            Compiler wrapper for caching (sccache, ccache, etc.)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--enable-sccache${COLOR_RESET}                    Enable sccache for compilation caching"
-	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-dir=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}               Sccache local cache directory"
-	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-cache-size=${COLOR_RESET}${COLOR_LIGHT_CYAN}<size>${COLOR_RESET}       Maximum sccache cache size (e.g., 2G, 10G)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-idle-timeout=${COLOR_RESET}${COLOR_LIGHT_CYAN}<sec>${COLOR_RESET}      Sccache daemon idle timeout in seconds"
-	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-log=${COLOR_RESET}${COLOR_LIGHT_CYAN}<level>${COLOR_RESET}             Sccache log level (error, warn, info, debug, trace)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-no-daemon${COLOR_RESET}                Disable sccache background daemon"
-	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-direct${COLOR_RESET}                   Enable sccache preprocessor caching"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cc${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PATH>${COLOR_RESET}                       Force set the C compiler for target"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cxx${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PATH>${COLOR_RESET}                      Force set the C++ compiler for target"
+	echo -e "      ${COLOR_LIGHT_CYAN}--ar${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PATH>${COLOR_RESET}                       Force set the ar for target"
+	echo -e "      ${COLOR_LIGHT_CYAN}--linker${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PATH>${COLOR_RESET}                   Force set the linker for target"
+	echo -e "      ${COLOR_LIGHT_CYAN}--rustflags${COLOR_RESET} ${COLOR_LIGHT_CYAN}<FLAGS>${COLOR_RESET}               Additional rustflags (can be specified multiple times)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cflags${COLOR_RESET} ${COLOR_LIGHT_CYAN}<FLAGS>${COLOR_RESET}                  C compiler flags (cc crate)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cxxflags${COLOR_RESET} ${COLOR_LIGHT_CYAN}<FLAGS>${COLOR_RESET}                C++ compiler flags (cc crate)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cxxstdlib${COLOR_RESET} ${COLOR_LIGHT_CYAN}<NAME>${COLOR_RESET}                C++ standard library (cc crate)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--rustc-wrapper${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PATH>${COLOR_RESET}            Compiler wrapper for caching (sccache, ccache, etc.)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--enable-sccache${COLOR_RESET}                  Enable sccache for compilation caching"
+	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-dir${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PATH>${COLOR_RESET}              Sccache local cache directory"
+	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-cache-size${COLOR_RESET} ${COLOR_LIGHT_CYAN}<SIZE>${COLOR_RESET}       Maximum sccache cache size (e.g., 2G, 10G)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-idle-timeout${COLOR_RESET} ${COLOR_LIGHT_CYAN}<SEC>${COLOR_RESET}      Sccache daemon idle timeout in seconds"
+	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-log${COLOR_RESET} ${COLOR_LIGHT_CYAN}<LEVEL>${COLOR_RESET}             Sccache log level (error, warn, info, debug, trace)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-no-daemon${COLOR_RESET}               Disable sccache background daemon"
+	echo -e "      ${COLOR_LIGHT_CYAN}--sccache-direct${COLOR_RESET}                  Enable sccache preprocessor caching"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cc-no-defaults${COLOR_RESET}                  Disable default cc crate compiler flags"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cc-shell-escaped-flags${COLOR_RESET}          Parse *FLAGS using shell argument parsing"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cc-enable-debug${COLOR_RESET}                 Enable cc crate debug output"
-	echo -e "      ${COLOR_LIGHT_CYAN}--static-crt${COLOR_RESET}[${COLOR_LIGHT_CYAN}=${COLOR_RESET}${COLOR_LIGHT_CYAN}<true|false>${COLOR_RESET}]       Add -C target-feature=+crt-static to rustflags (default: true)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--build-std${COLOR_RESET}[${COLOR_LIGHT_CYAN}=${COLOR_RESET}${COLOR_LIGHT_CYAN}<crates>${COLOR_RESET}]            Use -Zbuild-std for building standard library from source"
-	echo -e "      ${COLOR_LIGHT_CYAN}--build-std-features=${COLOR_RESET}${COLOR_LIGHT_CYAN}<features>${COLOR_RESET}  Features to enable for -Zbuild-std (e.g., panic-unwind)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--cargo-args=${COLOR_RESET}${COLOR_LIGHT_CYAN}<args>${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--args=${COLOR_RESET}${COLOR_LIGHT_CYAN}<args>${COLOR_RESET}  Additional arguments to pass to cargo command"
-	echo -e "      ${COLOR_LIGHT_CYAN}--toolchain=${COLOR_RESET}${COLOR_LIGHT_CYAN}<toolchain>${COLOR_RESET}           Rust toolchain to use (stable, nightly, etc.)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--cargo-trim-paths=${COLOR_RESET}${COLOR_LIGHT_CYAN}<paths>${COLOR_RESET}        Set CARGO_TRIM_PATHS environment variable"
+	echo -e "      ${COLOR_LIGHT_CYAN}--crt-static${COLOR_RESET}[=${COLOR_LIGHT_CYAN}<true|false>${COLOR_RESET}]       Add -C target-feature=+crt-static to rustflags (default: true)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--fmt-debug${COLOR_RESET} ${COLOR_LIGHT_CYAN}<MODE>${COLOR_RESET}                Set -Zfmt-debug (full, shallow, none)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--location-detail${COLOR_RESET} ${COLOR_LIGHT_CYAN}<DETAIL>${COLOR_RESET}        Set -Zlocation-detail (none, or: file,line,column)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--build-std${COLOR_RESET}[=${COLOR_LIGHT_CYAN}<CRATES>${COLOR_RESET}]            Use -Zbuild-std for building standard library from source"
+	echo -e "      ${COLOR_LIGHT_CYAN}--build-std-features${COLOR_RESET} ${COLOR_LIGHT_CYAN}<FEATURES>${COLOR_RESET}   Features to enable for -Zbuild-std (e.g., panic-unwind)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cargo-args${COLOR_RESET} ${COLOR_LIGHT_CYAN}<ARGS>${COLOR_RESET}               Additional arguments to pass to cargo command"
+	echo -e "      ${COLOR_LIGHT_CYAN}--toolchain${COLOR_RESET} ${COLOR_LIGHT_CYAN}<TOOLCHAIN>${COLOR_RESET}           Rust toolchain to use (stable, nightly, etc.)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--cargo-trim-paths${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PATHS>${COLOR_RESET}        Set CARGO_TRIM_PATHS environment variable"
 	echo -e "      ${COLOR_LIGHT_CYAN}--no-embed-metadata${COLOR_RESET}               Add -Zno-embed-metadata flag to cargo"
-	echo -e "      ${COLOR_LIGHT_CYAN}--rustc-bootstrap${COLOR_RESET}[${COLOR_LIGHT_CYAN}=${COLOR_RESET}${COLOR_LIGHT_CYAN}<value>${COLOR_RESET}]       Set RUSTC_BOOTSTRAP (default: 1, or specify -1/crate_name)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--target-dir=${COLOR_RESET}${COLOR_LIGHT_CYAN}<dir>${COLOR_RESET}                Directory for all generated artifacts"
-	echo -e "      ${COLOR_LIGHT_CYAN}--artifact-dir=${COLOR_RESET}${COLOR_LIGHT_CYAN}<dir>${COLOR_RESET}              Copy final artifacts to this directory (unstable, requires nightly)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--color=${COLOR_RESET}${COLOR_LIGHT_CYAN}<when>${COLOR_RESET}                    Control when colored output is used (auto, always, never)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--rustc-bootstrap${COLOR_RESET}[=${COLOR_LIGHT_CYAN}<VALUE>${COLOR_RESET}]       Set RUSTC_BOOTSTRAP (default: 1, or specify -1/crate_name)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--target-dir${COLOR_RESET} ${COLOR_LIGHT_CYAN}<DIR>${COLOR_RESET}                Directory for all generated artifacts"
+	echo -e "      ${COLOR_LIGHT_CYAN}--artifact-dir${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PATH>${COLOR_RESET}             Copy final artifacts to this directory (unstable, requires nightly)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--color${COLOR_RESET} ${COLOR_LIGHT_CYAN}<WHEN>${COLOR_RESET}                    Control when colored output is used (auto, always, never)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--build-plan${COLOR_RESET}                      Outputs a series of JSON messages (unstable, requires nightly)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--timings=${COLOR_RESET}${COLOR_LIGHT_CYAN}<fmts>${COLOR_RESET}                  Output information about compilation timing"
-	echo -e "      ${COLOR_LIGHT_CYAN}--lockfile-path=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}            Path to Cargo.lock (unstable, requires nightly)"
-	echo -e "      ${COLOR_LIGHT_CYAN}--config=${COLOR_RESET}${COLOR_LIGHT_CYAN}<KEY=VALUE>${COLOR_RESET}              Override a Cargo configuration value"
-	echo -e "  ${COLOR_LIGHT_CYAN}-C=${COLOR_RESET}${COLOR_LIGHT_CYAN}<path>${COLOR_RESET}                             Change current working directory before executing"
-	echo -e "  ${COLOR_LIGHT_CYAN}-Z=${COLOR_RESET}${COLOR_LIGHT_CYAN}<flag>${COLOR_RESET}                             Unstable (nightly-only) flags to Cargo"
+	echo -e "      ${COLOR_LIGHT_CYAN}--timings${COLOR_RESET}[=${COLOR_LIGHT_CYAN}<FMTS>${COLOR_RESET}]                Output information about compilation timing"
+	echo -e "      ${COLOR_LIGHT_CYAN}--lockfile-path${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PATH>${COLOR_RESET}            Path to Cargo.lock (unstable, requires nightly)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--config${COLOR_RESET} ${COLOR_LIGHT_CYAN}<KEY=VALUE>${COLOR_RESET}              Override a Cargo configuration value"
+	echo -e "  ${COLOR_LIGHT_CYAN}-C${COLOR_RESET} ${COLOR_LIGHT_CYAN}<DIR>${COLOR_RESET}                              Change current working directory before executing"
+	echo -e "  ${COLOR_LIGHT_CYAN}-Z${COLOR_RESET} ${COLOR_LIGHT_CYAN}<FLAG>${COLOR_RESET}                             Unstable (nightly-only) flags to Cargo"
 	echo -e "  ${COLOR_LIGHT_CYAN}-v${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--verbose${COLOR_RESET}                         Use verbose output"
 	echo -e "  ${COLOR_LIGHT_CYAN}-h${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--help${COLOR_RESET}                            Display this help message"
 }
@@ -1438,6 +1440,16 @@ execute_target() {
 		rustflags="${rustflags:+$rustflags }-C target-feature=-crt-static"
 	fi
 
+	# Add fmt-debug flag if specified
+	if [[ -n "$FMT_DEBUG" ]]; then
+		rustflags="${rustflags:+$rustflags }-Zfmt-debug=$FMT_DEBUG"
+	fi
+
+	# Add location-detail flag if specified
+	if [[ -n "$LOCATION_DETAIL" ]]; then
+		rustflags="${rustflags:+$rustflags }-Zlocation-detail=$LOCATION_DETAIL"
+	fi
+
 	# Add rustflags from command-line arguments (--rustflags)
 	if [[ ${#ADDITIONAL_RUSTFLAGS_ARRAY[@]} -gt 0 ]]; then
 		for flag in "${ADDITIONAL_RUSTFLAGS_ARRAY[@]}"; do
@@ -1734,6 +1746,10 @@ while [[ $# -gt 0 ]]; do
 	-F=* | --features=*)
 		FEATURES="${1#*=}"
 		;;
+	-F?*)
+		# Support -Ffoo format (no space or equals)
+		FEATURES="${1#-F}"
+		;;
 	-F | --features)
 		shift
 		FEATURES="$(parse_option_value "--features" "$@")"
@@ -1749,6 +1765,15 @@ while [[ $# -gt 0 ]]; do
 			TARGETS="${TARGETS},${1#*=}"
 		else
 			TARGETS="${1#*=}"
+		fi
+		;;
+	-t?*)
+		# Support -ttarget format (no space or equals)
+		__target_value="${1#-t}"
+		if [[ -n "$TARGETS" ]]; then
+			TARGETS="${TARGETS},${__target_value}"
+		else
+			TARGETS="${__target_value}"
 		fi
 		;;
 	-t | --targets | --target)
@@ -1790,6 +1815,10 @@ while [[ $# -gt 0 ]]; do
 		;;
 	-p=* | --package=*)
 		PACKAGE="${1#*=}"
+		;;
+	-p?*)
+		# Support -ppkg format (no space or equals)
+		PACKAGE="${1#-p}"
 		;;
 	-p | --package)
 		shift
@@ -1875,6 +1904,10 @@ while [[ $# -gt 0 ]]; do
 		;;
 	-j=* | --jobs=*)
 		JOBS="${1#*=}"
+		;;
+	-j?*)
+		# Support -j4 format (no space or equals)
+		JOBS="${1#-j}"
 		;;
 	-j | --jobs)
 		shift
@@ -2008,11 +2041,11 @@ while [[ $# -gt 0 ]]; do
 		shift
 		ADDITIONAL_RUSTFLAGS_ARRAY+=("$(parse_option_value "--rustflags" "$@")")
 		;;
-	--static-crt=*)
+	--crt-static=* | --static-crt=*)
 		STATIC_CRT="${1#*=}"
 		[[ -z "$STATIC_CRT" ]] && STATIC_CRT="true"
 		;;
-	--static-crt)
+	--crt-static | --static-crt)
 		if is_next_arg_option "$@"; then
 			STATIC_CRT="true"
 		else
@@ -2023,6 +2056,20 @@ while [[ $# -gt 0 ]]; do
 				STATIC_CRT="true"
 			fi
 		fi
+		;;
+	--fmt-debug=*)
+		FMT_DEBUG="${1#*=}"
+		;;
+	--fmt-debug)
+		shift
+		FMT_DEBUG="$(parse_option_value "--fmt-debug" "$@")"
+		;;
+	--location-detail=*)
+		LOCATION_DETAIL="${1#*=}"
+		;;
+	--location-detail)
+		shift
+		LOCATION_DETAIL="$(parse_option_value "--location-detail" "$@")"
 		;;
 	--build-std=*)
 		BUILD_STD="${1#*=}"
@@ -2151,12 +2198,20 @@ while [[ $# -gt 0 ]]; do
 	-C=*)
 		CARGO_CWD="${1#*=}"
 		;;
+	-C?*)
+		# Support -C/path format (no space or equals)
+		CARGO_CWD="${1#-C}"
+		;;
 	-C)
 		shift
 		CARGO_CWD="$(parse_option_value "-C" "$@")"
 		;;
 	-Z=*)
 		CARGO_Z_FLAGS_ARRAY+=("${1#*=}")
+		;;
+	-Z?*)
+		# Support -Zflag format (no space or equals)
+		CARGO_Z_FLAGS_ARRAY+=("${1#-Z}")
 		;;
 	-Z)
 		shift
