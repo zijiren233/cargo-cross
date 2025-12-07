@@ -9,12 +9,57 @@ A powerful GitHub Action for building, testing, and checking Rust projects with 
 - 📦 **Automatic toolchain setup** - downloads and configures cross-compilers as needed
 - 🎯 **Multiple target support** - build for 63+ target platforms in a single run
 - 🏗️ **Workspace support** - work with entire workspaces or specific packages
-- ⚡ **Flexible linking** - musl targets default to static, GNU targets default to dynamic, both configurable via `static-crt` parameter
+- ⚡ **Flexible linking** - musl targets default to static, GNU targets default to dynamic, both configurable via `crt-static` parameter
 - 🔧 **Flexible configuration** - extensive customization options
 - 📁 **Organized output** - all artifacts collected in a single directory
 - 🛠️ **Multiple commands** - supports build, test, and check operations
 
-## Quick Start
+## Local Usage
+
+### Installation as Cargo Subcommand
+
+You can install this tool as a cargo subcommand for easy cross-compilation:
+
+```bash
+# Install from crate
+cargo install cargo-cross
+
+# Install from GitHub
+cargo install cargo-cross --git https://github.com/zijiren233/cargo-cross
+
+# Or install from local path
+cargo install --path .
+```
+
+After installation, you can use `cargo cross` command:
+
+```bash
+# Show help
+cargo cross --help
+
+# Show all supported targets
+cargo cross --show-all-targets
+
+# Build for a specific target
+cargo cross build --target x86_64-unknown-linux-musl
+
+# Build for multiple targets
+cargo cross build --targets x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
+
+# Build with release profile
+cargo cross build --target x86_64-unknown-linux-musl --release
+
+# Build with features
+cargo cross build --target x86_64-unknown-linux-musl --features feature1,feature2
+
+# Test for a target
+cargo cross test --target x86_64-unknown-linux-musl
+
+# Check the project
+cargo cross check --target x86_64-unknown-linux-musl
+```
+
+## GitHub Actions Usage
 
 ### Basic Usage
 
@@ -480,114 +525,6 @@ The RUSTC_BOOTSTRAP environment variable tells rustc to act as if it is a nightl
     targets: x86_64-unknown-linux-musl
     toolchain: nightly
     rustc-bootstrap: "-1"
-```
-
-## Local Usage
-
-### Installation as Cargo Subcommand
-
-You can install this tool as a cargo subcommand for easy cross-compilation:
-
-```bash
-# Install from crate
-cargo install cargo-cross
-
-# Install from GitHub
-cargo install cargo-cross --git https://github.com/zijiren233/cargo-cross
-
-# Or install from local path
-cargo install --path .
-```
-
-After installation, you can use `cargo cross` command:
-
-```bash
-# Show help
-cargo cross --help
-
-# Show all supported targets
-cargo cross --show-all-targets
-
-# Build for a specific target
-cargo cross build --target x86_64-unknown-linux-musl
-
-# Build for multiple targets
-cargo cross build --targets x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
-
-# Build with release profile
-cargo cross build --target x86_64-unknown-linux-musl --release
-
-# Build with features
-cargo cross build --target x86_64-unknown-linux-musl --features feature1,feature2
-
-# Test for a target
-cargo cross test --target x86_64-unknown-linux-musl
-
-# Check the project
-cargo cross check --target x86_64-unknown-linux-musl
-```
-
-### Direct Script Usage
-
-You can also use the execution script directly:
-
-```bash
-# Build for a specific target (default command)
-./cross.sh --targets=x86_64-unknown-linux-musl
-
-# Explicitly specify build command
-./cross.sh build --targets=x86_64-unknown-linux-musl
-
-# Test for multiple targets
-./cross.sh test --targets=x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
-
-# Check the project
-./cross.sh check --targets=x86_64-unknown-linux-musl
-
-# Show all supported targets
-./cross.sh --show-all-targets
-
-# Build with features
-./cross.sh build --targets=x86_64-unknown-linux-musl --features=feature1,feature2
-
-# Build entire workspace
-./cross.sh build --targets=x86_64-unknown-linux-musl --workspace
-
-# Build with nightly toolchain
-./cross.sh build --targets=x86_64-unknown-linux-musl --toolchain=nightly
-
-# Test with stable toolchain (explicitly)
-./cross.sh test --targets=x86_64-unknown-linux-musl --toolchain=stable
-
-# Build musl with dynamic linking (musl is static by default)
-./cross.sh build --targets=x86_64-unknown-linux-musl --static-crt=false
-
-# Build GNU with static linking (GNU is dynamic by default)
-./cross.sh build --targets=x86_64-unknown-linux-gnu --static-crt=true
-
-# Build with custom rustflags
-./cross.sh build --targets=x86_64-unknown-linux-musl --rustflags="-C opt-level=3 -C codegen-units=1"
-
-# Build with build-std (build standard library from source)
-./cross.sh build --targets=x86_64-unknown-linux-musl --build-std
-
-# Build with build-std using specific crates
-./cross.sh build --targets=x86_64-unknown-linux-musl --build-std=core,alloc
-
-# Build with reproducible paths
-./cross.sh build --targets=x86_64-unknown-linux-musl --cargo-trim-paths=all
-
-# Build without embedding metadata (requires nightly toolchain)
-./cross.sh build --targets=x86_64-unknown-linux-musl --no-embed-metadata --toolchain=nightly
-
-# Build with RUSTC_BOOTSTRAP (enable nightly features for all crates)
-./cross.sh build --targets=x86_64-unknown-linux-musl --rustc-bootstrap=1
-
-# Build with RUSTC_BOOTSTRAP for specific crate
-./cross.sh build --targets=x86_64-unknown-linux-musl --rustc-bootstrap=my_crate_name
-
-# Build with RUSTC_BOOTSTRAP=-1 (force stable behavior on nightly)
-./cross.sh build --targets=x86_64-unknown-linux-musl --rustc-bootstrap=-1 --toolchain=nightly
 ```
 
 ## How It Works
