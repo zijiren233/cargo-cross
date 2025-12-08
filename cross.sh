@@ -43,7 +43,7 @@ readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
 readonly DEFAULT_TOOLCHAIN=""
 readonly SUPPORTED_COMMANDS="b|build|check|c|run|r|test|t|bench"
-readonly DEFAULT_QEMU_VERSION="v10.2.0-rc1"
+readonly DEFAULT_QEMU_VERSION="v10.1.3"
 
 # -----------------------------------------------------------------------------
 # Host Environment Detection
