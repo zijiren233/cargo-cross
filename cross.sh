@@ -187,7 +187,7 @@ parse_option_value() {
 
 # Prints help information
 print_help() {
-	echo -e "${COLOR_LIGHT_GREEN}Usage:${COLOR_RESET} ${COLOR_LIGHT_CYAN}[+toolchain] [command] [options]${COLOR_RESET}"
+	echo -e "${COLOR_LIGHT_GREEN}Usage:${COLOR_RESET} ${COLOR_LIGHT_CYAN}[+toolchain] [OPTIONS] [COMMAND]${COLOR_RESET}"
 	echo -e ""
 	echo -e "${COLOR_LIGHT_GREEN}Commands:${COLOR_RESET}"
 	echo -e "  ${COLOR_LIGHT_CYAN}b${COLOR_RESET}, ${COLOR_LIGHT_CYAN}build${COLOR_RESET}    Compile the package (default)"
@@ -197,7 +197,6 @@ print_help() {
 	echo -e "  ${COLOR_LIGHT_CYAN}bench${COLOR_RESET}       Run the benchmarks"
 	echo -e ""
 	echo -e "${COLOR_LIGHT_GREEN}Options:${COLOR_RESET}"
-	echo -e "      ${COLOR_LIGHT_CYAN}--command${COLOR_RESET} ${COLOR_LIGHT_CYAN}<COMMAND>${COLOR_RESET}               Set the cargo command to run (build|check|run|test|bench)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--profile${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PROFILE>${COLOR_RESET}               Set the build profile (debug/release, default: ${DEFAULT_PROFILE})"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cross-compiler-dir${COLOR_RESET} ${COLOR_LIGHT_CYAN}<DIR>${COLOR_RESET}        Specify the cross compiler directory"
 	echo -e "  ${COLOR_LIGHT_CYAN}-F${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--features${COLOR_RESET} ${COLOR_LIGHT_CYAN}<FEATURES>${COLOR_RESET}             Space or comma separated list of features to activate"
@@ -1677,7 +1676,6 @@ set_default "CROSS_COMPILER_DIR" "${DEFAULT_CROSS_COMPILER_DIR}"
 set_default "CROSS_DEPS_VERSION" "${DEFAULT_CROSS_DEPS_VERSION}"
 set_default "NDK_VERSION" "${DEFAULT_NDK_VERSION}"
 set_default "QEMU_VERSION" "${DEFAULT_QEMU_VERSION}"
-set_default "COMMAND" "${DEFAULT_COMMAND}"
 set_default "TOOLCHAIN" "${DEFAULT_TOOLCHAIN}"
 
 # Helper function to check if the next argument is an option or command
@@ -1688,8 +1686,8 @@ is_next_arg_option() {
 
 	local next_arg="$2"
 
-	# Check if it's a command
-	if [[ "$next_arg" =~ ^(${SUPPORTED_COMMANDS})$ ]]; then
+	# Check if it's a command (only if COMMAND is not already set)
+	if [[ -z "$COMMAND" && "$next_arg" =~ ^(${SUPPORTED_COMMANDS})$ ]]; then
 		return 0
 	fi
 
@@ -1707,18 +1705,18 @@ is_next_arg_option() {
 	return 1
 }
 
+# Parse +toolchain as first argument (e.g., +nightly, +stable, +1.70.0)
+# Must be first argument to match cargo's behavior
+if [[ "${1:-}" =~ ^\+(.+)$ ]]; then
+	TOOLCHAIN="${BASH_REMATCH[1]}"
+	shift
+fi
+
 # Parse command-line arguments
 while [[ $# -gt 0 ]]; do
-	# Check if current argument is +toolchain (e.g., +nightly, +stable, +1.70.0)
-	# Only parse if TOOLCHAIN is not already set to avoid affecting other arguments
-	if [[ -z "$TOOLCHAIN" && "$1" =~ ^\+(.+)$ ]]; then
-		TOOLCHAIN="${BASH_REMATCH[1]}"
-		shift
-		continue
-	fi
-
 	# Check if current argument is a command (including short aliases)
-	if [[ "$1" =~ ^(${SUPPORTED_COMMANDS})$ ]]; then
+	# Only parse if COMMAND is not already set
+	if [[ -z "$COMMAND" && "$1" =~ ^(${SUPPORTED_COMMANDS})$ ]]; then
 		COMMAND="$1"
 		shift
 		continue
@@ -1743,13 +1741,6 @@ while [[ $# -gt 0 ]]; do
 	--profile)
 		shift
 		PROFILE="$(parse_option_value "--profile" "$@")"
-		;;
-	--command=*)
-		COMMAND="${1#*=}"
-		;;
-	--command)
-		shift
-		COMMAND="$(parse_option_value "--command" "$@")"
 		;;
 	-F=* | --features=*)
 		FEATURES="${1#*=}"
@@ -2250,6 +2241,9 @@ while [[ $# -gt 0 ]]; do
 	esac
 	shift
 done
+
+# Default to build command if not specified
+set_default "COMMAND" "${DEFAULT_COMMAND}"
 
 # Default to host target if not specified
 if [[ -z "$TARGETS" ]]; then
