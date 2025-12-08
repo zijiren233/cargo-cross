@@ -252,6 +252,7 @@ print_help() {
 	echo -e "      ${COLOR_LIGHT_CYAN}--cc-shell-escaped-flags${COLOR_RESET}          Parse *FLAGS using shell argument parsing"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cc-enable-debug${COLOR_RESET}                 Enable cc crate debug output"
 	echo -e "      ${COLOR_LIGHT_CYAN}--crt-static${COLOR_RESET}[=${COLOR_LIGHT_CYAN}<true|false>${COLOR_RESET}]       Add -C target-feature=+crt-static to rustflags"
+	echo -e "      ${COLOR_LIGHT_CYAN}--panic-immediate-abort${COLOR_RESET}           Enable panic=immediate-abort (requires nightly-2025-09-24+)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--fmt-debug${COLOR_RESET} ${COLOR_LIGHT_CYAN}<MODE>${COLOR_RESET}                Set -Zfmt-debug (full, shallow, none)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--location-detail${COLOR_RESET} ${COLOR_LIGHT_CYAN}<DETAIL>${COLOR_RESET}        Set -Zlocation-detail (none, or: file,line,column)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--build-std${COLOR_RESET}[=${COLOR_LIGHT_CYAN}<CRATES>${COLOR_RESET}]            Use -Zbuild-std for building standard library from source"
@@ -1440,6 +1441,13 @@ execute_target() {
 		rustflags="${rustflags:+$rustflags }-C target-feature=-crt-static"
 	fi
 
+	# Add panic=immediate-abort flag if specified (requires nightly-2025-09-24+)
+	if [[ "$PANIC_IMMEDIATE_ABORT" == "true" ]]; then
+		rustflags="${rustflags:+$rustflags }-Zunstable-options -Cpanic=immediate-abort"
+		# Auto-enable build-std if not already set
+		[[ -z "$BUILD_STD" || "$BUILD_STD" == "false" ]] && BUILD_STD="true"
+	fi
+
 	# Add fmt-debug flag if specified
 	if [[ -n "$FMT_DEBUG" ]]; then
 		rustflags="${rustflags:+$rustflags }-Zfmt-debug=$FMT_DEBUG"
@@ -2056,6 +2064,9 @@ while [[ $# -gt 0 ]]; do
 				CRT_STATIC="true"
 			fi
 		fi
+		;;
+	--panic-immediate-abort)
+		PANIC_IMMEDIATE_ABORT="true"
 		;;
 	--fmt-debug=*)
 		FMT_DEBUG="${1#*=}"

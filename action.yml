@@ -169,6 +169,10 @@ inputs:
     description: "Control CRT linking mode: 'true' for static (+crt-static), 'false' for dynamic (-crt-static), empty for default behavior"
     required: false
     default: ""
+  panic-immediate-abort:
+    description: 'Enable panic=immediate-abort strategy (adds -Zunstable-options -Cpanic=immediate-abort, enables build-std). This is a real panic strategy since nightly-2025-09-24, can also be set via `panic = "immediate-abort"` in Cargo.toml'
+    required: false
+    default: ""
   build-std:
     description: "Use -Zbuild-std for building standard library from source (true for default, or specify crates like 'core,alloc')"
     required: false
@@ -403,6 +407,7 @@ runs:
         CC_ENABLE_DEBUG_OUTPUT: ${{ inputs.cc-enable-debug == 'true' && '1' || '' }}
         ADDITIONAL_RUSTFLAGS: ${{ inputs.rustflags }}
         CRT_STATIC: ${{ inputs.crt-static != '' && inputs.crt-static || inputs.static-crt }}
+        PANIC_IMMEDIATE_ABORT: ${{ inputs.panic-immediate-abort }}
         BUILD_STD: ${{ inputs.build-std }}
         BUILD_STD_FEATURES: ${{ inputs.build-std-features }}
         CLEAN_CACHE: ${{ inputs.clean-cache }}
