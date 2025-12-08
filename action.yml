@@ -161,6 +161,11 @@ inputs:
     description: "Additional rustflags"
     required: false
   static-crt:
+    description: "[DEPRECATED: Use crt-static instead] Control CRT linking mode: 'true' for static (+crt-static), 'false' for dynamic (-crt-static), empty for default behavior"
+    required: false
+    default: ""
+    deprecationMessage: "static-crt is deprecated, use crt-static instead"
+  crt-static:
     description: "Control CRT linking mode: 'true' for static (+crt-static), 'false' for dynamic (-crt-static), empty for default behavior"
     required: false
     default: ""
@@ -397,7 +402,7 @@ runs:
         CC_SHELL_ESCAPED_FLAGS: ${{ inputs.cc-shell-escaped-flags == 'true' && '1' || '' }}
         CC_ENABLE_DEBUG_OUTPUT: ${{ inputs.cc-enable-debug == 'true' && '1' || '' }}
         ADDITIONAL_RUSTFLAGS: ${{ inputs.rustflags }}
-        STATIC_CRT: ${{ inputs.static-crt }}
+        CRT_STATIC: ${{ inputs.crt-static != '' && inputs.crt-static || inputs.static-crt }}
         BUILD_STD: ${{ inputs.build-std }}
         BUILD_STD_FEATURES: ${{ inputs.build-std-features }}
         CLEAN_CACHE: ${{ inputs.clean-cache }}

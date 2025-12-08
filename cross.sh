@@ -251,7 +251,7 @@ print_help() {
 	echo -e "      ${COLOR_LIGHT_CYAN}--cc-no-defaults${COLOR_RESET}                  Disable default cc crate compiler flags"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cc-shell-escaped-flags${COLOR_RESET}          Parse *FLAGS using shell argument parsing"
 	echo -e "      ${COLOR_LIGHT_CYAN}--cc-enable-debug${COLOR_RESET}                 Enable cc crate debug output"
-	echo -e "      ${COLOR_LIGHT_CYAN}--crt-static${COLOR_RESET}[=${COLOR_LIGHT_CYAN}<true|false>${COLOR_RESET}]       Add -C target-feature=+crt-static to rustflags (default: true)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--crt-static${COLOR_RESET}[=${COLOR_LIGHT_CYAN}<true|false>${COLOR_RESET}]       Add -C target-feature=+crt-static to rustflags"
 	echo -e "      ${COLOR_LIGHT_CYAN}--fmt-debug${COLOR_RESET} ${COLOR_LIGHT_CYAN}<MODE>${COLOR_RESET}                Set -Zfmt-debug (full, shallow, none)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--location-detail${COLOR_RESET} ${COLOR_LIGHT_CYAN}<DETAIL>${COLOR_RESET}        Set -Zlocation-detail (none, or: file,line,column)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--build-std${COLOR_RESET}[=${COLOR_LIGHT_CYAN}<CRATES>${COLOR_RESET}]            Use -Zbuild-std for building standard library from source"
@@ -1434,9 +1434,9 @@ execute_target() {
 		rustflags="${rustflags:+$rustflags }$TARGET_RUSTFLAGS"
 	fi
 
-	if [[ "$STATIC_CRT" == "true" ]]; then
+	if [[ "$CRT_STATIC" == "true" ]]; then
 		rustflags="${rustflags:+$rustflags }-C target-feature=+crt-static"
-	elif [[ "$STATIC_CRT" == "false" ]]; then
+	elif [[ "$CRT_STATIC" == "false" ]]; then
 		rustflags="${rustflags:+$rustflags }-C target-feature=-crt-static"
 	fi
 
@@ -2042,18 +2042,18 @@ while [[ $# -gt 0 ]]; do
 		ADDITIONAL_RUSTFLAGS_ARRAY+=("$(parse_option_value "--rustflags" "$@")")
 		;;
 	--crt-static=* | --static-crt=*)
-		STATIC_CRT="${1#*=}"
-		[[ -z "$STATIC_CRT" ]] && STATIC_CRT="true"
+		CRT_STATIC="${1#*=}"
+		[[ -z "$CRT_STATIC" ]] && CRT_STATIC="true"
 		;;
 	--crt-static | --static-crt)
 		if is_next_arg_option "$@"; then
-			STATIC_CRT="true"
+			CRT_STATIC="true"
 		else
 			if [[ $# -gt 1 ]]; then
 				shift
-				STATIC_CRT="$1"
+				CRT_STATIC="$1"
 			else
-				STATIC_CRT="true"
+				CRT_STATIC="true"
 			fi
 		fi
 		;;
