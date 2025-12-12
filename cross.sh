@@ -1071,7 +1071,10 @@ get_darwin_env() {
 			;;
 		esac
 
-		local osxcross_dir="${CROSS_COMPILER_DIR}/osxcross-${host_arch_name}"
+		local osxcross_version="v0.2.4"
+		local osxcross_tool_version="25.2"
+
+		local osxcross_dir="${CROSS_COMPILER_DIR}/osxcross-${host_arch_name}-${osxcross_version}"
 
 		if [[ ! -x "${osxcross_dir}/bin/o64-clang" ]]; then
 			# Determine download URL based on host architecture
@@ -1081,7 +1084,7 @@ get_darwin_env() {
 			local url_arch="${host_arch_name}"
 			[[ "${host_arch_name}" == "amd64" ]] && url_arch="x86_64"
 
-			local download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/v0.2.3/osxcross-15-5-linux-${url_arch}-gnu-ubuntu-${ubuntu_version}.tar.gz"
+			local download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/${osxcross_version}/osxcross-26-2-linux-${url_arch}-gnu-ubuntu-${ubuntu_version}.tar.gz"
 			download_and_extract "${download_url}" "${osxcross_dir}" || return 2
 		fi
 
@@ -1089,10 +1092,10 @@ get_darwin_env() {
 		fix_darwin_linker_rpath "${osxcross_dir}" "${arch}"
 
 		set_cross_env \
-			"${arch}-apple-darwin24.5-clang" \
-			"${arch}-apple-darwin24.5-clang++" \
-			"${arch}-apple-darwin24.5-ar" \
-			"${arch}-apple-darwin24.5-clang" \
+			"${arch}-apple-darwin${osxcross_tool_version}-clang" \
+			"${arch}-apple-darwin${osxcross_tool_version}-clang++" \
+			"${arch}-apple-darwin${osxcross_tool_version}-ar" \
+			"${arch}-apple-darwin${osxcross_tool_version}-clang" \
 			"${osxcross_dir}/bin:${osxcross_dir}/clang/bin"
 
 		export MACOSX_DEPLOYMENT_TARGET="10.12"
