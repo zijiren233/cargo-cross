@@ -37,7 +37,8 @@ readonly COLOR_RESET='\033[0m'
 readonly DEFAULT_SOURCE_DIR="$(pwd)"
 readonly DEFAULT_PROFILE="release"
 readonly DEFAULT_CROSS_COMPILER_DIR="$(dirname $(mktemp -u))/rust-cross-compiler"
-readonly DEFAULT_CROSS_DEPS_VERSION="v0.6.9"
+readonly DEFAULT_CROSS_DEPS_VERSION="v0.7.0"
+readonly CROSS_DEPS_SUPPORTED_GLIBC_VERSIONS="2.28 2.31 2.32 2.33 2.34 2.35 2.36 2.37 2.38 2.39 2.40 2.41 2.42"
 readonly DEFAULT_TTY_WIDTH="40"
 readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
@@ -206,6 +207,7 @@ print_help() {
 	echo -e "      ${COLOR_LIGHT_CYAN}--show-all-targets${COLOR_RESET}                Display all supported target triples"
 	echo -e "      ${COLOR_LIGHT_CYAN}--github-proxy-mirror${COLOR_RESET} ${COLOR_LIGHT_CYAN}<URL>${COLOR_RESET}       Use a GitHub proxy mirror"
 	echo -e "      ${COLOR_LIGHT_CYAN}--ndk-version${COLOR_RESET} ${COLOR_LIGHT_CYAN}<VERSION>${COLOR_RESET}           Specify the Android NDK version"
+	echo -e "      ${COLOR_LIGHT_CYAN}--glibc-version${COLOR_RESET} ${COLOR_LIGHT_CYAN}<VERSION>${COLOR_RESET}         Specify glibc version for gnu targets (e.g., 2.31, 2.42)"
 	echo -e "  ${COLOR_LIGHT_CYAN}-p${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--package${COLOR_RESET} ${COLOR_LIGHT_CYAN}<SPEC>${COLOR_RESET}                  Package to build (workspace member)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--workspace${COLOR_RESET}                       Build all workspace members"
 	echo -e "      ${COLOR_LIGHT_CYAN}--exclude${COLOR_RESET} ${COLOR_LIGHT_CYAN}<SPEC>${COLOR_RESET}                  Exclude packages from the build (must be used with --workspace)"
@@ -909,41 +911,52 @@ get_linux_env() {
 	[[ -z "$libc" ]] && return 1
 
 	local arch_prefix="$arch"
-	local cross_compiler_name="${arch_prefix}-linux-${libc}${abi}-cross"
-	local gcc_name="${arch_prefix}-linux-${libc}${abi}-gcc"
+
+	# Binary names never include glibc version (binaries are in separate versioned folders)
+	local bin_prefix="${arch_prefix}-linux-${libc}${abi}"
+
+	# For gnu libc, folder name includes glibc version suffix if specified
+	local folder_suffix="${libc}${abi}"
+	if [[ "$libc" == "gnu" && -n "$GLIBC_VERSION" ]]; then
+		folder_suffix="${libc}${abi}-${GLIBC_VERSION}"
+	fi
+
+	local cross_compiler_name="${arch_prefix}-linux-${folder_suffix}-cross"
+	local gcc_name="${bin_prefix}-gcc"
 	local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}-${CROSS_DEPS_VERSION}"
 
 	# Download compiler if not present
 	if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
 		local host_platform=$(get_host_platform)
-		local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
+		local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}-${host_platform}/${cross_compiler_name}.tgz"
 		download_cross_compiler "${compiler_dir}" "${download_url}" || return 2
 	fi
 
 	# Set environment variables
 	set_cross_env \
 		"${gcc_name}" \
-		"${arch_prefix}-linux-${libc}${abi}-g++" \
-		"${arch_prefix}-linux-${libc}${abi}-ar" \
+		"${bin_prefix}-g++" \
+		"${bin_prefix}-ar" \
 		"${gcc_name}" \
 		"${compiler_dir}/bin"
 
 	# Add library search paths from gcc to rustc
-	set_gcc_lib_paths "${compiler_dir}" "${arch_prefix}-linux-${libc}${abi}"
+	set_gcc_lib_paths "${compiler_dir}" "${bin_prefix}"
 
 	# Setup runner only if the command needs to execute binaries
 	if command_needs_runner "$COMMAND"; then
 		case "$HOST_OS" in
 		"darwin")
-			setup_docker_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}" "$libc"
+			setup_docker_qemu_runner "$arch_prefix" "${bin_prefix}" "${compiler_dir}" "$libc"
 			;;
 		"linux")
-			setup_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}"
+			setup_qemu_runner "$arch_prefix" "${bin_prefix}" "${compiler_dir}"
 			;;
 		esac
 	fi
 
-	log_success "Configured Linux ${COLOR_LIGHT_YELLOW}${libc}${COLOR_LIGHT_GREEN} toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
+	local libc_display="${libc}${GLIBC_VERSION:+ ${GLIBC_VERSION}}"
+	log_success "Configured Linux ${COLOR_LIGHT_YELLOW}${libc_display}${COLOR_LIGHT_GREEN} toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 }
 
 # Get Windows cross-compilation environment
@@ -975,7 +988,7 @@ get_windows_gnu_env() {
 		# Download compiler if not present
 		if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
 			local host_platform=$(get_host_platform)
-			local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
+			local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}-${host_platform}/${cross_compiler_name}.tgz"
 			download_cross_compiler "${compiler_dir}" "${download_url}" || return 2
 		fi
 
@@ -1022,7 +1035,7 @@ get_freebsd_env() {
 	# Download compiler if not present
 	if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
 		local host_platform=$(get_host_platform)
-		local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
+		local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}-${host_platform}/${cross_compiler_name}.tgz"
 		download_cross_compiler "${compiler_dir}" "${download_url}" || return 2
 	fi
 
@@ -1071,7 +1084,7 @@ get_darwin_env() {
 			;;
 		esac
 
-		local osxcross_version="v0.2.4"
+		local osxcross_version="v0.2.5"
 		local osxcross_tool_version="25.2"
 
 		local osxcross_dir="${CROSS_COMPILER_DIR}/osxcross-${host_arch_name}-${osxcross_version}"
@@ -1505,7 +1518,11 @@ execute_target() {
 	fi
 
 	# Build profile and features
-	[[ "$command" == "build" && "$PROFILE" == "release" ]] && add_args "--release"
+	if [[ "$PROFILE" == "release" ]]; then
+		add_args "--release"
+	else
+		add_args "--profile $PROFILE"
+	fi
 	add_option "$FEATURES" "--features"
 	add_flag "$NO_DEFAULT_FEATURES" "--no-default-features"
 	add_flag "$ALL_FEATURES" "--all-features"
@@ -1814,6 +1831,13 @@ while [[ $# -gt 0 ]]; do
 	--ndk-version)
 		shift
 		NDK_VERSION="$(parse_option_value "--ndk-version" "$@")"
+		;;
+	--glibc-version=*)
+		GLIBC_VERSION="${1#*=}"
+		;;
+	--glibc-version)
+		shift
+		GLIBC_VERSION="$(parse_option_value "--glibc-version" "$@")"
 		;;
 	-p=* | --package=*)
 		PACKAGE="${1#*=}"
@@ -2265,6 +2289,19 @@ else
 	NO_CARGO_TARGET=""
 fi
 
+# Validate glibc version if specified
+if [[ -n "$GLIBC_VERSION" ]]; then
+	if ! echo "$CROSS_DEPS_SUPPORTED_GLIBC_VERSIONS" | grep -qw "$GLIBC_VERSION"; then
+		log_error "Error: Unsupported glibc version '${GLIBC_VERSION}'"
+		log_error "Supported versions: ${CROSS_DEPS_SUPPORTED_GLIBC_VERSIONS}"
+		exit 1
+	fi
+	# 2.28 is the default version, no suffix needed
+	if [[ "$GLIBC_VERSION" == "2.28" ]]; then
+		GLIBC_VERSION=""
+	fi
+fi
+
 # Print execution information
 log_info "Execution configuration:"
 echo -e "  ${COLOR_LIGHT_CYAN}Command:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${COMMAND}${COLOR_RESET}"
@@ -2278,6 +2315,7 @@ echo -e "  ${COLOR_LIGHT_CYAN}Source directory:${COLOR_RESET} ${COLOR_LIGHT_YELL
 echo -e "  ${COLOR_LIGHT_CYAN}Profile:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${PROFILE}${COLOR_RESET}"
 [[ -n "$TOOLCHAIN" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Toolchain:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${TOOLCHAIN}${COLOR_RESET}"
 echo -e "  ${COLOR_LIGHT_CYAN}Targets:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${TARGETS}${COLOR_RESET}"
+[[ -n "$GLIBC_VERSION" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Glibc version:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${GLIBC_VERSION}${COLOR_RESET}"
 [[ -n "$FEATURES" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Features:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${FEATURES}${COLOR_RESET}"
 [[ "$NO_DEFAULT_FEATURES" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}No default features:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
 [[ "$ALL_FEATURES" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}All features:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"

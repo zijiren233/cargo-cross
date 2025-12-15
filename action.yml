@@ -67,6 +67,9 @@ inputs:
     description: "Android NDK version for Android builds"
     required: false
     default: "r27"
+  glibc-version:
+    description: "Glibc version for GNU targets (e.g., 2.31, 2.42). Leave empty for default version"
+    required: false
   qemu-version:
     description: "QEMU version for Linux cross-compilation runner"
     required: false
@@ -377,6 +380,7 @@ runs:
         GH_PROXY: ${{ inputs.github-proxy-mirror }}
         CROSS_COMPILER_DIR: ${{ inputs.cross-compiler-dir }}
         NDK_VERSION: ${{ inputs.ndk-version }}
+        GLIBC_VERSION: ${{ inputs.glibc-version }}
         QEMU_VERSION: ${{ inputs.qemu-version }}
         USE_DEFAULT_LINKER: ${{ inputs.use-default-linker }}
         CC: ${{ inputs.cc }}

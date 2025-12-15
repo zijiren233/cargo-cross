@@ -9,7 +9,7 @@ A powerful GitHub Action for building, testing, and checking Rust projects with 
 - 📦 **Automatic toolchain setup** - downloads and configures cross-compilers as needed
 - 🎯 **Multiple target support** - build for 63+ target platforms in a single run
 - 🏗️ **Workspace support** - work with entire workspaces or specific packages
-- ⚡ **Flexible linking** - musl targets default to static, GNU targets default to dynamic, both configurable via `crt-static` parameter
+- ⚡ **Flexible linking** - most musl targets default to static (varies by target), GNU targets default to dynamic, both configurable via `crt-static` parameter
 - 🔧 **Flexible configuration** - extensive customization options
 - 📁 **Organized output** - all artifacts collected in a single directory
 - 🛠️ **Multiple commands** - supports build, test, and check operations
@@ -57,6 +57,9 @@ cargo cross test --target x86_64-unknown-linux-musl
 
 # Check the project
 cargo cross check --target x86_64-unknown-linux-musl
+
+# Build with specific glibc version for GNU targets
+cargo cross build --target x86_64-unknown-linux-gnu --glibc-version 2.31
 ```
 
 ## GitHub Actions Usage
@@ -174,9 +177,9 @@ jobs:
 
 ## Supported Targets
 
-### Linux (musl - static by default)
+### Linux (musl)
 
-musl targets produce **statically linked binaries by default**. Use `static-crt: false` to enable dynamic linking.
+Most musl targets produce **statically linked binaries by default**, but this varies by target (check `rustc --print=target-spec-json -Z unstable-options --target <target>` for the actual default). Use `crt-static: true/false` to explicitly control linking behavior.
 
 - `i586-unknown-linux-musl` - Linux i586
 - `i686-unknown-linux-musl` - Linux i686
@@ -200,7 +203,9 @@ musl targets produce **statically linked binaries by default**. Use `static-crt:
 
 ### Linux (GNU libc - dynamic by default)
 
-GNU libc targets produce **dynamically linked binaries by default**. Use `static-crt: true` to enable static linking.
+GNU libc targets produce **dynamically linked binaries by default**. Use `crt-static: true` to enable static linking.
+
+**Glibc version**: By default, glibc 2.28 is used. You can specify a different version (2.28-2.42) using the `glibc-version` parameter for better compatibility with specific Linux distributions.
 
 - `i586-unknown-linux-gnu` - Linux i586
 - `i686-unknown-linux-gnu` - Linux i686
@@ -275,11 +280,12 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 | `github-proxy-mirror` | GitHub proxy mirror URL | |
 | `cross-compiler-dir` | Directory to store cross compilers | |
 | `ndk-version` | Android NDK version | `r27` |
+| `glibc-version` | Glibc version for GNU targets (e.g., 2.31, 2.42) | (default) |
 | `use-default-linker` | Use system default linker | `false` |
 | `cc` | Force set the C compiler | |
 | `cxx` | Force set the C++ compiler | |
 | `rustflags` | Additional rustflags | |
-| `static-crt` | Control CRT linking mode: `true` for static (+crt-static), `false` for dynamic (-crt-static), empty for default (musl=static, gnu=dynamic) | `` |
+| `crt-static` | Control CRT linking mode: `true` for static (+crt-static), `false` for dynamic (-crt-static), empty for target default (varies by target) | |
 | `build-std` | Use -Zbuild-std for building standard library from source (`true` for default, or specify crates like `core,alloc`) | `false` |
 | `args` | Additional arguments to pass to cargo command | |
 | `toolchain` | Rust toolchain to use (stable, nightly, etc.) | `stable` |
@@ -349,14 +355,24 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
 
 ### Static/Dynamic Linking Configuration
 
+> **Note**: The default linking behavior varies by target. Most musl targets default to static linking, but not all. Use `crt-static` to explicitly control the behavior.
+
 ```yaml
-# musl targets: static by default, set to false for dynamic linking
+# Force static linking for musl target
+- name: Build musl with static linking
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-musl
+    crt-static: true
+
+# Force dynamic linking for musl target
 - name: Build musl with dynamic linking
   uses: zijiren233/cargo-cross@v1
   with:
     command: build
     targets: x86_64-unknown-linux-musl
-    static-crt: false
+    crt-static: false
 
 # GNU targets: dynamic by default, set to true for static linking
 - name: Build GNU with static linking
@@ -364,9 +380,9 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
   with:
     command: build
     targets: x86_64-unknown-linux-gnu
-    static-crt: true
+    crt-static: true
 
-# Leave empty to use default behavior (musl=static, gnu=dynamic)
+# Leave empty to use target's default behavior
 - name: Build with default linking
   uses: zijiren233/cargo-cross@v1
   with:
@@ -374,8 +390,42 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `static
     targets: |
       x86_64-unknown-linux-musl
       x86_64-unknown-linux-gnu
-    # static-crt not specified - uses defaults
+    # crt-static not specified - uses target defaults
 ```
+
+### Custom Glibc Version
+
+The cross-make toolchains support multiple glibc versions (2.28 to 2.42). Use the `glibc-version` parameter to specify a particular version for GNU targets.
+
+```yaml
+# Use glibc 2.31 (Ubuntu 20.04 compatible)
+- name: Build with glibc 2.31
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-gnu
+    glibc-version: "2.31"
+
+# Use latest glibc 2.42
+- name: Build with glibc 2.42
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: |
+      x86_64-unknown-linux-gnu
+      aarch64-unknown-linux-gnu
+    glibc-version: "2.42"
+
+# Leave empty for default glibc version (2.28 for most targets)
+- name: Build with default glibc
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-gnu
+    # glibc-version not specified - uses default
+```
+
+Supported glibc versions: 2.28 (default), 2.31, 2.32, 2.33, 2.34, 2.35, 2.36, 2.37, 2.38, 2.39, 2.40, 2.41, 2.42
 
 ### Custom Rustflags
 
@@ -527,6 +577,48 @@ The RUSTC_BOOTSTRAP environment variable tells rustc to act as if it is a nightl
     rustc-bootstrap: "-1"
 ```
 
+## Toolchain Versions
+
+This action uses the following toolchain versions from [cross-make](https://github.com/zijiren233/cross-make) v0.7.0:
+
+### Core Components
+
+| Component | Version |
+|-----------|---------|
+| GCC | 14.3.0 |
+| Binutils | 2.45.1 |
+| GMP | 6.3.0 |
+| MPC | 1.3.1 |
+| MPFR | 4.2.2 |
+| ISL | 0.27 |
+
+### Platform-Specific
+
+| Platform | C Library / SDK | Version |
+|----------|-----------------|---------|
+| Linux musl | musl | 1.2.5 |
+| Linux GNU | glibc | 2.28 (default), 2.31-2.42 available |
+| Linux | Linux Headers | 6.12.59 |
+| Windows | MinGW-w64 | v13.0.0 |
+| FreeBSD 13 | FreeBSD | 13.5 |
+| FreeBSD 14 | FreeBSD | 14.3 |
+| macOS | macOS SDK | 15.2 |
+| Android | NDK | r27 (default) |
+
+### Supported Glibc Versions
+
+For GNU libc targets, use `glibc-version` parameter to select:
+
+| Version | Compatible With |
+|---------|-----------------|
+| 2.28 | Debian 10, Ubuntu 18.04, RHEL 8 |
+| 2.31 | Ubuntu 20.04, Debian 11 |
+| 2.34 | RHEL 9, Ubuntu 22.04 |
+| 2.35 | Ubuntu 22.04 |
+| 2.36 | Debian 12 |
+| 2.38 | Ubuntu 24.04 |
+| 2.39-2.42 | Latest distributions |
+
 ## How It Works
 
 1. **Command Detection**: The action detects the requested command (build, test, or check)
@@ -546,9 +638,9 @@ Make sure you're running on a supported host OS. Linux hosts support the most ta
 
 Use `profile: release` and ensure stripping is enabled (default). Note that:
 
-- **musl targets** produce statically linked binaries by default, which are larger but completely self-contained
+- **musl targets** usually produce statically linked binaries by default (varies by target), which are larger but completely self-contained
 - **GNU targets** produce dynamically linked binaries by default, which are smaller but require system libraries
-- You can configure the linking behavior using the `static-crt` parameter
+- You can explicitly configure the linking behavior using the `crt-static` parameter
 
 ### Android build fails
 
