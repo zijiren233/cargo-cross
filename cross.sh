@@ -1518,9 +1518,12 @@ execute_target() {
 	fi
 
 	# Build profile and features
+	# "debug" is reserved name, maps to "dev" profile (cargo's default, no flag needed)
+	# "release" uses --release shorthand
+	# Other profiles use --profile
 	if [[ "$PROFILE" == "release" ]]; then
 		add_args "--release"
-	else
+	elif [[ "$PROFILE" != "debug" ]]; then
 		add_args "--profile $PROFILE"
 	fi
 	add_option "$FEATURES" "--features"
