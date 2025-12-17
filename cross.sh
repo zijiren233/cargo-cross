@@ -383,6 +383,8 @@ set_gcc_lib_paths() {
 # Set iOS/Darwin SDK root from compiler directory
 # https://doc.rust-lang.org/unstable-book/compiler-environment-variables/SDKROOT.html
 # Args: cross_compiler_name
+# Sets: SDKROOT
+# Note: iOS linker (ld) uses -syslibroot (added automatically via SDKROOT), not -isysroot
 set_ios_sdk_root() {
 	local cross_compiler_name="$1"
 	local sdk_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}/SDK"
@@ -1737,10 +1739,14 @@ execute_target() {
 	# Build-std-features flag (requires = separator)
 	add_option_eq "$BUILD_STD_FEATURES" "-Zbuild-std-features"
 
-	# Output and verbosity
-	for ((i = 0; i < VERBOSE_LEVEL; i++)); do
-		add_args "--verbose"
-	done
+	# Output and verbosity (use -vvv format instead of --verbose --verbose --verbose)
+	if [[ $VERBOSE_LEVEL -gt 0 ]]; then
+		local v_flags="-"
+		for ((i = 0; i < VERBOSE_LEVEL; i++)); do
+			v_flags+="v"
+		done
+		add_args "$v_flags"
+	fi
 	add_flag "$QUIET" "--quiet"
 	add_option "$MESSAGE_FORMAT" "--message-format"
 	add_option "$COLOR" "--color"
@@ -2486,6 +2492,9 @@ set_default "COMMAND" "${DEFAULT_COMMAND}"
 
 # Handle RELEASE environment variable (from GitHub Action)
 [[ "$RELEASE" == "true" ]] && PROFILE="release"
+
+# Unset empty CARGO_TARGET_DIR to prevent cargo error
+[[ -z "$CARGO_TARGET_DIR" ]] && unset CARGO_TARGET_DIR
 
 # Default to host target if not specified
 if [[ -z "$TARGETS" ]]; then
