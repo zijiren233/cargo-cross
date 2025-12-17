@@ -125,3 +125,35 @@ jobs:
             x86_64-pc-windows-msvc
             i686-pc-windows-msvc
             aarch64-pc-windows-msvc
+
+  # Test Darwin and iOS SDK versions on Linux
+  test-sdk-versions:
+    name: Test SDK Versions
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Darwin with default SDK
+          - target: aarch64-apple-darwin
+          # Darwin with specific SDK version
+          - target: aarch64-apple-darwin
+            macos-sdk-version: "15.0"
+          # iOS with default SDK
+          - target: aarch64-apple-ios
+          # iOS with specific SDK version
+          - target: aarch64-apple-ios
+            iphone-sdk-version: "18.0"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build with SDK version
+        uses: ./
+        with:
+          command: build
+          profile: release
+          target: ${{ matrix.target }}
+          macos-sdk-version: ${{ matrix.macos-sdk-version }}
+          iphone-sdk-version: ${{ matrix.iphone-sdk-version }}

@@ -53,10 +53,6 @@ inputs:
     description: "The directory containing the Rust project to build"
     required: false
     default: ${{ github.workspace }}
-  bin-name-no-suffix:
-    description: "Do not append target suffix to binary name"
-    required: false
-    default: "false"
   github-proxy-mirror:
     description: "GitHub proxy mirror URL for downloading cross compilers"
     required: false
@@ -69,6 +65,21 @@ inputs:
     default: "r27"
   glibc-version:
     description: "Glibc version for GNU targets (e.g., 2.31, 2.42). Leave empty for default version"
+    required: false
+  iphone-sdk-version:
+    description: "iPhone SDK version for iOS targets (e.g., 17.0, 18.2, 26.2). On non-macOS uses bundled SDKs, on macOS uses installed Xcode SDK. Leave empty for default version (26.2)"
+    required: false
+  iphone-sdk-path:
+    description: "Override iPhoneOS SDK path for device targets (skips version lookup). Only for native macOS builds"
+    required: false
+  iphone-simulator-sdk-path:
+    description: "Override iPhoneSimulator SDK path for simulator targets (skips version lookup). Only for native macOS builds"
+    required: false
+  macos-sdk-version:
+    description: "macOS SDK version for Darwin targets (e.g., 14.0, 15.2, 26.2). On non-macOS uses bundled SDKs, on macOS uses installed Xcode SDK. Leave empty for default version (26.2)"
+    required: false
+  macos-sdk-path:
+    description: "Override macOS SDK path directly (skips version lookup). Only for native macOS builds"
     required: false
   qemu-version:
     description: "QEMU version for Linux cross-compilation runner"
@@ -376,11 +387,15 @@ runs:
         TIMINGS: ${{ inputs.timings }}
         CARGO_CWD: ${{ inputs.cargo-cwd }}
         MANIFEST_PATH: ${{ inputs.manifest-path }}
-        BIN_NAME_NO_SUFFIX: ${{ inputs.bin-name-no-suffix }}
         GH_PROXY: ${{ inputs.github-proxy-mirror }}
         CROSS_COMPILER_DIR: ${{ inputs.cross-compiler-dir }}
         NDK_VERSION: ${{ inputs.ndk-version }}
         GLIBC_VERSION: ${{ inputs.glibc-version }}
+        IPHONE_SDK_VERSION: ${{ inputs.iphone-sdk-version }}
+        IPHONE_SDK_PATH: ${{ inputs.iphone-sdk-path }}
+        IPHONE_SIMULATOR_SDK_PATH: ${{ inputs.iphone-simulator-sdk-path }}
+        MACOS_SDK_VERSION: ${{ inputs.macos-sdk-version }}
+        MACOS_SDK_PATH: ${{ inputs.macos-sdk-path }}
         QEMU_VERSION: ${{ inputs.qemu-version }}
         USE_DEFAULT_LINKER: ${{ inputs.use-default-linker }}
         CC: ${{ inputs.cc }}
@@ -423,7 +438,7 @@ runs:
         CARGO_TRIM_PATHS: ${{ inputs.cargo-trim-paths || inputs.trim-paths }}
         NO_EMBED_METADATA: ${{ inputs.no-embed-metadata }}
         RUSTC_BOOTSTRAP: ${{ inputs.rustc-bootstrap }}
-        TARGET_DIR: ${{ inputs.target-dir }}
+        CARGO_TARGET_DIR: ${{ inputs.target-dir }}
         QUIET: ${{ inputs.quiet }}
         RELEASE: ${{ inputs.release }}
       run: |

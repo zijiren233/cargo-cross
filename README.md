@@ -60,6 +60,17 @@ cargo cross check --target x86_64-unknown-linux-musl
 
 # Build with specific glibc version for GNU targets
 cargo cross build --target x86_64-unknown-linux-gnu --glibc-version 2.31
+
+# Build iOS targets with specific iPhone SDK version
+cargo cross build --target aarch64-apple-ios --iphone-sdk-version 18.2
+
+# Build macOS targets with specific macOS SDK version (native macOS only)
+cargo cross build --target aarch64-apple-darwin --macos-sdk-version 14.0
+
+# Build with custom SDK path (skips version lookup)
+cargo cross build --target aarch64-apple-darwin --macos-sdk-path /path/to/MacOSX.sdk
+cargo cross build --target aarch64-apple-ios --iphone-sdk-path /path/to/iPhoneOS.sdk
+cargo cross build --target aarch64-apple-ios-sim --iphone-simulator-sdk-path /path/to/iPhoneSimulator.sdk
 ```
 
 ## GitHub Actions Usage
@@ -276,11 +287,15 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `crt-st
 | `workspace` | Build all workspace members | `false` |
 | `manifest-path` | Path to Cargo.toml | |
 | `source-dir` | Directory containing the Rust project | `${{ github.workspace }}` |
-| `bin-name-no-suffix` | Don't append target suffix to binary name | `false` |
 | `github-proxy-mirror` | GitHub proxy mirror URL | |
 | `cross-compiler-dir` | Directory to store cross compilers | |
 | `ndk-version` | Android NDK version | `r27` |
 | `glibc-version` | Glibc version for GNU targets (e.g., 2.31, 2.42) | (default) |
+| `iphone-sdk-version` | iPhone SDK version for iOS targets (non-macOS: bundled SDKs, macOS: installed Xcode SDK) | (default 26.2) |
+| `iphone-sdk-path` | Override iPhoneOS SDK path for device targets (skips version lookup, native macOS only) | |
+| `iphone-simulator-sdk-path` | Override iPhoneSimulator SDK path for simulator targets (skips version lookup, native macOS only) | |
+| `macos-sdk-version` | macOS SDK version for Darwin targets (non-macOS: bundled SDKs, macOS: installed Xcode SDK) | (default 26.2) |
+| `macos-sdk-path` | Override macOS SDK path directly (skips version lookup, native macOS only) | |
 | `use-default-linker` | Use system default linker | `false` |
 | `cc` | Force set the C compiler | |
 | `cxx` | Force set the C++ compiler | |
@@ -426,6 +441,80 @@ The cross-make toolchains support multiple glibc versions (2.28 to 2.42). Use th
 ```
 
 Supported glibc versions: 2.28 (default), 2.31, 2.32, 2.33, 2.34, 2.35, 2.36, 2.37, 2.38, 2.39, 2.40, 2.41, 2.42
+
+### Custom iPhone SDK Version
+
+You can specify a specific iPhone SDK version using the `iphone-sdk-version` parameter:
+
+- **On non-macOS**: Uses bundled SDK versions for cross-compilation. Only supported versions can be used.
+- **On macOS**: Uses installed Xcode SDK. If the specified version is not found, falls back to system default with a warning.
+
+```yaml
+# Use iPhone SDK 18.2
+- name: Build with iPhone SDK 18.2
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: aarch64-apple-ios
+    iphone-sdk-version: "18.2"
+
+# Use iPhone SDK 17.5
+- name: Build with iPhone SDK 17.5
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: |
+      aarch64-apple-ios
+      aarch64-apple-ios-sim
+    iphone-sdk-version: "17.5"
+
+# Leave empty or use default (26.2)
+- name: Build with default iPhone SDK
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: aarch64-apple-ios
+    # iphone-sdk-version not specified - uses default 26.2
+```
+
+Supported iPhone SDK versions: 17.0, 17.2, 17.4, 17.5, 18.0, 18.1, 18.2, 18.4, 18.5, 26.0, 26.1, 26.2 (default)
+
+### Custom macOS SDK Version
+
+You can specify a specific macOS SDK version using the `macos-sdk-version` parameter:
+
+- **On non-macOS**: Uses bundled SDK versions for cross-compilation via osxcross. Only supported versions can be used.
+- **On macOS**: Uses installed Xcode SDK. If the specified version is not found, falls back to system default with a warning.
+
+```yaml
+# Use macOS SDK 15.2
+- name: Build with macOS SDK 15.2
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: aarch64-apple-darwin
+    macos-sdk-version: "15.2"
+
+# Use macOS SDK 14.0
+- name: Build with macOS SDK 14.0
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: |
+      x86_64-apple-darwin
+      aarch64-apple-darwin
+    macos-sdk-version: "14.0"
+
+# Leave empty or use default (26.2)
+- name: Build with default macOS SDK
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: aarch64-apple-darwin
+    # macos-sdk-version not specified - uses default 26.2
+```
+
+Supported macOS SDK versions (for non-macOS cross-compilation): 14.0, 14.2, 14.4, 14.5, 15.0, 15.1, 15.2, 15.4, 15.5, 26.0, 26.1, 26.2 (default)
 
 ### Custom Rustflags
 
@@ -602,7 +691,8 @@ This action uses the following toolchain versions from [cross-make](https://gith
 | Windows | MinGW-w64 | v13.0.0 |
 | FreeBSD 13 | FreeBSD | 13.5 |
 | FreeBSD 14 | FreeBSD | 14.3 |
-| macOS | macOS SDK | 15.2 |
+| macOS | macOS SDK | 26.2 (default), 14.0-26.2 available |
+| iOS | iPhone SDK | 26.2 (default), 17.0-26.2 available |
 | Android | NDK | r27 (default) |
 
 ### Supported Glibc Versions
@@ -618,6 +708,48 @@ For GNU libc targets, use `glibc-version` parameter to select:
 | 2.36 | Debian 12 |
 | 2.38 | Ubuntu 24.04 |
 | 2.39-2.42 | Latest distributions |
+
+### Supported iPhone SDK Versions
+
+For iOS targets, use `iphone-sdk-version` parameter to select the SDK version. On non-macOS hosts, only the following bundled versions are available:
+
+| Version | Notes |
+|---------|-------|
+| 17.0 | iOS 17.0 SDK |
+| 17.2 | iOS 17.2 SDK |
+| 17.4 | iOS 17.4 SDK |
+| 17.5 | iOS 17.5 SDK |
+| 18.0 | iOS 18.0 SDK |
+| 18.1 | iOS 18.1 SDK |
+| 18.2 | iOS 18.2 SDK |
+| 18.4 | iOS 18.4 SDK |
+| 18.5 | iOS 18.5 SDK |
+| 26.0 | iOS 26.0 SDK |
+| 26.1 | iOS 26.1 SDK |
+| 26.2 | iOS 26.2 SDK (default) |
+
+On macOS, any SDK version installed via Xcode can be used. If the specified version is not found, the system default SDK will be used with a warning.
+
+### Supported macOS SDK Versions
+
+For macOS (Darwin) targets, use `macos-sdk-version` parameter to select the SDK version. On non-macOS hosts, only the following bundled versions are available:
+
+| Version | Notes |
+|---------|-------|
+| 14.0 | macOS 14.0 (Sonoma) SDK |
+| 14.2 | macOS 14.2 SDK |
+| 14.4 | macOS 14.4 SDK |
+| 14.5 | macOS 14.5 SDK |
+| 15.0 | macOS 15.0 (Sequoia) SDK |
+| 15.1 | macOS 15.1 SDK |
+| 15.2 | macOS 15.2 SDK |
+| 15.4 | macOS 15.4 SDK |
+| 15.5 | macOS 15.5 SDK |
+| 26.0 | macOS 26.0 SDK |
+| 26.1 | macOS 26.1 SDK |
+| 26.2 | macOS 26.2 SDK (default) |
+
+On macOS, any SDK version installed via Xcode can be used.
 
 ## How It Works
 
