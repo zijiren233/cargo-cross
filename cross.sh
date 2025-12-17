@@ -1,14 +1,17 @@
 #!/bin/bash
 
 set -e
-set -m
 
+# Interrupt handler - kill children and terminate
 cleanup() {
-	kill -TERM -$$ 2>/dev/null
-	exit 0
+	# Kill all child processes
+	if command -v pkill &>/dev/null; then
+		pkill -P $$ 2>/dev/null
+	else
+		kill 0 2>/dev/null
+	fi
 }
-
-trap cleanup SIGTERM SIGINT
+trap cleanup SIGINT SIGTERM
 
 # =============================================================================
 # Rust Cross-Compilation Build Script
@@ -50,6 +53,8 @@ readonly CROSS_DEPS_SUPPORTED_IPHONE_SDK_VERSIONS="17.0 17.2 17.4 17.5 18.0 18.1
 readonly DEFAULT_IPHONE_SDK_VERSION="26.2"
 readonly CROSS_DEPS_SUPPORTED_MACOS_SDK_VERSIONS="14.0 14.2 14.4 14.5 15.0 15.1 15.2 15.4 15.5 26.0 26.1 26.2"
 readonly DEFAULT_MACOS_SDK_VERSION="26.2"
+readonly CROSS_DEPS_SUPPORTED_FREEBSD_VERSIONS="13 14"
+readonly DEFAULT_FREEBSD_VERSION="13"
 
 # -----------------------------------------------------------------------------
 # Host Environment Detection
@@ -223,6 +228,8 @@ print_help() {
 	echo -e "                                            On Linux: ${CROSS_DEPS_SUPPORTED_MACOS_SDK_VERSIONS}"
 	echo -e "                                            On macOS: uses installed Xcode SDK (warns if not found)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--macos-sdk-path${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PATH>${COLOR_RESET}         Override macOS SDK path directly (skips version lookup)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--freebsd-version${COLOR_RESET} ${COLOR_LIGHT_CYAN}<VERSION>${COLOR_RESET}      Specify FreeBSD version for FreeBSD targets (default: ${DEFAULT_FREEBSD_VERSION})"
+	echo -e "                                            Supported: ${CROSS_DEPS_SUPPORTED_FREEBSD_VERSIONS}"
 	echo -e "  ${COLOR_LIGHT_CYAN}-p${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--package${COLOR_RESET} ${COLOR_LIGHT_CYAN}<SPEC>${COLOR_RESET}                  Package to build (workspace member)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--workspace${COLOR_RESET}                       Build all workspace members"
 	echo -e "      ${COLOR_LIGHT_CYAN}--exclude${COLOR_RESET} ${COLOR_LIGHT_CYAN}<SPEC>${COLOR_RESET}                  Exclude packages from the build (must be used with --workspace)"
@@ -1046,8 +1053,9 @@ get_freebsd_env() {
 		;;
 	esac
 
-	local cross_compiler_name="${arch}-unknown-freebsd13-cross"
-	local gcc_name="${arch}-unknown-freebsd13-gcc"
+	local freebsd_version="${FREEBSD_VERSION}"
+	local cross_compiler_name="${arch}-unknown-freebsd${freebsd_version}-cross"
+	local gcc_name="${arch}-unknown-freebsd${freebsd_version}-gcc"
 	local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}-${CROSS_DEPS_VERSION}"
 
 	# Download compiler if not present
@@ -1060,15 +1068,15 @@ get_freebsd_env() {
 	# Set environment variables
 	set_cross_env \
 		"${gcc_name}" \
-		"${arch}-unknown-freebsd13-g++" \
-		"${arch}-unknown-freebsd13-ar" \
+		"${arch}-unknown-freebsd${freebsd_version}-g++" \
+		"${arch}-unknown-freebsd${freebsd_version}-ar" \
 		"${gcc_name}" \
 		"${compiler_dir}/bin"
 
 	# Add library search paths from gcc to rustc
-	set_gcc_lib_paths "${compiler_dir}" "${arch}-unknown-freebsd13"
+	set_gcc_lib_paths "${compiler_dir}" "${arch}-unknown-freebsd${freebsd_version}"
 
-	log_success "Configured FreeBSD toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
+	log_success "Configured FreeBSD ${COLOR_LIGHT_YELLOW}${freebsd_version}${COLOR_LIGHT_GREEN} toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 }
 
 # Get Darwin (macOS) environment
@@ -2057,6 +2065,13 @@ while [[ $# -gt 0 ]]; do
 		shift
 		MACOS_SDK_PATH="$(parse_option_value "--macos-sdk-path" "$@")"
 		;;
+	--freebsd-version=*)
+		FREEBSD_VERSION="${1#*=}"
+		;;
+	--freebsd-version)
+		shift
+		FREEBSD_VERSION="$(parse_option_value "--freebsd-version" "$@")"
+		;;
 	-p=* | --package=*)
 		PACKAGE="${1#*=}"
 		;;
@@ -2549,6 +2564,17 @@ fi
 # Set default macOS SDK version after validation
 set_default "MACOS_SDK_VERSION" "${DEFAULT_MACOS_SDK_VERSION}"
 
+# Validate FreeBSD version if specified
+if [[ -n "$FREEBSD_VERSION" ]]; then
+	if ! echo " $CROSS_DEPS_SUPPORTED_FREEBSD_VERSIONS " | grep -qF " $FREEBSD_VERSION "; then
+		log_error "Error: Unsupported FreeBSD version '${FREEBSD_VERSION}'"
+		log_error "Supported versions: ${CROSS_DEPS_SUPPORTED_FREEBSD_VERSIONS}"
+		exit 1
+	fi
+fi
+# Set default FreeBSD version after validation
+set_default "FREEBSD_VERSION" "${DEFAULT_FREEBSD_VERSION}"
+
 # Print execution information
 log_info "Execution configuration:"
 echo -e "  ${COLOR_LIGHT_CYAN}Command:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${COMMAND}${COLOR_RESET}"
@@ -2565,6 +2591,7 @@ echo -e "  ${COLOR_LIGHT_CYAN}Targets:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${TARG
 [[ -n "$GLIBC_VERSION" && "$GLIBC_VERSION" != "$DEFAULT_GLIBC_VERSION" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Glibc version:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${GLIBC_VERSION}${COLOR_RESET}"
 [[ -n "$IPHONE_SDK_VERSION" && "$IPHONE_SDK_VERSION" != "$DEFAULT_IPHONE_SDK_VERSION" ]] && echo -e "  ${COLOR_LIGHT_CYAN}iPhone SDK version:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${IPHONE_SDK_VERSION}${COLOR_RESET}"
 [[ -n "$MACOS_SDK_VERSION" && "$MACOS_SDK_VERSION" != "$DEFAULT_MACOS_SDK_VERSION" && ("$HOST_OS" == "linux" || "$HOST_OS" == "darwin") ]] && echo -e "  ${COLOR_LIGHT_CYAN}macOS SDK version:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${MACOS_SDK_VERSION}${COLOR_RESET}"
+[[ -n "$FREEBSD_VERSION" && "$FREEBSD_VERSION" != "$DEFAULT_FREEBSD_VERSION" ]] && echo -e "  ${COLOR_LIGHT_CYAN}FreeBSD version:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${FREEBSD_VERSION}${COLOR_RESET}"
 [[ -n "$FEATURES" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Features:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${FEATURES}${COLOR_RESET}"
 [[ "$NO_DEFAULT_FEATURES" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}No default features:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
 [[ "$ALL_FEATURES" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}All features:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"

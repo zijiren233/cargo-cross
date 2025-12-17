@@ -67,6 +67,9 @@ cargo cross build --target aarch64-apple-ios --iphone-sdk-version 18.2
 # Build macOS targets with specific macOS SDK version (native macOS only)
 cargo cross build --target aarch64-apple-darwin --macos-sdk-version 14.0
 
+# Build FreeBSD targets with specific FreeBSD version
+cargo cross build --target x86_64-unknown-freebsd --freebsd-version 14
+
 # Build with custom SDK path (skips version lookup)
 cargo cross build --target aarch64-apple-darwin --macos-sdk-path /path/to/MacOSX.sdk
 cargo cross build --target aarch64-apple-ios --iphone-sdk-path /path/to/iPhoneOS.sdk
@@ -296,6 +299,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `crt-st
 | `iphone-simulator-sdk-path` | Override iPhoneSimulator SDK path for simulator targets (skips version lookup, native macOS only) | |
 | `macos-sdk-version` | macOS SDK version for Darwin targets (non-macOS: bundled SDKs, macOS: installed Xcode SDK) | (default 26.2) |
 | `macos-sdk-path` | Override macOS SDK path directly (skips version lookup, native macOS only) | |
+| `freebsd-version` | FreeBSD version for FreeBSD targets (13 or 14) | `13` |
 | `use-default-linker` | Use system default linker | `false` |
 | `cc` | Force set the C compiler | |
 | `cxx` | Force set the C++ compiler | |
@@ -515,6 +519,42 @@ You can specify a specific macOS SDK version using the `macos-sdk-version` param
 ```
 
 Supported macOS SDK versions (for non-macOS cross-compilation): 14.0, 14.2, 14.4, 14.5, 15.0, 15.1, 15.2, 15.4, 15.5, 26.0, 26.1, 26.2 (default)
+
+On macOS, any SDK version installed via Xcode can be used.
+
+### Custom FreeBSD Version
+
+You can specify a specific FreeBSD version using the `freebsd-version` parameter. Available versions are 13 and 14:
+
+```yaml
+# Use FreeBSD 14 (latest)
+- name: Build with FreeBSD 14
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: x86_64-unknown-freebsd
+    freebsd-version: "14"
+
+# Use FreeBSD 13 (default)
+- name: Build with FreeBSD 13
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: |
+      x86_64-unknown-freebsd
+      aarch64-unknown-freebsd
+    freebsd-version: "13"
+
+# Leave empty for default (FreeBSD 13)
+- name: Build with default FreeBSD
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: x86_64-unknown-freebsd
+    # freebsd-version not specified - uses default 13
+```
+
+Supported FreeBSD versions: 13 (default), 14
 
 ### Custom Rustflags
 
@@ -750,6 +790,15 @@ For macOS (Darwin) targets, use `macos-sdk-version` parameter to select the SDK 
 | 26.2 | macOS 26.2 SDK (default) |
 
 On macOS, any SDK version installed via Xcode can be used.
+
+### Supported FreeBSD Versions
+
+For FreeBSD targets, use `freebsd-version` parameter to select the FreeBSD version:
+
+| Version | Notes |
+|---------|-------|
+| 13 | FreeBSD 13.5 (default) |
+| 14 | FreeBSD 14.3 |
 
 ## How It Works
 

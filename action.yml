@@ -81,6 +81,9 @@ inputs:
   macos-sdk-path:
     description: "Override macOS SDK path directly (skips version lookup). Only for native macOS builds"
     required: false
+  freebsd-version:
+    description: "FreeBSD version for FreeBSD targets (13 or 14). Default is 13"
+    required: false
   qemu-version:
     description: "QEMU version for Linux cross-compilation runner"
     required: false
@@ -396,6 +399,7 @@ runs:
         IPHONE_SIMULATOR_SDK_PATH: ${{ inputs.iphone-simulator-sdk-path }}
         MACOS_SDK_VERSION: ${{ inputs.macos-sdk-version }}
         MACOS_SDK_PATH: ${{ inputs.macos-sdk-path }}
+        FREEBSD_VERSION: ${{ inputs.freebsd-version }}
         QEMU_VERSION: ${{ inputs.qemu-version }}
         USE_DEFAULT_LINKER: ${{ inputs.use-default-linker }}
         CC: ${{ inputs.cc }}
