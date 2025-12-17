@@ -37,13 +37,19 @@ readonly COLOR_RESET='\033[0m'
 readonly DEFAULT_SOURCE_DIR="$(pwd)"
 readonly DEFAULT_PROFILE="release"
 readonly DEFAULT_CROSS_COMPILER_DIR="$(dirname $(mktemp -u))/rust-cross-compiler"
-readonly DEFAULT_CROSS_DEPS_VERSION="v0.6.9"
+readonly DEFAULT_CROSS_DEPS_VERSION="v0.7.0"
+readonly CROSS_DEPS_SUPPORTED_GLIBC_VERSIONS="2.28 2.31 2.32 2.33 2.34 2.35 2.36 2.37 2.38 2.39 2.40 2.41 2.42"
+readonly DEFAULT_GLIBC_VERSION="2.28"
 readonly DEFAULT_TTY_WIDTH="40"
 readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
 readonly DEFAULT_TOOLCHAIN=""
 readonly SUPPORTED_COMMANDS="b|build|check|c|run|r|test|t|bench"
 readonly DEFAULT_QEMU_VERSION="v10.1.3"
+readonly CROSS_DEPS_SUPPORTED_IPHONE_SDK_VERSIONS="17.0 17.2 17.4 17.5 18.0 18.1 18.2 18.4 18.5 26.0 26.1 26.2"
+readonly DEFAULT_IPHONE_SDK_VERSION="26.2"
+readonly CROSS_DEPS_SUPPORTED_MACOS_SDK_VERSIONS="14.0 14.2 14.4 14.5 15.0 15.1 15.2 15.4 15.5 26.0 26.1 26.2"
+readonly DEFAULT_MACOS_SDK_VERSION="26.2"
 
 # -----------------------------------------------------------------------------
 # Host Environment Detection
@@ -206,6 +212,17 @@ print_help() {
 	echo -e "      ${COLOR_LIGHT_CYAN}--show-all-targets${COLOR_RESET}                Display all supported target triples"
 	echo -e "      ${COLOR_LIGHT_CYAN}--github-proxy-mirror${COLOR_RESET} ${COLOR_LIGHT_CYAN}<URL>${COLOR_RESET}       Use a GitHub proxy mirror"
 	echo -e "      ${COLOR_LIGHT_CYAN}--ndk-version${COLOR_RESET} ${COLOR_LIGHT_CYAN}<VERSION>${COLOR_RESET}           Specify the Android NDK version"
+	echo -e "      ${COLOR_LIGHT_CYAN}--glibc-version${COLOR_RESET} ${COLOR_LIGHT_CYAN}<VERSION>${COLOR_RESET}         Specify glibc version for gnu targets (default: ${DEFAULT_GLIBC_VERSION})"
+	echo -e "                                            Supported: ${CROSS_DEPS_SUPPORTED_GLIBC_VERSIONS}"
+	echo -e "      ${COLOR_LIGHT_CYAN}--iphone-sdk-version${COLOR_RESET} ${COLOR_LIGHT_CYAN}<VERSION>${COLOR_RESET}    Specify iPhone SDK version for iOS targets (default: ${DEFAULT_IPHONE_SDK_VERSION})"
+	echo -e "                                            On Linux: ${CROSS_DEPS_SUPPORTED_IPHONE_SDK_VERSIONS}"
+	echo -e "                                            On macOS: uses installed Xcode SDK (warns if not found)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--iphone-sdk-path${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PATH>${COLOR_RESET}        Override iPhoneOS SDK path for device targets (skips version lookup)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--iphone-simulator-sdk-path${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PATH>${COLOR_RESET}  Override iPhoneSimulator SDK path for simulator targets"
+	echo -e "      ${COLOR_LIGHT_CYAN}--macos-sdk-version${COLOR_RESET} ${COLOR_LIGHT_CYAN}<VERSION>${COLOR_RESET}     Specify macOS SDK version for Darwin targets (default: ${DEFAULT_MACOS_SDK_VERSION})"
+	echo -e "                                            On Linux: ${CROSS_DEPS_SUPPORTED_MACOS_SDK_VERSIONS}"
+	echo -e "                                            On macOS: uses installed Xcode SDK (warns if not found)"
+	echo -e "      ${COLOR_LIGHT_CYAN}--macos-sdk-path${COLOR_RESET} ${COLOR_LIGHT_CYAN}<PATH>${COLOR_RESET}         Override macOS SDK path directly (skips version lookup)"
 	echo -e "  ${COLOR_LIGHT_CYAN}-p${COLOR_RESET}, ${COLOR_LIGHT_CYAN}--package${COLOR_RESET} ${COLOR_LIGHT_CYAN}<SPEC>${COLOR_RESET}                  Package to build (workspace member)"
 	echo -e "      ${COLOR_LIGHT_CYAN}--workspace${COLOR_RESET}                       Build all workspace members"
 	echo -e "      ${COLOR_LIGHT_CYAN}--exclude${COLOR_RESET} ${COLOR_LIGHT_CYAN}<SPEC>${COLOR_RESET}                  Exclude packages from the build (must be used with --workspace)"
@@ -366,6 +383,8 @@ set_gcc_lib_paths() {
 # Set iOS/Darwin SDK root from compiler directory
 # https://doc.rust-lang.org/unstable-book/compiler-environment-variables/SDKROOT.html
 # Args: cross_compiler_name
+# Sets: SDKROOT
+# Note: iOS linker (ld) uses -syslibroot (added automatically via SDKROOT), not -isysroot
 set_ios_sdk_root() {
 	local cross_compiler_name="$1"
 	local sdk_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}/SDK"
@@ -909,41 +928,53 @@ get_linux_env() {
 	[[ -z "$libc" ]] && return 1
 
 	local arch_prefix="$arch"
-	local cross_compiler_name="${arch_prefix}-linux-${libc}${abi}-cross"
-	local gcc_name="${arch_prefix}-linux-${libc}${abi}-gcc"
+
+	# Binary names never include glibc version (binaries are in separate versioned folders)
+	local bin_prefix="${arch_prefix}-linux-${libc}${abi}"
+
+	# For gnu libc, folder name includes glibc version suffix (except for default version)
+	local folder_suffix="${libc}${abi}"
+	if [[ "$libc" == "gnu" && "$GLIBC_VERSION" != "$DEFAULT_GLIBC_VERSION" ]]; then
+		folder_suffix="${libc}${abi}-${GLIBC_VERSION}"
+	fi
+
+	local cross_compiler_name="${arch_prefix}-linux-${folder_suffix}-cross"
+	local gcc_name="${bin_prefix}-gcc"
 	local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}-${CROSS_DEPS_VERSION}"
 
 	# Download compiler if not present
 	if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
 		local host_platform=$(get_host_platform)
-		local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
+		local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}-${host_platform}/${cross_compiler_name}.tgz"
 		download_cross_compiler "${compiler_dir}" "${download_url}" || return 2
 	fi
 
 	# Set environment variables
 	set_cross_env \
 		"${gcc_name}" \
-		"${arch_prefix}-linux-${libc}${abi}-g++" \
-		"${arch_prefix}-linux-${libc}${abi}-ar" \
+		"${bin_prefix}-g++" \
+		"${bin_prefix}-ar" \
 		"${gcc_name}" \
 		"${compiler_dir}/bin"
 
 	# Add library search paths from gcc to rustc
-	set_gcc_lib_paths "${compiler_dir}" "${arch_prefix}-linux-${libc}${abi}"
+	set_gcc_lib_paths "${compiler_dir}" "${bin_prefix}"
 
 	# Setup runner only if the command needs to execute binaries
 	if command_needs_runner "$COMMAND"; then
 		case "$HOST_OS" in
 		"darwin")
-			setup_docker_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}" "$libc"
+			setup_docker_qemu_runner "$arch_prefix" "${bin_prefix}" "${compiler_dir}" "$libc"
 			;;
 		"linux")
-			setup_qemu_runner "$arch_prefix" "${arch_prefix}-linux-${libc}${abi}" "${compiler_dir}"
+			setup_qemu_runner "$arch_prefix" "${bin_prefix}" "${compiler_dir}"
 			;;
 		esac
 	fi
 
-	log_success "Configured Linux ${COLOR_LIGHT_YELLOW}${libc}${COLOR_LIGHT_GREEN} toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
+	local libc_display="${libc}"
+	[[ "$libc" == "gnu" && "$GLIBC_VERSION" != "$DEFAULT_GLIBC_VERSION" ]] && libc_display="${libc} ${GLIBC_VERSION}"
+	log_success "Configured Linux ${COLOR_LIGHT_YELLOW}${libc_display}${COLOR_LIGHT_GREEN} toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 }
 
 # Get Windows cross-compilation environment
@@ -975,7 +1006,7 @@ get_windows_gnu_env() {
 		# Download compiler if not present
 		if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
 			local host_platform=$(get_host_platform)
-			local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
+			local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}-${host_platform}/${cross_compiler_name}.tgz"
 			download_cross_compiler "${compiler_dir}" "${download_url}" || return 2
 		fi
 
@@ -1022,7 +1053,7 @@ get_freebsd_env() {
 	# Download compiler if not present
 	if [[ ! -x "${compiler_dir}/bin/${gcc_name}" ]]; then
 		local host_platform=$(get_host_platform)
-		local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}/${cross_compiler_name}-${host_platform}.tgz"
+		local download_url="${GH_PROXY}https://github.com/zijiren233/cross-make/releases/download/${CROSS_DEPS_VERSION}-${host_platform}/${cross_compiler_name}.tgz"
 		download_cross_compiler "${compiler_dir}" "${download_url}" || return 2
 	fi
 
@@ -1049,6 +1080,60 @@ get_darwin_env() {
 	"darwin")
 		# Native compilation on macOS
 		setup_rosetta_runner "$arch" "$rust_target"
+
+		local sdk_path=""
+
+		# Priority: MACOS_SDK_PATH > MACOS_SDK_VERSION > system default
+		if [[ -n "$MACOS_SDK_PATH" ]]; then
+			# Use user-specified SDK path directly
+			if [[ -d "$MACOS_SDK_PATH" ]]; then
+				sdk_path="$MACOS_SDK_PATH"
+				log_success "Using macOS SDK path ${COLOR_LIGHT_CYAN}${sdk_path}${COLOR_LIGHT_GREEN}"
+			else
+				log_error "Specified macOS SDK path does not exist: ${MACOS_SDK_PATH}"
+				return 1
+			fi
+		elif [[ -n "$MACOS_SDK_VERSION" ]]; then
+			# Try to find the SDK using xcrun
+			sdk_path=$(xcrun --sdk "macosx${MACOS_SDK_VERSION}" --show-sdk-path 2>/dev/null)
+
+			if [[ -z "$sdk_path" || ! -d "$sdk_path" ]]; then
+				# Try to construct the path from xcode-select
+				local xcode_path
+				xcode_path=$(xcode-select -p 2>/dev/null)
+				if [[ -n "$xcode_path" ]]; then
+					sdk_path="${xcode_path}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX${MACOS_SDK_VERSION}.sdk"
+					[[ ! -d "$sdk_path" ]] && sdk_path=""
+				fi
+			fi
+
+			# If still not found, search in /Applications/Xcode*.app
+			if [[ -z "$sdk_path" || ! -d "$sdk_path" ]]; then
+				for xcode_app in /Applications/Xcode*.app; do
+					if [[ -d "$xcode_app" ]]; then
+						local try_path="${xcode_app}/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX${MACOS_SDK_VERSION}.sdk"
+						if [[ -d "$try_path" ]]; then
+							sdk_path="$try_path"
+							break
+						fi
+					fi
+				done
+			fi
+
+			if [[ -n "$sdk_path" && -d "$sdk_path" ]]; then
+				log_success "Using macOS SDK ${COLOR_LIGHT_YELLOW}${MACOS_SDK_VERSION}${COLOR_LIGHT_GREEN} at ${COLOR_LIGHT_CYAN}${sdk_path}${COLOR_LIGHT_GREEN}"
+			else
+				log_warning "macOS SDK ${COLOR_LIGHT_YELLOW}${MACOS_SDK_VERSION}${COLOR_LIGHT_YELLOW} not found, using system default"
+			fi
+		fi
+
+		# Set SDKROOT and rustflags if SDK path was found
+		if [[ -n "$sdk_path" && -d "$sdk_path" ]]; then
+			SDKROOT="$sdk_path"
+			# Add linker flags for rustc to use the correct SDK
+			TARGET_RUSTFLAGS="${TARGET_RUSTFLAGS:+$TARGET_RUSTFLAGS }-C link-arg=-isysroot -C link-arg=${sdk_path}"
+		fi
+
 		log_success "Using native macOS toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 		;;
 	"linux")
@@ -1071,12 +1156,13 @@ get_darwin_env() {
 			;;
 		esac
 
-		local osxcross_version="v0.2.4"
-		local osxcross_tool_version="25.2"
+		local osxcross_version="v0.2.5"
+		# Convert SDK version: replace . with - (e.g., 26.2 -> 26-2)
+		local macos_sdk_suffix="${MACOS_SDK_VERSION//./-}"
 
-		local osxcross_dir="${CROSS_COMPILER_DIR}/osxcross-${host_arch_name}-${osxcross_version}"
+		local osxcross_dir="${CROSS_COMPILER_DIR}/osxcross-${macos_sdk_suffix}-${host_arch_name}-${osxcross_version}"
 
-		if [[ ! -x "${osxcross_dir}/bin/o64-clang" ]]; then
+		if [[ ! -d "${osxcross_dir}/bin" ]]; then
 			# Determine download URL based on host architecture
 			local ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "20.04")
 			[[ "$ubuntu_version" != *"."* ]] && ubuntu_version="20.04"
@@ -1084,23 +1170,49 @@ get_darwin_env() {
 			local url_arch="${host_arch_name}"
 			[[ "${host_arch_name}" == "amd64" ]] && url_arch="x86_64"
 
-			local download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/${osxcross_version}/osxcross-26-2-linux-${url_arch}-gnu-ubuntu-${ubuntu_version}.tar.gz"
+			local download_url="${GH_PROXY}https://github.com/zijiren233/osxcross/releases/download/${osxcross_version}/osxcross-${macos_sdk_suffix}-linux-${url_arch}-gnu-ubuntu-${ubuntu_version}.tar.gz"
 			download_and_extract "${download_url}" "${osxcross_dir}" || return 2
 		fi
 
 		# Fix linker rpath (sets TARGET_LIBRARY_PATH if using env var fallback)
 		fix_darwin_linker_rpath "${osxcross_dir}" "${arch}"
 
+		# Find the clang binary using wildcard to match any tool version
+		# Binary names are like: aarch64-apple-darwin25.2-clang, x86_64-apple-darwin24.0-clang
+		local clang_pattern="${osxcross_dir}/bin/${arch}-apple-darwin*-clang"
+		local clang_path
+		clang_path=$(ls ${clang_pattern} 2>/dev/null | head -1)
+
+		if [[ -z "$clang_path" || ! -x "$clang_path" ]]; then
+			log_error "Cannot find clang compiler in ${osxcross_dir}/bin"
+			return 2
+		fi
+
+		# Extract the tool prefix (e.g., aarch64-apple-darwin25.2)
+		local tool_prefix
+		tool_prefix=$(basename "$clang_path" | sed 's/-clang$//')
+
 		set_cross_env \
-			"${arch}-apple-darwin${osxcross_tool_version}-clang" \
-			"${arch}-apple-darwin${osxcross_tool_version}-clang++" \
-			"${arch}-apple-darwin${osxcross_tool_version}-ar" \
-			"${arch}-apple-darwin${osxcross_tool_version}-clang" \
+			"${tool_prefix}-clang" \
+			"${tool_prefix}-clang++" \
+			"${tool_prefix}-ar" \
+			"${tool_prefix}-clang" \
 			"${osxcross_dir}/bin:${osxcross_dir}/clang/bin"
+
+		# Set SDKROOT from osxcross SDK directory
+		local sdk_dir="${osxcross_dir}/SDK"
+		if [[ -d "$sdk_dir" ]]; then
+			local first_sdk="$(find "$sdk_dir" -maxdepth 1 -type d -name 'MacOSX*.sdk' | head -n 1)"
+			if [[ -n "$first_sdk" && -d "$first_sdk" ]]; then
+				SDKROOT="$first_sdk"
+				# Add linker flags for rustc to use the correct SDK
+				TARGET_RUSTFLAGS="${TARGET_RUSTFLAGS:+$TARGET_RUSTFLAGS }-C link-arg=-isysroot -C link-arg=${first_sdk}"
+			fi
+		fi
 
 		export MACOSX_DEPLOYMENT_TARGET="10.12"
 
-		log_success "Configured osxcross toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
+		log_success "Configured osxcross toolchain (SDK ${COLOR_LIGHT_CYAN}${MACOS_SDK_VERSION}${COLOR_LIGHT_GREEN}) for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 		;;
 	*)
 		log_warning "Cross-compilation to macOS not supported on ${COLOR_LIGHT_YELLOW}${HOST_OS}${COLOR_LIGHT_YELLOW}"
@@ -1159,6 +1271,76 @@ get_ios_env() {
 	case "${HOST_OS}" in
 	"darwin")
 		# Native compilation on macOS
+		local sdk_name="iphoneos"
+		[[ "${arch}" == "x86_64" ]] || [[ "${target_type}" == "simulator" ]] && sdk_name="iphonesimulator"
+
+		local platform_name="iPhoneOS"
+		[[ "$sdk_name" == "iphonesimulator" ]] && platform_name="iPhoneSimulator"
+
+		local sdk_path=""
+		local is_simulator="false"
+		[[ "${arch}" == "x86_64" ]] || [[ "${target_type}" == "simulator" ]] && is_simulator="true"
+
+		# Priority: SDK_PATH (simulator or device) > IPHONE_SDK_VERSION > system default
+		if [[ "$is_simulator" == "true" && -n "$IPHONE_SIMULATOR_SDK_PATH" ]]; then
+			# Use user-specified simulator SDK path directly
+			if [[ -d "$IPHONE_SIMULATOR_SDK_PATH" ]]; then
+				sdk_path="$IPHONE_SIMULATOR_SDK_PATH"
+				log_success "Using iPhoneSimulator SDK path ${COLOR_LIGHT_CYAN}${sdk_path}${COLOR_LIGHT_GREEN}"
+			else
+				log_error "Specified iPhoneSimulator SDK path does not exist: ${IPHONE_SIMULATOR_SDK_PATH}"
+				return 1
+			fi
+		elif [[ "$is_simulator" == "false" && -n "$IPHONE_SDK_PATH" ]]; then
+			# Use user-specified device SDK path directly
+			if [[ -d "$IPHONE_SDK_PATH" ]]; then
+				sdk_path="$IPHONE_SDK_PATH"
+				log_success "Using iPhoneOS SDK path ${COLOR_LIGHT_CYAN}${sdk_path}${COLOR_LIGHT_GREEN}"
+			else
+				log_error "Specified iPhoneOS SDK path does not exist: ${IPHONE_SDK_PATH}"
+				return 1
+			fi
+		elif [[ -n "$IPHONE_SDK_VERSION" ]]; then
+			# Try to find the SDK using xcrun
+			sdk_path=$(xcrun --sdk "${sdk_name}${IPHONE_SDK_VERSION}" --show-sdk-path 2>/dev/null)
+
+			if [[ -z "$sdk_path" || ! -d "$sdk_path" ]]; then
+				# Try to construct the path from xcode-select
+				local xcode_path
+				xcode_path=$(xcode-select -p 2>/dev/null)
+				if [[ -n "$xcode_path" ]]; then
+					sdk_path="${xcode_path}/Platforms/${platform_name}.platform/Developer/SDKs/${platform_name}${IPHONE_SDK_VERSION}.sdk"
+					[[ ! -d "$sdk_path" ]] && sdk_path=""
+				fi
+			fi
+
+			# If still not found, search in /Applications/Xcode*.app
+			if [[ -z "$sdk_path" || ! -d "$sdk_path" ]]; then
+				for xcode_app in /Applications/Xcode*.app; do
+					if [[ -d "$xcode_app" ]]; then
+						local try_path="${xcode_app}/Contents/Developer/Platforms/${platform_name}.platform/Developer/SDKs/${platform_name}${IPHONE_SDK_VERSION}.sdk"
+						if [[ -d "$try_path" ]]; then
+							sdk_path="$try_path"
+							break
+						fi
+					fi
+				done
+			fi
+
+			if [[ -n "$sdk_path" && -d "$sdk_path" ]]; then
+				log_success "Using iPhone SDK ${COLOR_LIGHT_YELLOW}${IPHONE_SDK_VERSION}${COLOR_LIGHT_GREEN} at ${COLOR_LIGHT_CYAN}${sdk_path}${COLOR_LIGHT_GREEN}"
+			else
+				log_warning "iPhone SDK ${COLOR_LIGHT_YELLOW}${IPHONE_SDK_VERSION}${COLOR_LIGHT_YELLOW} not found, using system default"
+			fi
+		fi
+
+		# Set SDKROOT and rustflags if SDK path was found
+		if [[ -n "$sdk_path" && -d "$sdk_path" ]]; then
+			SDKROOT="$sdk_path"
+			# Add linker flags for rustc to use the correct SDK
+			TARGET_RUSTFLAGS="${TARGET_RUSTFLAGS:+$TARGET_RUSTFLAGS }-C link-arg=-isysroot -C link-arg=${sdk_path}"
+		fi
+
 		log_success "Using native macOS toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 		;;
 	"linux")
@@ -1176,10 +1358,17 @@ get_ios_env() {
 			;;
 		esac
 
+		# Convert SDK version: replace . with - (e.g., 26.2 -> 26-2)
+		local iphone_sdk_suffix="${IPHONE_SDK_VERSION//./-}"
+
+		local cctools_version="v0.1.8"
+		local iphone_sdk="${iphone_sdk_suffix}"
+
 		local cross_compiler_name="ios-${arch_prefix}-cross"
 		if [[ "${arch}" == "x86_64" ]] || [[ "${target_type}" == "simulator" ]]; then
 			cross_compiler_name="${cross_compiler_name}-simulator"
 		fi
+		cross_compiler_name="${cross_compiler_name}-${cctools_version}-${iphone_sdk}"
 
 		# Set architecture-specific compiler names
 		local clang_name="${arch_prefix}-apple-darwin11-clang"
@@ -1204,7 +1393,7 @@ get_ios_env() {
 				ios_arch="${arch_prefix}"
 			fi
 
-			local download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/v0.1.6/ioscross-${ios_sdk_type}18-5-${ios_arch}-${host_platform}-gnu-ubuntu-${ubuntu_version}.tar.gz"
+			local download_url="${GH_PROXY}https://github.com/zijiren233/cctools-port/releases/download/${cctools_version}/ioscross-${ios_sdk_type}${iphone_sdk}-${ios_arch}-${host_platform}-gnu-ubuntu-${ubuntu_version}.tar.gz"
 			download_and_extract "$download_url" "${compiler_dir}" || return 2
 		fi
 
@@ -1505,7 +1694,14 @@ execute_target() {
 	fi
 
 	# Build profile and features
-	[[ "$command" == "build" && "$PROFILE" == "release" ]] && add_args "--release"
+	# "debug" is reserved name, maps to "dev" profile (cargo's default, no flag needed)
+	# "release" uses --release shorthand
+	# Other profiles use --profile
+	if [[ "$PROFILE" == "release" ]]; then
+		add_args "--release"
+	elif [[ "$PROFILE" != "debug" ]]; then
+		add_args "--profile $PROFILE"
+	fi
 	add_option "$FEATURES" "--features"
 	add_flag "$NO_DEFAULT_FEATURES" "--no-default-features"
 	add_flag "$ALL_FEATURES" "--all-features"
@@ -1543,10 +1739,14 @@ execute_target() {
 	# Build-std-features flag (requires = separator)
 	add_option_eq "$BUILD_STD_FEATURES" "-Zbuild-std-features"
 
-	# Output and verbosity
-	for ((i = 0; i < VERBOSE_LEVEL; i++)); do
-		add_args "--verbose"
-	done
+	# Output and verbosity (use -vvv format instead of --verbose --verbose --verbose)
+	if [[ $VERBOSE_LEVEL -gt 0 ]]; then
+		local v_flags="-"
+		for ((i = 0; i < VERBOSE_LEVEL; i++)); do
+			v_flags+="v"
+		done
+		add_args "$v_flags"
+	fi
 	add_flag "$QUIET" "--quiet"
 	add_option "$MESSAGE_FORMAT" "--message-format"
 	add_option "$COLOR" "--color"
@@ -1814,6 +2014,48 @@ while [[ $# -gt 0 ]]; do
 	--ndk-version)
 		shift
 		NDK_VERSION="$(parse_option_value "--ndk-version" "$@")"
+		;;
+	--glibc-version=*)
+		GLIBC_VERSION="${1#*=}"
+		;;
+	--glibc-version)
+		shift
+		GLIBC_VERSION="$(parse_option_value "--glibc-version" "$@")"
+		;;
+	--iphone-sdk-version=*)
+		IPHONE_SDK_VERSION="${1#*=}"
+		;;
+	--iphone-sdk-version)
+		shift
+		IPHONE_SDK_VERSION="$(parse_option_value "--iphone-sdk-version" "$@")"
+		;;
+	--iphone-sdk-path=*)
+		IPHONE_SDK_PATH="${1#*=}"
+		;;
+	--iphone-sdk-path)
+		shift
+		IPHONE_SDK_PATH="$(parse_option_value "--iphone-sdk-path" "$@")"
+		;;
+	--iphone-simulator-sdk-path=*)
+		IPHONE_SIMULATOR_SDK_PATH="${1#*=}"
+		;;
+	--iphone-simulator-sdk-path)
+		shift
+		IPHONE_SIMULATOR_SDK_PATH="$(parse_option_value "--iphone-simulator-sdk-path" "$@")"
+		;;
+	--macos-sdk-version=*)
+		MACOS_SDK_VERSION="${1#*=}"
+		;;
+	--macos-sdk-version)
+		shift
+		MACOS_SDK_VERSION="$(parse_option_value "--macos-sdk-version" "$@")"
+		;;
+	--macos-sdk-path=*)
+		MACOS_SDK_PATH="${1#*=}"
+		;;
+	--macos-sdk-path)
+		shift
+		MACOS_SDK_PATH="$(parse_option_value "--macos-sdk-path" "$@")"
 		;;
 	-p=* | --package=*)
 		PACKAGE="${1#*=}"
@@ -2248,6 +2490,12 @@ done
 # Default to build command if not specified
 set_default "COMMAND" "${DEFAULT_COMMAND}"
 
+# Handle RELEASE environment variable (from GitHub Action)
+[[ "$RELEASE" == "true" ]] && PROFILE="release"
+
+# Unset empty CARGO_TARGET_DIR to prevent cargo error
+[[ -z "$CARGO_TARGET_DIR" ]] && unset CARGO_TARGET_DIR
+
 # Default to host target if not specified
 if [[ -z "$TARGETS" ]]; then
 	TARGETS="$HOST_TRIPLE"
@@ -2265,6 +2513,42 @@ else
 	NO_CARGO_TARGET=""
 fi
 
+# Validate glibc version if specified
+# Use space-padded matching to avoid partial matches (e.g., "1" matching "15.1")
+if [[ -n "$GLIBC_VERSION" ]]; then
+	if ! echo " $CROSS_DEPS_SUPPORTED_GLIBC_VERSIONS " | grep -qF " $GLIBC_VERSION "; then
+		log_error "Error: Unsupported glibc version '${GLIBC_VERSION}'"
+		log_error "Supported versions: ${CROSS_DEPS_SUPPORTED_GLIBC_VERSIONS}"
+		exit 1
+	fi
+fi
+# Set default glibc version after validation
+set_default "GLIBC_VERSION" "${DEFAULT_GLIBC_VERSION}"
+
+# Validate iPhone SDK version if specified (only for non-macOS cross-compilation)
+# On native macOS, SDK version depends on installed Xcode, so we don't validate
+if [[ -n "$IPHONE_SDK_VERSION" && "$HOST_OS" != "darwin" ]]; then
+	if ! echo " $CROSS_DEPS_SUPPORTED_IPHONE_SDK_VERSIONS " | grep -qF " $IPHONE_SDK_VERSION "; then
+		log_error "Error: Unsupported iPhone SDK version '${IPHONE_SDK_VERSION}'"
+		log_error "Supported versions: ${CROSS_DEPS_SUPPORTED_IPHONE_SDK_VERSIONS}"
+		exit 1
+	fi
+fi
+# Set default iPhone SDK version after validation (only used for non-macOS cross-compilation)
+set_default "IPHONE_SDK_VERSION" "${DEFAULT_IPHONE_SDK_VERSION}"
+
+# Validate macOS SDK version if specified (only for non-macOS cross-compilation)
+# On native macOS, SDK version depends on installed Xcode, so we don't validate
+if [[ -n "$MACOS_SDK_VERSION" && "$HOST_OS" != "darwin" ]]; then
+	if ! echo " $CROSS_DEPS_SUPPORTED_MACOS_SDK_VERSIONS " | grep -qF " $MACOS_SDK_VERSION "; then
+		log_error "Error: Unsupported macOS SDK version '${MACOS_SDK_VERSION}'"
+		log_error "Supported versions: ${CROSS_DEPS_SUPPORTED_MACOS_SDK_VERSIONS}"
+		exit 1
+	fi
+fi
+# Set default macOS SDK version after validation
+set_default "MACOS_SDK_VERSION" "${DEFAULT_MACOS_SDK_VERSION}"
+
 # Print execution information
 log_info "Execution configuration:"
 echo -e "  ${COLOR_LIGHT_CYAN}Command:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${COMMAND}${COLOR_RESET}"
@@ -2278,6 +2562,9 @@ echo -e "  ${COLOR_LIGHT_CYAN}Source directory:${COLOR_RESET} ${COLOR_LIGHT_YELL
 echo -e "  ${COLOR_LIGHT_CYAN}Profile:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${PROFILE}${COLOR_RESET}"
 [[ -n "$TOOLCHAIN" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Toolchain:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${TOOLCHAIN}${COLOR_RESET}"
 echo -e "  ${COLOR_LIGHT_CYAN}Targets:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${TARGETS}${COLOR_RESET}"
+[[ -n "$GLIBC_VERSION" && "$GLIBC_VERSION" != "$DEFAULT_GLIBC_VERSION" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Glibc version:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${GLIBC_VERSION}${COLOR_RESET}"
+[[ -n "$IPHONE_SDK_VERSION" && "$IPHONE_SDK_VERSION" != "$DEFAULT_IPHONE_SDK_VERSION" ]] && echo -e "  ${COLOR_LIGHT_CYAN}iPhone SDK version:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${IPHONE_SDK_VERSION}${COLOR_RESET}"
+[[ -n "$MACOS_SDK_VERSION" && "$MACOS_SDK_VERSION" != "$DEFAULT_MACOS_SDK_VERSION" && ("$HOST_OS" == "linux" || "$HOST_OS" == "darwin") ]] && echo -e "  ${COLOR_LIGHT_CYAN}macOS SDK version:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${MACOS_SDK_VERSION}${COLOR_RESET}"
 [[ -n "$FEATURES" ]] && echo -e "  ${COLOR_LIGHT_CYAN}Features:${COLOR_RESET} ${COLOR_LIGHT_YELLOW}${FEATURES}${COLOR_RESET}"
 [[ "$NO_DEFAULT_FEATURES" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}No default features:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
 [[ "$ALL_FEATURES" == "true" ]] && echo -e "  ${COLOR_LIGHT_CYAN}All features:${COLOR_RESET} ${COLOR_LIGHT_GREEN}true${COLOR_RESET}"
