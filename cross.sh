@@ -411,6 +411,33 @@ add_env_if_set() {
 	[[ -n "$var_value" ]] && build_env+=("${var_name}=${var_value}")
 }
 
+# Global array for target-specific environment variables
+# Use add_target_env to add/update values (handles key deduplication)
+TARGET_ENVS=()
+
+# Add or update environment variable in TARGET_ENVS array
+# If key already exists, it will be replaced (no duplicates)
+# Args: env_var_name, value
+# Note: Only adds if value is non-empty
+add_target_env() {
+	local var_name="$1"
+	local var_value="$2"
+	[[ -z "$var_value" ]] && return 0
+
+	local new_entry="${var_name}=${var_value}"
+	local i
+	for i in "${!TARGET_ENVS[@]}"; do
+		local existing_key="${TARGET_ENVS[$i]%%=*}"
+		if [[ "$existing_key" == "$var_name" ]]; then
+			# Key exists, replace it
+			TARGET_ENVS[$i]="$new_entry"
+			return 0
+		fi
+	done
+	# Key doesn't exist, append it
+	TARGET_ENVS+=("$new_entry")
+}
+
 # Fix rpath for Darwin/iOS linkers
 # Args: compiler_dir, arch_prefix
 # Returns: 0 on success, sets TARGET_LIBRARY_PATH if using environment variable fallback
@@ -499,6 +526,8 @@ get_build_std_config() {
 clean_cross_env() {
 	TARGET_CC="" TARGET_CXX="" TARGET_AR="" TARGET_LINKER="" TARGET_RUSTFLAGS="" TARGET_BUILD_STD=""
 	TARGET_LIBRARY_PATH="" TARGET_PATH="" SDKROOT="" TARGET_RUNNER=""
+	TARGET_CFLAGS="" TARGET_CXXFLAGS="" TARGET_LDFLAGS=""
+	TARGET_ENVS=()
 }
 
 # Get cross-compilation environment variables
@@ -1139,7 +1168,7 @@ get_darwin_env() {
 		if [[ -n "$sdk_path" && -d "$sdk_path" ]]; then
 			SDKROOT="$sdk_path"
 			# Add linker flags for rustc to use the correct SDK
-			TARGET_RUSTFLAGS="${TARGET_RUSTFLAGS:+$TARGET_RUSTFLAGS }-C link-arg=-isysroot -C link-arg=${sdk_path}"
+			TARGET_RUSTFLAGS="${TARGET_RUSTFLAGS:+$TARGET_RUSTFLAGS }-C link-arg=--sysroot=${sdk_path}"
 		fi
 
 		log_success "Using native macOS toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
@@ -1147,7 +1176,7 @@ get_darwin_env() {
 	"linux")
 		# Cross-compilation from Linux to macOS using osxcross
 		export OSXCROSS_MP_INC=1
-		export MACOSX_DEPLOYMENT_TARGET=10.7
+		export MACOSX_DEPLOYMENT_TARGET="10.12"
 
 		# Map host architecture to osxcross directory name
 		local host_arch_name=""
@@ -1207,6 +1236,21 @@ get_darwin_env() {
 			"${tool_prefix}-clang" \
 			"${osxcross_dir}/bin:${osxcross_dir}/clang/bin"
 
+		# Set COMPILER_PATH for cc crate to find the cross-compiler
+		add_target_env "COMPILER_PATH" "${osxcross_dir}/bin"
+
+		local linker_path="${osxcross_dir}/bin/${tool_prefix}-ld"
+		local compiler_flags="-B${osxcross_dir}/bin"
+		local linker_flags="-fuse-ld=${linker_path}"
+		# Set compiler and linker flags
+		TARGET_CFLAGS="${compiler_flags}"
+		TARGET_CXXFLAGS="${compiler_flags}"
+		TARGET_LDFLAGS="${compiler_flags} ${linker_flags}"
+		TARGET_RUSTFLAGS="-C link-arg=${compiler_flags} -C link-arg=${linker_flags}"
+
+		# Enable osxcross debug output in verbose mode
+		[[ $VERBOSE_LEVEL -gt 0 ]] && add_target_env "OCDEBUG" "1"
+
 		# Set SDKROOT from osxcross SDK directory
 		local sdk_dir="${osxcross_dir}/SDK"
 		if [[ -d "$sdk_dir" ]]; then
@@ -1214,11 +1258,9 @@ get_darwin_env() {
 			if [[ -n "$first_sdk" && -d "$first_sdk" ]]; then
 				SDKROOT="$first_sdk"
 				# Add linker flags for rustc to use the correct SDK
-				TARGET_RUSTFLAGS="${TARGET_RUSTFLAGS:+$TARGET_RUSTFLAGS }-C link-arg=-isysroot -C link-arg=${first_sdk}"
+				TARGET_RUSTFLAGS="${TARGET_RUSTFLAGS:+$TARGET_RUSTFLAGS }-C link-arg=--sysroot=${first_sdk}"
 			fi
 		fi
-
-		export MACOSX_DEPLOYMENT_TARGET="10.12"
 
 		log_success "Configured osxcross toolchain (SDK ${COLOR_LIGHT_CYAN}${MACOS_SDK_VERSION}${COLOR_LIGHT_GREEN}) for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 		;;
@@ -1346,7 +1388,7 @@ get_ios_env() {
 		if [[ -n "$sdk_path" && -d "$sdk_path" ]]; then
 			SDKROOT="$sdk_path"
 			# Add linker flags for rustc to use the correct SDK
-			TARGET_RUSTFLAGS="${TARGET_RUSTFLAGS:+$TARGET_RUSTFLAGS }-C link-arg=-isysroot -C link-arg=${sdk_path}"
+			TARGET_RUSTFLAGS="${TARGET_RUSTFLAGS:+$TARGET_RUSTFLAGS }-C link-arg=--sysroot=${sdk_path}"
 		fi
 
 		log_success "Using native macOS toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
@@ -1416,8 +1458,17 @@ get_ios_env() {
 			"${arch_prefix}-apple-darwin11-clang" \
 			"${arch_prefix}-apple-darwin11-clang++" \
 			"${arch_prefix}-apple-darwin11-ar" \
-			"${arch_prefix}-apple-darwin11-ld" \
+			"${arch_prefix}-apple-darwin11-clang" \
 			"${compiler_dir}/bin:${compiler_dir}/clang/bin"
+
+		local linker_path="${compiler_dir}/bin/${arch_prefix}-apple-darwin11-ld"
+		local compiler_flags="-B${compiler_dir}/bin"
+		local linker_flags="-fuse-ld=${linker_path}"
+		# Set compiler and linker flags
+		TARGET_CFLAGS="${compiler_flags}"
+		TARGET_CXXFLAGS="${compiler_flags}"
+		TARGET_LDFLAGS="${compiler_flags} ${linker_flags}"
+		TARGET_RUSTFLAGS="-C link-arg=${compiler_flags} -C link-arg=${linker_flags}"
 
 		log_success "Configured iOS toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 		;;
@@ -1527,6 +1578,13 @@ execute_target() {
 	# Prepare environment variables
 	local build_env=()
 
+	# Merge TARGET_ENVS into build_env (set by get_cross_env)
+	if [[ ${#TARGET_ENVS[@]} -gt 0 ]]; then
+		for env_var in "${TARGET_ENVS[@]}"; do
+			build_env+=("$env_var")
+		done
+	fi
+
 	# Set up PATH with target-specific tools if needed
 	if [[ -n "$TARGET_PATH" ]]; then
 		build_env+=("PATH=${TARGET_PATH}:${PATH}")
@@ -1608,11 +1666,16 @@ execute_target() {
 	add_env_if_set "CARGO_TARGET_${target_upper}_LINKER" "$TARGET_LINKER"
 	add_env_if_set "CARGO_TARGET_${target_upper}_RUNNER" "$TARGET_RUNNER"
 
-	# Compiler flags
-	add_env_if_set "CFLAGS_${target_upper}" "$CFLAGS"
-	add_env_if_set "CFLAGS" "$CFLAGS"
-	add_env_if_set "CXXFLAGS_${target_upper}" "$CXXFLAGS"
-	add_env_if_set "CXXFLAGS" "$CXXFLAGS"
+	# Compiler flags (merge TARGET_* with user-provided flags)
+	local final_cflags="${TARGET_CFLAGS:+$TARGET_CFLAGS }${CFLAGS}"
+	local final_cxxflags="${TARGET_CXXFLAGS:+$TARGET_CXXFLAGS }${CXXFLAGS}"
+	local final_ldflags="${TARGET_LDFLAGS:+$TARGET_LDFLAGS }${LDFLAGS}"
+	add_env_if_set "CFLAGS_${target_upper}" "$final_cflags"
+	add_env_if_set "CFLAGS" "$final_cflags"
+	add_env_if_set "CXXFLAGS_${target_upper}" "$final_cxxflags"
+	add_env_if_set "CXXFLAGS" "$final_cxxflags"
+	add_env_if_set "LDFLAGS_${target_upper}" "$final_ldflags"
+	add_env_if_set "LDFLAGS" "$final_ldflags"
 	add_env_if_set "CXXSTDLIB_${target_upper}" "$CXXSTDLIB"
 	add_env_if_set "CXXSTDLIB" "$CXXSTDLIB"
 
