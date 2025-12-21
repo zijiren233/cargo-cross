@@ -954,6 +954,44 @@ setup_rosetta_runner() {
 	log_success "Configured Rosetta runner for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 }
 
+# Setup BINDGEN and C_INCLUDE_PATH environment variables for cross-compilation sysroot
+# Args: compiler_dir, bin_prefix, rust_target
+# Sets: BINDGEN_EXTRA_CLANG_ARGS_<target>, C_INCLUDE_PATH via add_target_env
+setup_sysroot_env() {
+	local compiler_dir="$1"
+	local bin_prefix="$2"
+	local rust_target="$3"
+	local sysroot="${compiler_dir}/${bin_prefix}"
+	local target_underscores=$(echo "$rust_target" | tr '-' '_')
+
+	[[ ! -d "$sysroot" ]] && return 0
+
+	# Build clang args: --sysroot plus any additional GCC internal include dirs
+	local clang_args="--sysroot=${sysroot}"
+	local c_include_paths=""
+
+	# Find GCC internal include directory (contains mm_malloc.h, stddef.h, etc.)
+	local gcc_include_dir=$(find "${compiler_dir}/lib/gcc/${bin_prefix}" -maxdepth 2 -type d -name "include" 2>/dev/null | head -n 1)
+	if [[ -n "$gcc_include_dir" && -d "$gcc_include_dir" ]]; then
+		clang_args="${clang_args} -I${gcc_include_dir}"
+		c_include_paths="${gcc_include_dir}"
+	fi
+
+	# Build C_INCLUDE_PATH with multiple paths (colon-separated)
+	if [[ -d "$sysroot/usr/include" ]]; then
+		clang_args="${clang_args} -I${sysroot}/usr/include"
+		c_include_paths="${c_include_paths:+${c_include_paths}:}${sysroot}/usr/include"
+	elif [[ -d "$sysroot/include" ]]; then
+		clang_args="${clang_args} -I${sysroot}/include"
+		c_include_paths="${c_include_paths:+${c_include_paths}:}${sysroot}/include"
+	fi
+
+	add_target_env "BINDGEN_EXTRA_CLANG_ARGS_${target_underscores}" "$clang_args"
+
+	# it's not very useful; unless necessary, please temporarily disable this environment variable.
+	# [[ -n "$c_include_paths" ]] && add_target_env "C_INCLUDE_PATH" "$c_include_paths"
+}
+
 # Get Linux cross-compilation environment
 get_linux_env() {
 	local arch="$1"
@@ -996,6 +1034,9 @@ get_linux_env() {
 	# Add library search paths from gcc to rustc
 	set_gcc_lib_paths "${compiler_dir}" "${bin_prefix}"
 
+	# Set BINDGEN_EXTRA_CLANG_ARGS and C_INCLUDE_PATH for cross-compilation
+	setup_sysroot_env "${compiler_dir}" "${bin_prefix}" "$rust_target"
+
 	# Setup runner only if the command needs to execute binaries
 	if command_needs_runner "$COMMAND"; then
 		case "$HOST_OS" in
@@ -1035,8 +1076,9 @@ get_windows_gnu_env() {
 		;;
 	*)
 		# Cross-compilation from Linux/macOS to Windows
-		local cross_compiler_name="${arch}-w64-mingw32-cross"
-		local gcc_name="${arch}-w64-mingw32-gcc"
+		local bin_prefix="${arch}-w64-mingw32"
+		local cross_compiler_name="${bin_prefix}-cross"
+		local gcc_name="${bin_prefix}-gcc"
 		local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}-${CROSS_DEPS_VERSION}"
 
 		# Download compiler if not present
@@ -1049,13 +1091,16 @@ get_windows_gnu_env() {
 		# Set environment variables
 		set_cross_env \
 			"${gcc_name}" \
-			"${arch}-w64-mingw32-g++" \
-			"${arch}-w64-mingw32-ar" \
+			"${bin_prefix}-g++" \
+			"${bin_prefix}-ar" \
 			"${gcc_name}" \
 			"${compiler_dir}/bin"
 
 		# Add library search paths from gcc to rustc
-		set_gcc_lib_paths "${compiler_dir}" "${arch}-w64-mingw32"
+		set_gcc_lib_paths "${compiler_dir}" "${bin_prefix}"
+
+		# Set BINDGEN_EXTRA_CLANG_ARGS and C_INCLUDE_PATH for cross-compilation
+		setup_sysroot_env "${compiler_dir}" "${bin_prefix}" "$rust_target"
 
 		# Setup wine runner for cross-compiled Windows binaries
 		if command -v wine &>/dev/null; then
@@ -1083,8 +1128,9 @@ get_freebsd_env() {
 	esac
 
 	local freebsd_version="${FREEBSD_VERSION}"
+	local bin_prefix="${arch}-unknown-freebsd${freebsd_version}"
 	local cross_compiler_name="${arch}-unknown-freebsd${freebsd_version}-cross"
-	local gcc_name="${arch}-unknown-freebsd${freebsd_version}-gcc"
+	local gcc_name="${bin_prefix}-gcc"
 	local compiler_dir="${CROSS_COMPILER_DIR}/${cross_compiler_name}-${CROSS_DEPS_VERSION}"
 
 	# Download compiler if not present
@@ -1097,13 +1143,16 @@ get_freebsd_env() {
 	# Set environment variables
 	set_cross_env \
 		"${gcc_name}" \
-		"${arch}-unknown-freebsd${freebsd_version}-g++" \
-		"${arch}-unknown-freebsd${freebsd_version}-ar" \
+		"${bin_prefix}-g++" \
+		"${bin_prefix}-ar" \
 		"${gcc_name}" \
 		"${compiler_dir}/bin"
 
 	# Add library search paths from gcc to rustc
-	set_gcc_lib_paths "${compiler_dir}" "${arch}-unknown-freebsd${freebsd_version}"
+	set_gcc_lib_paths "${compiler_dir}" "${bin_prefix}"
+
+	# Set BINDGEN_EXTRA_CLANG_ARGS and C_INCLUDE_PATH for cross-compilation
+	setup_sysroot_env "${compiler_dir}" "${bin_prefix}" "$rust_target"
 
 	log_success "Configured FreeBSD ${COLOR_LIGHT_YELLOW}${freebsd_version}${COLOR_LIGHT_GREEN} toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 }
@@ -1193,7 +1242,7 @@ get_darwin_env() {
 			;;
 		esac
 
-		local osxcross_version="v0.2.5"
+		local osxcross_version="v0.2.6"
 		# Convert SDK version: replace . with - (e.g., 26.2 -> 26-2)
 		local macos_sdk_suffix="${MACOS_SDK_VERSION//./-}"
 
@@ -1239,14 +1288,9 @@ get_darwin_env() {
 		# Set COMPILER_PATH for cc crate to find the cross-compiler
 		add_target_env "COMPILER_PATH" "${osxcross_dir}/bin"
 
-		local linker_path="${osxcross_dir}/bin/${tool_prefix}-ld"
-		local compiler_flags="-B${osxcross_dir}/bin"
-		local linker_flags="-fuse-ld=${linker_path}"
-		# Set compiler and linker flags
-		TARGET_CFLAGS="${compiler_flags}"
-		TARGET_CXXFLAGS="${compiler_flags}"
-		TARGET_LDFLAGS="${compiler_flags} ${linker_flags}"
-		TARGET_RUSTFLAGS="-C link-arg=${compiler_flags} -C link-arg=${linker_flags}"
+		# # Set linker flags
+		TARGET_LDFLAGS="-fuse-ld=lld"
+		TARGET_RUSTFLAGS="-C link-arg=-fuse-ld=lld"
 
 		# Enable osxcross debug output in verbose mode
 		[[ $VERBOSE_LEVEL -gt 0 ]] && add_target_env "OCDEBUG" "1"
@@ -1308,6 +1352,47 @@ get_android_env() {
 		"llvm-ar" \
 		"${clang_prefix}-clang" \
 		"${clang_base_dir}"
+
+	# Map architecture to Android ABI
+	local android_abi
+	case "$arch" in
+	"armv7") android_abi="armeabi-v7a" ;;
+	"aarch64") android_abi="arm64-v8a" ;;
+	"i686") android_abi="x86" ;;
+	"x86_64") android_abi="x86_64" ;;
+	"riscv64") android_abi="riscv64" ;;
+	esac
+
+	# Create wrapper toolchain file that sets ANDROID_ABI before including NDK's toolchain
+	# This is necessary because cmake-rs doesn't pass ANDROID_ABI to cmake
+	local wrapper_toolchain_dir="${ndk_dir}/build/cmake/wrappers"
+	local wrapper_toolchain_file="${wrapper_toolchain_dir}/android-${android_abi}.cmake"
+	local ndk_toolchain_file="${ndk_dir}/build/cmake/android.toolchain.cmake"
+	mkdir -p "${wrapper_toolchain_dir}"
+	cat >"${wrapper_toolchain_file}" <<TOOLCHAIN_EOF
+# Auto-generated Android toolchain wrapper
+set(ANDROID_ABI "${android_abi}")
+set(ANDROID_PLATFORM "android-24")
+set(ANDROID_NDK "${ndk_dir}")
+include("${ndk_toolchain_file}")
+TOOLCHAIN_EOF
+
+	# Set Android NDK environment variables for CMake
+	add_target_env "CMAKE_TOOLCHAIN_FILE" "${wrapper_toolchain_file}"
+
+	# Set LIBCLANG_PATH for bindgen (NDK includes libclang in musl/lib)
+	local ndk_llvm_base="${ndk_dir}/toolchains/llvm/prebuilt/${HOST_OS}-x86_64"
+	local ndk_libclang_path=""
+	# Check possible libclang locations in order of preference
+	for libclang_dir in "${ndk_llvm_base}/lib" "${ndk_llvm_base}/lib64" "${ndk_llvm_base}/musl/lib"; do
+		if [[ -f "${libclang_dir}/libclang.so" ]]; then
+			ndk_libclang_path="${libclang_dir}"
+			break
+		fi
+	done
+	if [[ -n "${ndk_libclang_path}" ]]; then
+		add_target_env "LIBCLANG_PATH" "${ndk_libclang_path}"
+	fi
 
 	log_success "Configured Android toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 }
@@ -1411,7 +1496,7 @@ get_ios_env() {
 		# Convert SDK version: replace . with - (e.g., 26.2 -> 26-2)
 		local iphone_sdk_suffix="${IPHONE_SDK_VERSION//./-}"
 
-		local cctools_version="v0.1.8"
+		local cctools_version="v0.1.9"
 		local iphone_sdk="${iphone_sdk_suffix}"
 
 		local cross_compiler_name="ios-${arch_prefix}-cross"
@@ -1461,14 +1546,9 @@ get_ios_env() {
 			"${arch_prefix}-apple-darwin11-clang" \
 			"${compiler_dir}/bin:${compiler_dir}/clang/bin"
 
-		local linker_path="${compiler_dir}/bin/${arch_prefix}-apple-darwin11-ld"
-		local compiler_flags="-B${compiler_dir}/bin"
-		local linker_flags="-fuse-ld=${linker_path}"
-		# Set compiler and linker flags
-		TARGET_CFLAGS="${compiler_flags}"
-		TARGET_CXXFLAGS="${compiler_flags}"
-		TARGET_LDFLAGS="${compiler_flags} ${linker_flags}"
-		TARGET_RUSTFLAGS="-C link-arg=${compiler_flags} -C link-arg=${linker_flags}"
+		# # Set linker flags
+		TARGET_LDFLAGS="-fuse-ld=lld"
+		TARGET_RUSTFLAGS="-C link-arg=-fuse-ld=lld"
 
 		log_success "Configured iOS toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 		;;
