@@ -564,13 +564,15 @@ get_cross_env() {
 		return 0
 	fi
 
-	# Convert target to uppercase for environment variable names
+	# Convert target for environment variable names
+	# CC crate uses lowercase (CC_<target>), Cargo uses uppercase (CARGO_TARGET_<TARGET>_*)
+	local target_lower=$(echo "$rust_target" | tr '-' '_')
 	local target_upper=$(echo "$rust_target" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
 
 	# Check if target-specific environment variables are already set
-	local cc_var="CC_${target_upper}"
-	local cxx_var="CXX_${target_upper}"
-	local ar_var="AR_${target_upper}"
+	local cc_var="CC_${target_lower}"
+	local cxx_var="CXX_${target_lower}"
+	local ar_var="AR_${target_lower}"
 	local linker_var="CARGO_TARGET_${target_upper}_LINKER"
 	local runner_var="CARGO_TARGET_${target_upper}_RUNNER"
 
@@ -1680,6 +1682,8 @@ execute_target() {
 	fi
 
 	# Set up environment based on target
+	# CC crate uses lowercase (CC_<target>), Cargo uses uppercase (CARGO_TARGET_<TARGET>_*)
+	local target_lower=$(echo "$rust_target" | tr '-' '_')
 	local target_upper=$(echo "$rust_target" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
 
 	# Enable sccache if requested
@@ -1736,27 +1740,28 @@ execute_target() {
 	add_env_if_set "RUSTC_WRAPPER" "$RUSTC_WRAPPER"
 	add_env_if_set "CC_KNOWN_WRAPPER_CUSTOM" "$CC_KNOWN_WRAPPER_CUSTOM"
 
-	# Compiler and flags - target-specific
-	add_env_if_set "CC_${target_upper}" "$TARGET_CC"
+	# Compiler and flags - target-specific (CC crate uses lowercase target)
+	add_env_if_set "CC_${target_lower}" "$TARGET_CC"
 	add_env_if_set "CC" "$TARGET_CC"
-	add_env_if_set "CXX_${target_upper}" "$TARGET_CXX"
+	add_env_if_set "CXX_${target_lower}" "$TARGET_CXX"
 	add_env_if_set "CXX" "$TARGET_CXX"
-	add_env_if_set "AR_${target_upper}" "$TARGET_AR"
+	add_env_if_set "AR_${target_lower}" "$TARGET_AR"
 	add_env_if_set "AR" "$TARGET_AR"
+	# Cargo linker/runner uses uppercase target
 	add_env_if_set "CARGO_TARGET_${target_upper}_LINKER" "$TARGET_LINKER"
 	add_env_if_set "CARGO_TARGET_${target_upper}_RUNNER" "$TARGET_RUNNER"
 
-	# Compiler flags (merge TARGET_* with user-provided flags)
+	# Compiler flags (merge TARGET_* with user-provided flags, CC crate uses lowercase target)
 	local final_cflags="${TARGET_CFLAGS:+$TARGET_CFLAGS }${CFLAGS}"
 	local final_cxxflags="${TARGET_CXXFLAGS:+$TARGET_CXXFLAGS }${CXXFLAGS}"
 	local final_ldflags="${TARGET_LDFLAGS:+$TARGET_LDFLAGS }${LDFLAGS}"
-	add_env_if_set "CFLAGS_${target_upper}" "$final_cflags"
+	add_env_if_set "CFLAGS_${target_lower}" "$final_cflags"
 	add_env_if_set "CFLAGS" "$final_cflags"
-	add_env_if_set "CXXFLAGS_${target_upper}" "$final_cxxflags"
+	add_env_if_set "CXXFLAGS_${target_lower}" "$final_cxxflags"
 	add_env_if_set "CXXFLAGS" "$final_cxxflags"
-	add_env_if_set "LDFLAGS_${target_upper}" "$final_ldflags"
+	add_env_if_set "LDFLAGS_${target_lower}" "$final_ldflags"
 	add_env_if_set "LDFLAGS" "$final_ldflags"
-	add_env_if_set "CXXSTDLIB_${target_upper}" "$CXXSTDLIB"
+	add_env_if_set "CXXSTDLIB_${target_lower}" "$CXXSTDLIB"
 	add_env_if_set "CXXSTDLIB" "$CXXSTDLIB"
 
 	# SDK and library paths
@@ -2624,9 +2629,6 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--clean-cache)
 		CLEAN_CACHE="true"
-		;;
-	--no-strip)
-		NO_STRIP="true"
 		;;
 	--verbose)
 		VERBOSE_LEVEL=$((VERBOSE_LEVEL + 1))
