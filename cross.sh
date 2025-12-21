@@ -1291,8 +1291,9 @@ get_darwin_env() {
 		add_target_env "COMPILER_PATH" "${osxcross_dir}/bin"
 
 		# # Set linker flags
-		TARGET_LDFLAGS="-fuse-ld=lld"
-		TARGET_RUSTFLAGS="-C link-arg=-fuse-ld=lld"
+		local linker_path="${osxcross_dir}/bin/${tool_prefix}-ld"
+		TARGET_LDFLAGS="-fuse-ld=${linker_path}"
+		TARGET_RUSTFLAGS="-C link-arg=-fuse-ld=${linker_path}"
 
 		# Enable osxcross debug output in verbose mode
 		[[ $VERBOSE_LEVEL -gt 0 ]] && add_target_env "OCDEBUG" "1"
@@ -1549,8 +1550,9 @@ get_ios_env() {
 			"${compiler_dir}/bin:${compiler_dir}/clang/bin"
 
 		# # Set linker flags
-		TARGET_LDFLAGS="-fuse-ld=lld"
-		TARGET_RUSTFLAGS="-C link-arg=-fuse-ld=lld"
+		local linker_path="${compiler_dir}/bin/${arch_prefix}-apple-darwin11-ld"
+		TARGET_LDFLAGS="-fuse-ld=${linker_path}"
+		TARGET_RUSTFLAGS="-C link-arg=-fuse-ld=${linker_path}"
 
 		log_success "Configured iOS toolchain for ${COLOR_LIGHT_YELLOW}$rust_target${COLOR_LIGHT_GREEN}"
 		;;
