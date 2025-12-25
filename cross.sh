@@ -40,7 +40,7 @@ readonly COLOR_RESET='\033[0m'
 readonly DEFAULT_SOURCE_DIR="$(pwd)"
 readonly DEFAULT_PROFILE="release"
 readonly DEFAULT_CROSS_COMPILER_DIR="$(dirname $(mktemp -u))/rust-cross-compiler"
-readonly DEFAULT_CROSS_DEPS_VERSION="v0.7.0"
+readonly DEFAULT_CROSS_DEPS_VERSION="v0.7.2"
 readonly CROSS_DEPS_SUPPORTED_GLIBC_VERSIONS="2.28 2.31 2.32 2.33 2.34 2.35 2.36 2.37 2.38 2.39 2.40 2.41 2.42"
 readonly DEFAULT_GLIBC_VERSION="2.28"
 readonly DEFAULT_TTY_WIDTH="40"
@@ -48,7 +48,7 @@ readonly DEFAULT_NDK_VERSION="r27"
 readonly DEFAULT_COMMAND="build"
 readonly DEFAULT_TOOLCHAIN=""
 readonly SUPPORTED_COMMANDS="b|build|check|c|run|r|test|t|bench"
-readonly DEFAULT_QEMU_VERSION="v10.1.3"
+readonly DEFAULT_QEMU_VERSION="v10.2.0"
 readonly CROSS_DEPS_SUPPORTED_IPHONE_SDK_VERSIONS="17.0 17.2 17.4 17.5 18.0 18.1 18.2 18.4 18.5 26.0 26.1 26.2"
 readonly DEFAULT_IPHONE_SDK_VERSION="26.2"
 readonly CROSS_DEPS_SUPPORTED_MACOS_SDK_VERSIONS="14.0 14.2 14.4 14.5 15.0 15.1 15.2 15.4 15.5 26.0 26.1 26.2"
@@ -312,40 +312,60 @@ get_host_platform() {
 }
 
 # Downloads and extracts a file
+# Uses atomic download pattern: download to .tmp first, then mv to target
 download_and_extract() {
 	local url="$1"
 	local file="$2"
 	local type="${3:-$(echo "${url}" | sed 's/.*\.//g')}"
 
-	mkdir -p "${file}" || return $?
-	file="$(cd "${file}" && pwd)" || return $?
-	if [ "$(ls -A "${file}")" ]; then
-		rm -rf "${file}"/* || return $?
-	fi
+	# Get absolute path for target directory
+	local parent_dir="$(dirname "${file}")"
+	mkdir -p "${parent_dir}" || return $?
+	parent_dir="$(cd "${parent_dir}" && pwd)" || return $?
+	local base_name="$(basename "${file}")"
+	file="${parent_dir}/${base_name}"
+	local tmp_dir="${file}.tmp"
+
+	# Clean up any existing temp directory
+	rm -rf "${tmp_dir}" 2>/dev/null || true
+	mkdir -p "${tmp_dir}" || return $?
+
 	log_info "Downloading \"${COLOR_LIGHT_GREEN}${url}${COLOR_LIGHT_BLUE}\" to \"${COLOR_LIGHT_GREEN}${file}${COLOR_LIGHT_BLUE}\""
 
 	local start_time=$(date +%s)
+	local ret=0
 
 	case "${type}" in
 	"tgz" | "gz")
-		curl -sL "${url}" | tar -xf - -C "${file}" --strip-components 1 -z || return $?
+		curl -sL "${url}" | tar -xf - -C "${tmp_dir}" --strip-components 1 -z || ret=$?
 		;;
 	"bz2")
-		curl -sL "${url}" | tar -xf - -C "${file}" --strip-components 1 -j || return $?
+		curl -sL "${url}" | tar -xf - -C "${tmp_dir}" --strip-components 1 -j || ret=$?
 		;;
 	"xz")
-		curl -sL "${url}" | tar -xf - -C "${file}" --strip-components 1 -J || return $?
+		curl -sL "${url}" | tar -xf - -C "${tmp_dir}" --strip-components 1 -J || ret=$?
 		;;
 	"zip")
-		curl -sL "${url}" -o "${file}/tmp.zip" || return $?
-		unzip -q -o "${file}/tmp.zip" -d "${file}" || return $?
-		rm -f "${file}/tmp.zip" || return $?
+		curl -sL "${url}" -o "${tmp_dir}/tmp.zip" || ret=$?
+		[[ $ret -eq 0 ]] && { unzip -q -o "${tmp_dir}/tmp.zip" -d "${tmp_dir}" || ret=$?; }
+		[[ $ret -eq 0 ]] && rm -f "${tmp_dir}/tmp.zip"
 		;;
 	*)
 		echo -e "${COLOR_LIGHT_RED}Unsupported compression type: ${type}${COLOR_RESET}"
+		rm -rf "${tmp_dir}"
 		return 2
 		;;
 	esac
+
+	# Clean up temp directory and return on failure
+	if [[ $ret -ne 0 ]]; then
+		rm -rf "${tmp_dir}"
+		return $ret
+	fi
+
+	# Move temp directory to target location atomically
+	rm -rf "${file}" 2>/dev/null || true
+	mv "${tmp_dir}" "${file}" || return $?
 
 	local end_time=$(date +%s)
 	log_success "Download and extraction successful (took ${COLOR_LIGHT_YELLOW}$((end_time - start_time))s${COLOR_LIGHT_GREEN})"
