@@ -446,4 +446,4 @@ runs:
         QUIET: ${{ inputs.quiet }}
         RELEASE: ${{ inputs.release }}
       run: |
-        "${{ github.action_path }}/cross.sh" ${{ inputs.cross-args }}
+        cargo run ${{ github.action_path }} -- ${{ inputs.cross-args }}
