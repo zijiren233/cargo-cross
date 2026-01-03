@@ -28,7 +28,7 @@ pub const SUPPORTED_MACOS_SDK_VERSIONS: &[&str] = &[
 pub const DEFAULT_MACOS_SDK_VERSION: &str = "26.2";
 
 /// Supported FreeBSD versions
-pub const SUPPORTED_FREEBSD_VERSIONS: &[&str] = &["13", "14"];
+pub const SUPPORTED_FREEBSD_VERSIONS: &[&str] = &["13", "14", "15"];
 
 /// Default FreeBSD version
 pub const DEFAULT_FREEBSD_VERSION: &str = "13";
@@ -41,6 +41,26 @@ pub const DEFAULT_NDK_VERSION: &str = "r27d";
 
 /// Default QEMU version
 pub const DEFAULT_QEMU_VERSION: &str = "v10.2.0";
+
+/// Format supported versions as comma-separated string
+pub fn supported_glibc_versions_str() -> String {
+    SUPPORTED_GLIBC_VERSIONS.join(", ")
+}
+
+/// Format supported FreeBSD versions as comma-separated string
+pub fn supported_freebsd_versions_str() -> String {
+    SUPPORTED_FREEBSD_VERSIONS.join(", ")
+}
+
+/// Format supported iPhone SDK versions as comma-separated string
+pub fn supported_iphone_sdk_versions_str() -> String {
+    SUPPORTED_IPHONE_SDK_VERSIONS.join(", ")
+}
+
+/// Format supported macOS SDK versions as comma-separated string
+pub fn supported_macos_sdk_versions_str() -> String {
+    SUPPORTED_MACOS_SDK_VERSIONS.join(", ")
+}
 
 /// Operating system type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -439,6 +459,20 @@ impl HostPlatform {
             "armv7"
         } else if cfg!(target_arch = "x86") {
             "i686"
+        } else if cfg!(target_arch = "s390x") {
+            "s390x"
+        } else if cfg!(target_arch = "riscv64") {
+            "riscv64"
+        } else if cfg!(target_arch = "loongarch64") {
+            "loongarch64"
+        } else if cfg!(all(target_arch = "powerpc64", target_endian = "big")) {
+            "powerpc64"
+        } else if cfg!(all(target_arch = "powerpc64", target_endian = "little")) {
+            "powerpc64le"
+        } else if cfg!(all(target_arch = "mips64", target_endian = "big")) {
+            "mips64"
+        } else if cfg!(all(target_arch = "mips64", target_endian = "little")) {
+            "mips64el"
         } else {
             "unknown"
         };

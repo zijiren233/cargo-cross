@@ -147,9 +147,17 @@ This action can run on the following GitHub Actions runners or local platforms:
 |----------|--------------|---------------|---------------|
 | **Linux** | x86_64 (amd64) | `ubuntu-latest`, `ubuntu-24.04`, `ubuntu-22.04`, `ubuntu-20.04` | ✅ Yes |
 | **Linux** | aarch64 (arm64) | `ubuntu-24.04-arm` | ✅ Yes |
-| **Linux** | armv7 | Self-hosted ARMv7 runners | ✅ Yes |
+| **Linux** | armv7 | Self-hosted runners | ✅ Yes |
+| **Linux** | riscv64 | Self-hosted runners | ✅ Yes |
+| **Linux** | s390x | Self-hosted runners | ✅ Yes |
+| **Linux** | powerpc64 | Self-hosted runners | ✅ Yes |
+| **Linux** | powerpc64le | Self-hosted runners | ✅ Yes |
+| **Linux** | mips64 | Self-hosted runners | ✅ Yes |
+| **Linux** | mips64el | Self-hosted runners | ✅ Yes |
+| **Linux** | loongarch64 | Self-hosted runners | ✅ Yes |
 | **macOS** | x86_64 (Intel) | `macos-15-intel` | ✅ Yes |
 | **macOS** | aarch64 (Apple Silicon) | `macos-15` | ✅ Yes |
+| **Windows** | x86_64 | `windows-latest` | ✅ Yes |
 
 ### Recommended Usage
 
@@ -299,7 +307,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `crt-st
 | `iphone-simulator-sdk-path` | Override iPhoneSimulator SDK path for simulator targets (skips version lookup, native macOS only) | |
 | `macos-sdk-version` | macOS SDK version for Darwin targets (non-macOS: bundled SDKs, macOS: installed Xcode SDK) | (default 26.2) |
 | `macos-sdk-path` | Override macOS SDK path directly (skips version lookup, native macOS only) | |
-| `freebsd-version` | FreeBSD version for FreeBSD targets (13 or 14) | `13` |
+| `freebsd-version` | FreeBSD version for FreeBSD targets (13, 14, or 15) | `13` |
 | `use-default-linker` | Use system default linker | `false` |
 | `cc` | Force set the C compiler | |
 | `cxx` | Force set the C++ compiler | |
@@ -524,16 +532,16 @@ On macOS, any SDK version installed via Xcode can be used.
 
 ### Custom FreeBSD Version
 
-You can specify a specific FreeBSD version using the `freebsd-version` parameter. Available versions are 13 and 14:
+You can specify a specific FreeBSD version using the `freebsd-version` parameter. Available versions are 13, 14, and 15:
 
 ```yaml
-# Use FreeBSD 14 (latest)
-- name: Build with FreeBSD 14
+# Use FreeBSD 15 (latest)
+- name: Build with FreeBSD 15
   uses: zijiren233/cargo-cross@v1
   with:
     command: build
     targets: x86_64-unknown-freebsd
-    freebsd-version: "14"
+    freebsd-version: "15"
 
 # Use FreeBSD 13 (default)
 - name: Build with FreeBSD 13
@@ -554,7 +562,7 @@ You can specify a specific FreeBSD version using the `freebsd-version` parameter
     # freebsd-version not specified - uses default 13
 ```
 
-Supported FreeBSD versions: 13 (default), 14
+Supported FreeBSD versions: 13 (default), 14, 15
 
 ### Custom Rustflags
 
@@ -732,6 +740,7 @@ This action uses the following toolchain versions from [cross-make](https://gith
 | Windows | MinGW-w64 | v13.0.0 |
 | FreeBSD 13 | FreeBSD | 13.5 |
 | FreeBSD 14 | FreeBSD | 14.3 |
+| FreeBSD 15 | FreeBSD | 15.0 |
 | macOS | macOS SDK | 26.2 (default), 14.0-26.2 available |
 | iOS | iPhone SDK | 26.2 (default), 17.0-26.2 available |
 | Android | NDK | r27d LTS (default), r29 stable available |
@@ -800,6 +809,7 @@ For FreeBSD targets, use `freebsd-version` parameter to select the FreeBSD versi
 |---------|-------|
 | 13 | FreeBSD 13.5 (default) |
 | 14 | FreeBSD 14.3 |
+| 15 | FreeBSD 15.0 |
 
 ## How It Works
 

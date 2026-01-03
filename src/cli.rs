@@ -1,7 +1,9 @@
 //! Command-line argument parsing for cargo-cross using clap
 
 use crate::config::{
-    self, DEFAULT_CROSS_DEPS_VERSION, DEFAULT_FREEBSD_VERSION, DEFAULT_GLIBC_VERSION,
+    self, supported_freebsd_versions_str, supported_glibc_versions_str,
+    supported_iphone_sdk_versions_str, supported_macos_sdk_versions_str,
+    DEFAULT_CROSS_DEPS_VERSION, DEFAULT_FREEBSD_VERSION, DEFAULT_GLIBC_VERSION,
     DEFAULT_IPHONE_SDK_VERSION, DEFAULT_MACOS_SDK_VERSION, DEFAULT_NDK_VERSION,
     DEFAULT_QEMU_VERSION, SUPPORTED_FREEBSD_VERSIONS, SUPPORTED_GLIBC_VERSIONS,
     SUPPORTED_IPHONE_SDK_VERSIONS, SUPPORTED_MACOS_SDK_VERSIONS,
@@ -385,19 +387,12 @@ in the current directory or any parent directory.")]
     // ===== Version Options =====
     /// Glibc version for Linux GNU targets
     #[arg(long, default_value = DEFAULT_GLIBC_VERSION, env = "GLIBC_VERSION",
-          value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions",
-          long_help = "\
-Specify glibc version for GNU libc targets. The version determines the minimum Linux kernel
-version required. Lower versions provide better compatibility with older systems.
-Supported: 2.28, 2.31, 2.32, 2.33, 2.34, 2.35, 2.36, 2.37, 2.38, 2.39, 2.40, 2.41, 2.42")]
+          value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions")]
     pub glibc_version: String,
 
     /// iPhone SDK version for iOS targets
     #[arg(long, default_value = DEFAULT_IPHONE_SDK_VERSION, env = "IPHONE_SDK_VERSION",
-          value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions",
-          long_help = "\
-Specify iPhone SDK version for iOS targets. On Linux: uses pre-built SDK from releases.
-On macOS: uses installed Xcode SDK. Supported on Linux: 17.0, 17.2, 17.4, 17.5, 18.0, 18.1, 18.2, 18.4, 18.5, 26.0, 26.1, 26.2")]
+          value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions")]
     pub iphone_sdk_version: String,
 
     /// Override iPhoneOS SDK path (skips version lookup)
@@ -416,10 +411,7 @@ Override iPhoneSimulator SDK path for simulator targets. Skips version lookup.")
 
     /// macOS SDK version for Darwin targets
     #[arg(long, default_value = DEFAULT_MACOS_SDK_VERSION, env = "MACOS_SDK_VERSION",
-          value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions",
-          long_help = "\
-Specify macOS SDK version for Darwin targets. On Linux: uses osxcross with pre-built SDK.
-On macOS: uses installed Xcode SDK. Supported on Linux: 14.0, 14.2, 14.4, 14.5, 15.0, 15.1, 15.2, 15.4, 15.5, 26.0, 26.1, 26.2")]
+          value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions")]
     pub macos_sdk_version: String,
 
     /// Override macOS SDK path (skips version lookup)
@@ -431,9 +423,7 @@ Override macOS SDK path directly. Skips version lookup.")]
 
     /// FreeBSD version for FreeBSD targets
     #[arg(long, default_value = DEFAULT_FREEBSD_VERSION, env = "FREEBSD_VERSION",
-          value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions",
-          long_help = "\
-Specify FreeBSD version for FreeBSD targets. Supported: 13, 14")]
+          value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions")]
     pub freebsd_version: String,
 
     /// Android NDK version
@@ -1206,15 +1196,46 @@ EXAMPLES:\n    \
     {prog} test -t x86_64-unknown-linux-musl -- --nocapture"
     );
 
+    // Build dynamic version help texts
+    let glibc_help = format!(
+        "Specify glibc version for GNU libc targets. The version determines the minimum Linux kernel\n\
+         version required. Lower versions provide better compatibility with older systems.\n\
+         Supported: {}",
+        supported_glibc_versions_str()
+    );
+    let freebsd_help = format!(
+        "Specify FreeBSD version for FreeBSD targets. Supported: {}",
+        supported_freebsd_versions_str()
+    );
+    let iphone_sdk_help = format!(
+        "Specify iPhone SDK version for iOS targets. On Linux: uses pre-built SDK from releases.\n\
+         On macOS: uses installed Xcode SDK. Supported on Linux: {}",
+        supported_iphone_sdk_versions_str()
+    );
+    let macos_sdk_help = format!(
+        "Specify macOS SDK version for Darwin targets. On Linux: uses osxcross with pre-built SDK.\n\
+         On macOS: uses installed Xcode SDK. Supported on Linux: {}",
+        supported_macos_sdk_versions_str()
+    );
+
     // Get base command and modify it
     let mut cmd = Cli::command().override_usage(usage).after_help(after_help);
 
-    // Update subcommand usage strings
+    // Update subcommand usage strings and version help texts
     for subcmd_name in &["build", "check", "run", "test", "bench"] {
+        let glibc_help = glibc_help.clone();
+        let freebsd_help = freebsd_help.clone();
+        let iphone_sdk_help = iphone_sdk_help.clone();
+        let macos_sdk_help = macos_sdk_help.clone();
         cmd = cmd.mut_subcommand(*subcmd_name, |subcmd| {
-            subcmd.override_usage(format!(
-                "{prog} [+toolchain] {subcmd_name} [OPTIONS] [-- <PASSTHROUGH_ARGS>...]"
-            ))
+            subcmd
+                .override_usage(format!(
+                    "{prog} [+toolchain] {subcmd_name} [OPTIONS] [-- <PASSTHROUGH_ARGS>...]"
+                ))
+                .mut_arg("glibc_version", |arg| arg.long_help(glibc_help))
+                .mut_arg("freebsd_version", |arg| arg.long_help(freebsd_help))
+                .mut_arg("iphone_sdk_version", |arg| arg.long_help(iphone_sdk_help))
+                .mut_arg("macos_sdk_version", |arg| arg.long_help(macos_sdk_help))
         });
     }
 
