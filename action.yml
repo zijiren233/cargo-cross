@@ -345,8 +345,9 @@ runs:
   steps:
     - name: Install cargo-cross
       shell: bash
+      working-directory: ${{ inputs.source-dir }}
       run: |
-        command -v cargo-cross || cargo install --path "${{ github.action_path }}"
+        command -v cargo-cross || cargo install --debug --path .
 
     - name: Show all targets
       id: show-targets
