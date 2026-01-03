@@ -343,9 +343,6 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Setup Rustup
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-
     - name: Build cargo-cross
       shell: bash
       working-directory: ${{ github.action_path }}
