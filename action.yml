@@ -366,7 +366,7 @@ runs:
       env:
         CLICOLOR_FORCE: "1"
         TARGETS: ${{ inputs.target || inputs.targets }}
-        PROFILE: ${{ inputs.profile }}
+        PROFILE: ${{ inputs.release == 'true' && 'release' || inputs.profile }}
         FEATURES: ${{ inputs.features }}
         NO_DEFAULT_FEATURES: ${{ inputs.no-default-features }}
         ALL_FEATURES: ${{ inputs.all-features }}
@@ -452,5 +452,4 @@ runs:
         RUSTC_BOOTSTRAP: ${{ inputs.rustc-bootstrap }}
         CARGO_TARGET_DIR: ${{ inputs.target-dir }}
         QUIET: ${{ inputs.quiet }}
-        RELEASE: ${{ inputs.release }}
       run: cargo-cross ${{ inputs.command }} ${{ inputs.cross-args }}

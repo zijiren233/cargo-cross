@@ -213,7 +213,6 @@ This flag may be specified multiple times, which enables all specified features.
     #[arg(
         short = 'r',
         long = "release",
-        env = "RELEASE",
         conflicts_with = "profile",
         help_heading = "Profile",
         long_help = "\
@@ -1271,8 +1270,6 @@ pub enum ParseResult {
 /// Clap's `env = "VAR"` attribute treats empty strings as valid values, which causes
 /// parsing errors for PathBuf and other types that don't accept empty strings.
 fn sanitize_clap_env() {
-    // Remove all empty environment variables - this is safe because empty string
-    // env vars are almost never meaningful and would cause clap parsing errors
     let empty_vars: Vec<_> = std::env::vars()
         .filter(|(_, v)| v.is_empty())
         .map(|(k, _)| k)
@@ -1406,7 +1403,11 @@ fn finalize_args(
     }
 
     // Handle build_std: empty string means disabled (from env var "false")
-    if build_args.build_std.as_ref().is_some_and(|s| s.is_empty()) {
+    if build_args
+        .build_std
+        .as_ref()
+        .is_some_and(std::string::String::is_empty)
+    {
         build_args.build_std = None;
     }
 

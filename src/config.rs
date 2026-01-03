@@ -204,137 +204,146 @@ impl TargetConfig {
 }
 
 /// All supported target configurations
-pub static TARGETS: Lazy<HashMap<&'static str, TargetConfig>> = Lazy::new(|| {
-    let configs = vec![
-        // Linux musl targets
-        TargetConfig::new("aarch64-unknown-linux-musl", Os::Linux, Arch::Aarch64)
+pub static TARGETS: std::sync::LazyLock<HashMap<&'static str, TargetConfig>> =
+    std::sync::LazyLock::new(|| {
+        let configs = vec![
+            // Linux musl targets
+            TargetConfig::new("aarch64-unknown-linux-musl", Os::Linux, Arch::Aarch64)
+                .with_libc(Libc::Musl),
+            TargetConfig::new("arm-unknown-linux-musleabi", Os::Linux, Arch::Armv6)
+                .with_libc(Libc::Musl)
+                .with_abi(Abi::Eabi),
+            TargetConfig::new("arm-unknown-linux-musleabihf", Os::Linux, Arch::Armv6)
+                .with_libc(Libc::Musl)
+                .with_abi(Abi::Eabihf),
+            TargetConfig::new("armv5te-unknown-linux-musleabi", Os::Linux, Arch::Armv5)
+                .with_libc(Libc::Musl)
+                .with_abi(Abi::Eabi),
+            TargetConfig::new("armv7-unknown-linux-musleabi", Os::Linux, Arch::Armv7)
+                .with_libc(Libc::Musl)
+                .with_abi(Abi::Eabi),
+            TargetConfig::new("armv7-unknown-linux-musleabihf", Os::Linux, Arch::Armv7)
+                .with_libc(Libc::Musl)
+                .with_abi(Abi::Eabihf),
+            TargetConfig::new("i586-unknown-linux-musl", Os::Linux, Arch::I586)
+                .with_libc(Libc::Musl),
+            TargetConfig::new("i686-unknown-linux-musl", Os::Linux, Arch::I686)
+                .with_libc(Libc::Musl),
+            TargetConfig::new(
+                "loongarch64-unknown-linux-musl",
+                Os::Linux,
+                Arch::Loongarch64,
+            )
             .with_libc(Libc::Musl),
-        TargetConfig::new("arm-unknown-linux-musleabi", Os::Linux, Arch::Armv6)
-            .with_libc(Libc::Musl)
-            .with_abi(Abi::Eabi),
-        TargetConfig::new("arm-unknown-linux-musleabihf", Os::Linux, Arch::Armv6)
-            .with_libc(Libc::Musl)
-            .with_abi(Abi::Eabihf),
-        TargetConfig::new("armv5te-unknown-linux-musleabi", Os::Linux, Arch::Armv5)
-            .with_libc(Libc::Musl)
-            .with_abi(Abi::Eabi),
-        TargetConfig::new("armv7-unknown-linux-musleabi", Os::Linux, Arch::Armv7)
-            .with_libc(Libc::Musl)
-            .with_abi(Abi::Eabi),
-        TargetConfig::new("armv7-unknown-linux-musleabihf", Os::Linux, Arch::Armv7)
-            .with_libc(Libc::Musl)
-            .with_abi(Abi::Eabihf),
-        TargetConfig::new("i586-unknown-linux-musl", Os::Linux, Arch::I586).with_libc(Libc::Musl),
-        TargetConfig::new("i686-unknown-linux-musl", Os::Linux, Arch::I686).with_libc(Libc::Musl),
-        TargetConfig::new(
-            "loongarch64-unknown-linux-musl",
-            Os::Linux,
-            Arch::Loongarch64,
-        )
-        .with_libc(Libc::Musl),
-        TargetConfig::new("mips-unknown-linux-musl", Os::Linux, Arch::Mips).with_libc(Libc::Musl),
-        TargetConfig::new("mipsel-unknown-linux-musl", Os::Linux, Arch::Mipsel)
+            TargetConfig::new("mips-unknown-linux-musl", Os::Linux, Arch::Mips)
+                .with_libc(Libc::Musl),
+            TargetConfig::new("mipsel-unknown-linux-musl", Os::Linux, Arch::Mipsel)
+                .with_libc(Libc::Musl),
+            TargetConfig::new("mips64-unknown-linux-muslabi64", Os::Linux, Arch::Mips64)
+                .with_libc(Libc::Musl),
+            TargetConfig::new("mips64-openwrt-linux-musl", Os::Linux, Arch::Mips64)
+                .with_libc(Libc::Musl),
+            TargetConfig::new(
+                "mips64el-unknown-linux-muslabi64",
+                Os::Linux,
+                Arch::Mips64el,
+            )
             .with_libc(Libc::Musl),
-        TargetConfig::new("mips64-unknown-linux-muslabi64", Os::Linux, Arch::Mips64)
+            TargetConfig::new("powerpc64-unknown-linux-musl", Os::Linux, Arch::Powerpc64)
+                .with_libc(Libc::Musl),
+            TargetConfig::new(
+                "powerpc64le-unknown-linux-musl",
+                Os::Linux,
+                Arch::Powerpc64le,
+            )
             .with_libc(Libc::Musl),
-        TargetConfig::new("mips64-openwrt-linux-musl", Os::Linux, Arch::Mips64)
-            .with_libc(Libc::Musl),
-        TargetConfig::new(
-            "mips64el-unknown-linux-muslabi64",
-            Os::Linux,
-            Arch::Mips64el,
-        )
-        .with_libc(Libc::Musl),
-        TargetConfig::new("powerpc64-unknown-linux-musl", Os::Linux, Arch::Powerpc64)
-            .with_libc(Libc::Musl),
-        TargetConfig::new(
-            "powerpc64le-unknown-linux-musl",
-            Os::Linux,
-            Arch::Powerpc64le,
-        )
-        .with_libc(Libc::Musl),
-        TargetConfig::new("riscv64gc-unknown-linux-musl", Os::Linux, Arch::Riscv64)
-            .with_libc(Libc::Musl),
-        TargetConfig::new("s390x-unknown-linux-musl", Os::Linux, Arch::S390x).with_libc(Libc::Musl),
-        TargetConfig::new("x86_64-unknown-linux-musl", Os::Linux, Arch::X86_64)
-            .with_libc(Libc::Musl),
-        // Linux gnu targets
-        TargetConfig::new("aarch64-unknown-linux-gnu", Os::Linux, Arch::Aarch64)
+            TargetConfig::new("riscv64gc-unknown-linux-musl", Os::Linux, Arch::Riscv64)
+                .with_libc(Libc::Musl),
+            TargetConfig::new("s390x-unknown-linux-musl", Os::Linux, Arch::S390x)
+                .with_libc(Libc::Musl),
+            TargetConfig::new("x86_64-unknown-linux-musl", Os::Linux, Arch::X86_64)
+                .with_libc(Libc::Musl),
+            // Linux gnu targets
+            TargetConfig::new("aarch64-unknown-linux-gnu", Os::Linux, Arch::Aarch64)
+                .with_libc(Libc::Gnu),
+            TargetConfig::new("arm-unknown-linux-gnueabi", Os::Linux, Arch::Armv6)
+                .with_libc(Libc::Gnu)
+                .with_abi(Abi::Eabi),
+            TargetConfig::new("arm-unknown-linux-gnueabihf", Os::Linux, Arch::Armv6)
+                .with_libc(Libc::Gnu)
+                .with_abi(Abi::Eabihf),
+            TargetConfig::new("armv5te-unknown-linux-gnueabi", Os::Linux, Arch::Armv5)
+                .with_libc(Libc::Gnu)
+                .with_abi(Abi::Eabi),
+            TargetConfig::new("armv7-unknown-linux-gnueabi", Os::Linux, Arch::Armv7)
+                .with_libc(Libc::Gnu)
+                .with_abi(Abi::Eabi),
+            TargetConfig::new("armv7-unknown-linux-gnueabihf", Os::Linux, Arch::Armv7)
+                .with_libc(Libc::Gnu)
+                .with_abi(Abi::Eabihf),
+            TargetConfig::new("i586-unknown-linux-gnu", Os::Linux, Arch::I586).with_libc(Libc::Gnu),
+            TargetConfig::new("i686-unknown-linux-gnu", Os::Linux, Arch::I686).with_libc(Libc::Gnu),
+            TargetConfig::new(
+                "loongarch64-unknown-linux-gnu",
+                Os::Linux,
+                Arch::Loongarch64,
+            )
             .with_libc(Libc::Gnu),
-        TargetConfig::new("arm-unknown-linux-gnueabi", Os::Linux, Arch::Armv6)
-            .with_libc(Libc::Gnu)
-            .with_abi(Abi::Eabi),
-        TargetConfig::new("arm-unknown-linux-gnueabihf", Os::Linux, Arch::Armv6)
-            .with_libc(Libc::Gnu)
-            .with_abi(Abi::Eabihf),
-        TargetConfig::new("armv5te-unknown-linux-gnueabi", Os::Linux, Arch::Armv5)
-            .with_libc(Libc::Gnu)
-            .with_abi(Abi::Eabi),
-        TargetConfig::new("armv7-unknown-linux-gnueabi", Os::Linux, Arch::Armv7)
-            .with_libc(Libc::Gnu)
-            .with_abi(Abi::Eabi),
-        TargetConfig::new("armv7-unknown-linux-gnueabihf", Os::Linux, Arch::Armv7)
-            .with_libc(Libc::Gnu)
-            .with_abi(Abi::Eabihf),
-        TargetConfig::new("i586-unknown-linux-gnu", Os::Linux, Arch::I586).with_libc(Libc::Gnu),
-        TargetConfig::new("i686-unknown-linux-gnu", Os::Linux, Arch::I686).with_libc(Libc::Gnu),
-        TargetConfig::new(
-            "loongarch64-unknown-linux-gnu",
-            Os::Linux,
-            Arch::Loongarch64,
-        )
-        .with_libc(Libc::Gnu),
-        TargetConfig::new("mips-unknown-linux-gnu", Os::Linux, Arch::Mips).with_libc(Libc::Gnu),
-        TargetConfig::new("mipsel-unknown-linux-gnu", Os::Linux, Arch::Mipsel).with_libc(Libc::Gnu),
-        TargetConfig::new("mips64-unknown-linux-gnuabi64", Os::Linux, Arch::Mips64)
+            TargetConfig::new("mips-unknown-linux-gnu", Os::Linux, Arch::Mips).with_libc(Libc::Gnu),
+            TargetConfig::new("mipsel-unknown-linux-gnu", Os::Linux, Arch::Mipsel)
+                .with_libc(Libc::Gnu),
+            TargetConfig::new("mips64-unknown-linux-gnuabi64", Os::Linux, Arch::Mips64)
+                .with_libc(Libc::Gnu),
+            TargetConfig::new("mips64el-unknown-linux-gnuabi64", Os::Linux, Arch::Mips64el)
+                .with_libc(Libc::Gnu),
+            TargetConfig::new("powerpc64-unknown-linux-gnu", Os::Linux, Arch::Powerpc64)
+                .with_libc(Libc::Gnu),
+            TargetConfig::new(
+                "powerpc64le-unknown-linux-gnu",
+                Os::Linux,
+                Arch::Powerpc64le,
+            )
             .with_libc(Libc::Gnu),
-        TargetConfig::new("mips64el-unknown-linux-gnuabi64", Os::Linux, Arch::Mips64el)
-            .with_libc(Libc::Gnu),
-        TargetConfig::new("powerpc64-unknown-linux-gnu", Os::Linux, Arch::Powerpc64)
-            .with_libc(Libc::Gnu),
-        TargetConfig::new(
-            "powerpc64le-unknown-linux-gnu",
-            Os::Linux,
-            Arch::Powerpc64le,
-        )
-        .with_libc(Libc::Gnu),
-        TargetConfig::new("riscv64gc-unknown-linux-gnu", Os::Linux, Arch::Riscv64)
-            .with_libc(Libc::Gnu),
-        TargetConfig::new("s390x-unknown-linux-gnu", Os::Linux, Arch::S390x).with_libc(Libc::Gnu),
-        TargetConfig::new("x86_64-unknown-linux-gnu", Os::Linux, Arch::X86_64).with_libc(Libc::Gnu),
-        // Windows GNU targets
-        TargetConfig::new("i686-pc-windows-gnu", Os::Windows, Arch::I686).with_libc(Libc::Gnu),
-        TargetConfig::new("x86_64-pc-windows-gnu", Os::Windows, Arch::X86_64).with_libc(Libc::Gnu),
-        // FreeBSD targets
-        TargetConfig::new("x86_64-unknown-freebsd", Os::FreeBsd, Arch::X86_64),
-        TargetConfig::new("aarch64-unknown-freebsd", Os::FreeBsd, Arch::Aarch64),
-        TargetConfig::new("powerpc64-unknown-freebsd", Os::FreeBsd, Arch::Powerpc64),
-        TargetConfig::new(
-            "powerpc64le-unknown-freebsd",
-            Os::FreeBsd,
-            Arch::Powerpc64le,
-        ),
-        TargetConfig::new("riscv64gc-unknown-freebsd", Os::FreeBsd, Arch::Riscv64),
-        // Darwin (macOS) targets
-        TargetConfig::new("x86_64-apple-darwin", Os::Darwin, Arch::X86_64),
-        TargetConfig::new("x86_64h-apple-darwin", Os::Darwin, Arch::X86_64h),
-        TargetConfig::new("aarch64-apple-darwin", Os::Darwin, Arch::Aarch64),
-        TargetConfig::new("arm64e-apple-darwin", Os::Darwin, Arch::Arm64e),
-        // iOS targets
-        TargetConfig::new("x86_64-apple-ios", Os::Ios, Arch::X86_64),
-        TargetConfig::new("aarch64-apple-ios", Os::Ios, Arch::Aarch64),
-        TargetConfig::new("aarch64-apple-ios-sim", Os::IosSim, Arch::Aarch64),
-        // Android targets
-        TargetConfig::new("aarch64-linux-android", Os::Android, Arch::Aarch64),
-        TargetConfig::new("arm-linux-androideabi", Os::Android, Arch::Armv7),
-        TargetConfig::new("armv7-linux-androideabi", Os::Android, Arch::Armv7),
-        TargetConfig::new("i686-linux-android", Os::Android, Arch::I686),
-        TargetConfig::new("riscv64-linux-android", Os::Android, Arch::Riscv64),
-        TargetConfig::new("x86_64-linux-android", Os::Android, Arch::X86_64),
-    ];
+            TargetConfig::new("riscv64gc-unknown-linux-gnu", Os::Linux, Arch::Riscv64)
+                .with_libc(Libc::Gnu),
+            TargetConfig::new("s390x-unknown-linux-gnu", Os::Linux, Arch::S390x)
+                .with_libc(Libc::Gnu),
+            TargetConfig::new("x86_64-unknown-linux-gnu", Os::Linux, Arch::X86_64)
+                .with_libc(Libc::Gnu),
+            // Windows GNU targets
+            TargetConfig::new("i686-pc-windows-gnu", Os::Windows, Arch::I686).with_libc(Libc::Gnu),
+            TargetConfig::new("x86_64-pc-windows-gnu", Os::Windows, Arch::X86_64)
+                .with_libc(Libc::Gnu),
+            // FreeBSD targets
+            TargetConfig::new("x86_64-unknown-freebsd", Os::FreeBsd, Arch::X86_64),
+            TargetConfig::new("aarch64-unknown-freebsd", Os::FreeBsd, Arch::Aarch64),
+            TargetConfig::new("powerpc64-unknown-freebsd", Os::FreeBsd, Arch::Powerpc64),
+            TargetConfig::new(
+                "powerpc64le-unknown-freebsd",
+                Os::FreeBsd,
+                Arch::Powerpc64le,
+            ),
+            TargetConfig::new("riscv64gc-unknown-freebsd", Os::FreeBsd, Arch::Riscv64),
+            // Darwin (macOS) targets
+            TargetConfig::new("x86_64-apple-darwin", Os::Darwin, Arch::X86_64),
+            TargetConfig::new("x86_64h-apple-darwin", Os::Darwin, Arch::X86_64h),
+            TargetConfig::new("aarch64-apple-darwin", Os::Darwin, Arch::Aarch64),
+            TargetConfig::new("arm64e-apple-darwin", Os::Darwin, Arch::Arm64e),
+            // iOS targets
+            TargetConfig::new("x86_64-apple-ios", Os::Ios, Arch::X86_64),
+            TargetConfig::new("aarch64-apple-ios", Os::Ios, Arch::Aarch64),
+            TargetConfig::new("aarch64-apple-ios-sim", Os::IosSim, Arch::Aarch64),
+            // Android targets
+            TargetConfig::new("aarch64-linux-android", Os::Android, Arch::Aarch64),
+            TargetConfig::new("arm-linux-androideabi", Os::Android, Arch::Armv7),
+            TargetConfig::new("armv7-linux-androideabi", Os::Android, Arch::Armv7),
+            TargetConfig::new("i686-linux-android", Os::Android, Arch::I686),
+            TargetConfig::new("riscv64-linux-android", Os::Android, Arch::Riscv64),
+            TargetConfig::new("x86_64-linux-android", Os::Android, Arch::X86_64),
+        ];
 
-    configs.into_iter().map(|c| (c.target, c)).collect()
-});
+        configs.into_iter().map(|c| (c.target, c)).collect()
+    });
 
 /// Get target configuration by name
 pub fn get_target_config(target: &str) -> Option<&'static TargetConfig> {
