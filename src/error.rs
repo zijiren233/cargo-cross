@@ -85,8 +85,11 @@ pub enum CrossError {
     #[error("Environment variable error: {0}")]
     EnvError(String),
 
-    #[error("No valid targets found after pattern expansion\nCheck your target pattern or use '--list-targets' to see available targets")]
-    NoValidTargets,
+    #[error("No matching targets found for pattern '{pattern}'\nUse 'cargo-cross targets' to see available targets")]
+    NoMatchingTargets { pattern: String },
+
+    #[error("Invalid target triple '{target}': contains invalid character '{char}'\nTarget triples may only contain lowercase letters (a-z), digits (0-9), hyphens (-), and underscores (_)")]
+    InvalidTargetTriple { target: String, char: char },
 
     #[error("Cargo exited with code {code}")]
     CargoFailed { code: i32 },

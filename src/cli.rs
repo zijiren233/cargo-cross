@@ -1237,14 +1237,14 @@ impl std::ops::DerefMut for Args {
 
 impl Args {
     /// Create Args from BuildArgs and Command
-    fn from_build_args(b: BuildArgs, command: Command, toolchain: Option<String>) -> Self {
+    fn from_build_args(b: BuildArgs, command: Command, toolchain: Option<String>) -> Result<Self> {
         let cross_compiler_dir = b
             .cross_compiler_dir
             .clone()
             .unwrap_or_else(|| std::env::temp_dir().join("rust-cross-compiler"));
-        let targets = expand_target_list(&b.targets);
+        let targets = expand_target_list(&b.targets)?;
 
-        Self {
+        Ok(Self {
             toolchain,
             command,
             targets,
@@ -1252,7 +1252,7 @@ impl Args {
             cross_deps_version: DEFAULT_CROSS_DEPS_VERSION.to_string(),
             cross_compiler_dir,
             build: b,
-        }
+        })
     }
 }
 
@@ -1364,8 +1364,26 @@ fn process_cli(cli: Cli, toolchain: Option<String>) -> Result<ParseResult> {
     }
 }
 
+/// Check if a string is a glob pattern (contains *, ?, or [)
+fn is_glob_pattern(s: &str) -> bool {
+    s.contains('*') || s.contains('?') || s.contains('[')
+}
+
+/// Validate that a target triple only contains valid characters (a-z, 0-9, -, _)
+fn validate_target_triple(target: &str) -> Result<()> {
+    for c in target.chars() {
+        if !c.is_ascii_lowercase() && !c.is_ascii_digit() && c != '-' && c != '_' {
+            return Err(CrossError::InvalidTargetTriple {
+                target: target.to_string(),
+                char: c,
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Expand target list, handling glob patterns
-fn expand_target_list(targets: &[String]) -> Vec<String> {
+fn expand_target_list(targets: &[String]) -> Result<Vec<String>> {
     let mut result = Vec::new();
     for target in targets {
         // Split by comma or newline to support multiple delimiters
@@ -1376,6 +1394,14 @@ fn expand_target_list(targets: &[String]) -> Vec<String> {
             }
             let expanded = config::expand_targets(part);
             if expanded.is_empty() {
+                // If it was a glob pattern that matched nothing, error
+                if is_glob_pattern(part) {
+                    return Err(CrossError::NoMatchingTargets {
+                        pattern: part.to_string(),
+                    });
+                }
+                // Not a glob pattern, validate and use as-is
+                validate_target_triple(part)?;
                 if !result.contains(&part.to_string()) {
                     result.push(part.to_string());
                 }
@@ -1389,7 +1415,7 @@ fn expand_target_list(targets: &[String]) -> Vec<String> {
             }
         }
     }
-    result
+    Ok(result)
 }
 
 fn finalize_args(
@@ -1414,7 +1440,7 @@ fn finalize_args(
     // Merge toolchain: +toolchain syntax takes precedence over --toolchain option
     let final_toolchain = toolchain.or_else(|| build_args.toolchain_option.clone());
 
-    let mut args = Args::from_build_args(build_args, command, final_toolchain);
+    let mut args = Args::from_build_args(build_args, command, final_toolchain)?;
 
     // Validate versions
     validate_versions(&args)?;
@@ -2796,5 +2822,111 @@ mod tests {
     fn test_cargo_args_original() {
         let args = parse(&["cargo-cross", "build", "--cargo-args", "--verbose"]).unwrap();
         assert_eq!(args.cargo_args, Some("--verbose".to_string()));
+    }
+
+    // Target validation tests
+
+    #[test]
+    fn test_invalid_target_triple_uppercase() {
+        let result = parse(&["cargo-cross", "build", "-t", "X86_64-unknown-linux-musl"]);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, CrossError::InvalidTargetTriple { target, char } if target == "X86_64-unknown-linux-musl" && char == 'X')
+        );
+    }
+
+    #[test]
+    fn test_glob_pattern_matches_target() {
+        // x86_64*unknown-linux-musl matches x86_64-unknown-linux-musl (glob * matches -)
+        let args = parse(&["cargo-cross", "build", "-t", "x86_64*unknown-linux-musl"]).unwrap();
+        assert!(args.targets.contains(&"x86_64-unknown-linux-musl".to_string()));
+    }
+
+    #[test]
+    fn test_invalid_target_triple_slash() {
+        // Slash is not a glob character, so it should fail validation as invalid character
+        let result = parse(&["cargo-cross", "build", "-t", "x86_64/unknown-linux-musl"]);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, CrossError::InvalidTargetTriple { target, char } if target == "x86_64/unknown-linux-musl" && char == '/')
+        );
+    }
+
+    #[test]
+    fn test_invalid_target_triple_dot() {
+        let result = parse(&["cargo-cross", "build", "-t", "x86_64.unknown-linux-musl"]);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, CrossError::InvalidTargetTriple { target, char } if target == "x86_64.unknown-linux-musl" && char == '.')
+        );
+    }
+
+    #[test]
+    fn test_no_matching_targets_glob() {
+        let result = parse(&["cargo-cross", "build", "-t", "*mingw*"]);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(
+            err,
+            CrossError::NoMatchingTargets { pattern } if pattern == "*mingw*"
+        ));
+    }
+
+    #[test]
+    fn test_no_matching_targets_glob_complex() {
+        let result = parse(&["cargo-cross", "build", "-t", "*nonexistent-platform*"]);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(
+            err,
+            CrossError::NoMatchingTargets { pattern } if pattern == "*nonexistent-platform*"
+        ));
+    }
+
+    #[test]
+    fn test_valid_target_triple_with_numbers() {
+        let args = parse(&["cargo-cross", "build", "-t", "armv7-unknown-linux-gnueabihf"]).unwrap();
+        assert_eq!(args.targets, vec!["armv7-unknown-linux-gnueabihf"]);
+    }
+
+    #[test]
+    fn test_valid_target_triple_underscore() {
+        let args = parse(&["cargo-cross", "build", "-t", "x86_64_unknown_linux_musl"]).unwrap();
+        assert_eq!(args.targets, vec!["x86_64_unknown_linux_musl"]);
+    }
+
+    #[test]
+    fn test_valid_glob_pattern_matches() {
+        let args = parse(&["cargo-cross", "build", "-t", "*-linux-musl"]).unwrap();
+        assert!(!args.targets.is_empty());
+        for target in &args.targets {
+            assert!(target.ends_with("-linux-musl"));
+        }
+    }
+
+    #[test]
+    fn test_is_glob_pattern() {
+        assert!(is_glob_pattern("*-linux-musl"));
+        assert!(is_glob_pattern("x86_64-*-linux"));
+        assert!(is_glob_pattern("x86_64-?-linux"));
+        assert!(is_glob_pattern("[ab]-linux"));
+        assert!(!is_glob_pattern("x86_64-unknown-linux-musl"));
+        assert!(!is_glob_pattern("aarch64-linux-android"));
+    }
+
+    #[test]
+    fn test_validate_target_triple() {
+        assert!(validate_target_triple("x86_64-unknown-linux-musl").is_ok());
+        assert!(validate_target_triple("aarch64-unknown-linux-gnu").is_ok());
+        assert!(validate_target_triple("armv7-unknown-linux-gnueabihf").is_ok());
+        assert!(validate_target_triple("i686-pc-windows-msvc").is_ok());
+        assert!(validate_target_triple("x86_64-pc-windows-msvc").is_ok());
+        assert!(validate_target_triple("X86_64-unknown-linux-musl").is_err()); // uppercase X
+        assert!(validate_target_triple("x86_64*linux").is_err()); // special char *
+        assert!(validate_target_triple("x86_64.linux").is_err()); // special char .
+        assert!(validate_target_triple("x86_64 linux").is_err()); // space
     }
 }
