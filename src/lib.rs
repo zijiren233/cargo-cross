@@ -18,4 +18,5 @@ pub mod runner;
 
 pub use cli::{parse_args, Args, Command};
 pub use config::{get_target_config, HostPlatform, TargetConfig};
+pub use env::sanitize_cargo_env;
 pub use error::{CrossError, Result};

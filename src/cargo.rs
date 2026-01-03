@@ -29,15 +29,6 @@ pub async fn execute_cargo(
     // Set environment variables
     cmd.envs(&build_env);
 
-    // Remove empty CARGO_TARGET_DIR to prevent cargo error
-    // (cargo rejects empty string for this env var)
-    if std::env::var("CARGO_TARGET_DIR")
-        .map(|v| v.is_empty())
-        .unwrap_or(false)
-    {
-        cmd.env_remove("CARGO_TARGET_DIR");
-    }
-
     // Print debug info
     print_env_vars(&build_env);
     color::print_run_header();

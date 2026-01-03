@@ -7,6 +7,7 @@ use cargo_cross::{
     config::{get_target_config, HostPlatform},
     error::Result,
     platform::setup_cross_env,
+    sanitize_cargo_env,
 };
 use std::process::ExitCode;
 use std::time::Duration;
@@ -25,6 +26,9 @@ fn format_duration(duration: Duration) -> String {
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    // Sanitize environment variables that could cause cargo errors
+    sanitize_cargo_env();
+
     // Setup signal handlers for Ctrl+C and SIGTERM
     #[cfg(unix)]
     {

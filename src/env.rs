@@ -299,6 +299,19 @@ pub const fn get_build_std_config() -> &'static str {
     "core,std,alloc,proc_macro,test,compiler_builtins,panic_abort,panic_unwind"
 }
 
+/// Sanitize environment variables that could cause cargo errors
+/// Call this once at program startup
+pub fn sanitize_cargo_env() {
+    // Remove empty CARGO_TARGET_DIR to prevent cargo error:
+    // "the target directory is set to an empty string in the `CARGO_TARGET_DIR` environment variable"
+    if std::env::var("CARGO_TARGET_DIR")
+        .map(|v| v.is_empty())
+        .unwrap_or(false)
+    {
+        std::env::remove_var("CARGO_TARGET_DIR");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
