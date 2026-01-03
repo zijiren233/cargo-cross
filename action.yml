@@ -454,4 +454,8 @@ runs:
         CARGO_TARGET_DIR: ${{ inputs.target-dir }}
         QUIET: ${{ inputs.quiet }}
         RELEASE: ${{ inputs.release }}
-      run: cargo-cross ${{ inputs.cross-args }}
+      run: |
+        echo "DEBUG: TARGETS=$TARGETS"
+        echo "DEBUG: TOOLCHAIN=$TOOLCHAIN"
+        echo "DEBUG: COMMAND=$COMMAND"
+        cargo-cross ${{ inputs.cross-args }}
