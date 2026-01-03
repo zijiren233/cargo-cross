@@ -5,8 +5,49 @@ use crate::error::{CrossError, Result};
 use futures_util::StreamExt;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::path::Path;
+use std::sync::LazyLock;
+use std::time::Duration;
 use tokio::fs::{self, File};
 use tokio::io::AsyncWriteExt;
+
+/// Shared tick interval for progress bars (100ms)
+const TICK_INTERVAL: Duration = Duration::from_millis(100);
+
+/// Cached progress styles to avoid repeated template parsing
+static DOWNLOAD_SPINNER_STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
+    ProgressStyle::default_spinner()
+        .template("{spinner:.green} Downloading [{elapsed_precise}] {bytes}")
+        .unwrap()
+});
+
+static DOWNLOAD_BAR_STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
+    ProgressStyle::default_bar()
+        .template("{spinner:.green} Downloading [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")
+        .unwrap()
+        .progress_chars("=> ")
+});
+
+static EXTRACT_SPINNER_STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
+    ProgressStyle::default_spinner()
+        .template("{spinner:.magenta} Extracting  [{elapsed_precise}] {pos} files ({my_per_sec}/s)")
+        .unwrap()
+        .with_key(
+            "my_per_sec",
+            |state: &indicatif::ProgressState, w: &mut dyn std::fmt::Write| {
+                write!(w, "{:.0}", state.per_sec()).unwrap();
+            },
+        )
+});
+
+static EXTRACT_BAR_STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
+    ProgressStyle::default_bar()
+        .template("{spinner:.magenta} Extracting  [{elapsed_precise}] [{bar:40.magenta/white}] {pos}/{len} files ({my_per_sec}/s, {eta})")
+        .unwrap()
+        .progress_chars("=> ")
+        .with_key("my_per_sec", |state: &indicatif::ProgressState, w: &mut dyn std::fmt::Write| {
+            write!(w, "{:.0}", state.per_sec()).unwrap();
+        })
+});
 
 /// Archive format
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -179,19 +220,17 @@ async fn download_and_extract_tar_gz(url: &str, dest: &Path) -> Result<()> {
         .entries()
         .map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
 
-    let mut file_count: u64 = 0;
     while let Some(entry) = entries.next().await {
         let mut entry = entry.map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
         entry
             .unpack_in(dest)
             .await
             .map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
-        file_count += 1;
-        extract_pb.set_message(format!("{file_count} files"));
+        extract_pb.inc(1);
     }
 
     download_pb.finish_with_message("Download complete");
-    extract_pb.finish_with_message(format!("{file_count} files extracted"));
+    extract_pb.finish_with_message(format!("{} files extracted", extract_pb.position()));
 
     Ok(())
 }
@@ -234,11 +273,8 @@ async fn download_and_extract_zip(url: &str, dest: &Path) -> Result<()> {
 
     download_pb.finish_with_message("Download complete");
 
-    // Create extract spinner after download completes (so timing starts fresh)
-    let extract_pb = create_extract_spinner();
-
-    // Extract ZIP with progress
-    extract_zip_archive(&zip_path, dest, &extract_pb)?;
+    // Extract ZIP with progress (creates its own progress bar with known total)
+    extract_zip_archive(&zip_path, dest)?;
 
     // Clean up zip file after extraction
     fs::remove_file(&zip_path).await.ok();
@@ -248,7 +284,7 @@ async fn download_and_extract_zip(url: &str, dest: &Path) -> Result<()> {
 
 /// Extract ZIP archive from file with progress reporting
 /// Based on zip crate's extract_internal implementation
-fn extract_zip_archive(zip_path: &Path, dest: &Path, pb: &ProgressBar) -> Result<()> {
+fn extract_zip_archive(zip_path: &Path, dest: &Path) -> Result<()> {
     use std::fs;
     use std::io::Read;
 
@@ -260,6 +296,9 @@ fn extract_zip_archive(zip_path: &Path, dest: &Path, pb: &ProgressBar) -> Result
         zip::ZipArchive::new(file).map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
 
     let total_files = archive.len();
+
+    // Create progress bar with known total (shows speed and ETA)
+    let pb = create_extract_progress_bar(total_files);
 
     // Collect files that need permission setting (set at the end)
     #[cfg(unix)]
@@ -276,6 +315,7 @@ fn extract_zip_archive(zip_path: &Path, dest: &Path, pb: &ProgressBar) -> Result
         };
 
         // Handle symlinks: read target first, then drop file handle before creating symlink
+        #[allow(clippy::cast_possible_truncation)] // symlink targets are typically small
         let symlink_target = if file.is_symlink() && (cfg!(unix) || cfg!(windows)) {
             let mut target = Vec::with_capacity(file.size() as usize);
             file.read_to_end(&mut target)
@@ -284,7 +324,6 @@ fn extract_zip_archive(zip_path: &Path, dest: &Path, pb: &ProgressBar) -> Result
         } else if file.is_dir() {
             // Create directory and ensure it's writable for subsequent file extractions
             make_writable_dir_all(&outpath)?;
-            pb.set_message(format!("{}/{} files", i + 1, total_files));
             continue;
         } else {
             None
@@ -339,7 +378,7 @@ fn extract_zip_archive(zip_path: &Path, dest: &Path, pb: &ProgressBar) -> Result
             }
         }
 
-        pb.set_message(format!("{}/{} files", i + 1, total_files));
+        pb.inc(1);
     }
 
     // Set permissions at the end, in reverse path order
@@ -377,38 +416,36 @@ fn make_writable_dir_all(path: &Path) -> Result<()> {
 
 /// Create a progress bar for download
 fn create_download_progress_bar(total_size: Option<u64>) -> ProgressBar {
-    total_size.map_or_else(
+    let pb = total_size.map_or_else(
         || {
             let pb = ProgressBar::new_spinner();
-            pb.set_style(
-                ProgressStyle::default_spinner()
-                    .template("{spinner:.green} Downloading [{elapsed_precise}] {bytes}")
-                    .unwrap(),
-            );
+            pb.set_style(DOWNLOAD_SPINNER_STYLE.clone());
             pb
         },
         |size| {
             let pb = ProgressBar::new(size);
-            pb.set_style(
-                ProgressStyle::default_bar()
-                    .template("{spinner:.green} Downloading [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
-                    .unwrap()
-                    .progress_chars("#>-"),
-            );
+            pb.set_style(DOWNLOAD_BAR_STYLE.clone());
             pb
         },
-    )
+    );
+    // Enable steady tick so elapsed time updates even when network IO stalls
+    pb.enable_steady_tick(TICK_INTERVAL);
+    pb
 }
 
 /// Create a spinner for extraction progress (file count shown in message)
 fn create_extract_spinner() -> ProgressBar {
     let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.magenta} Extracting  [{elapsed_precise}] {msg}")
-            .unwrap(),
-    );
-    pb.enable_steady_tick(std::time::Duration::from_millis(100));
+    pb.set_style(EXTRACT_SPINNER_STYLE.clone());
+    pb.enable_steady_tick(TICK_INTERVAL);
+    pb
+}
+
+/// Create a progress bar for extraction with known total (shows speed and ETA)
+fn create_extract_progress_bar(total: usize) -> ProgressBar {
+    let pb = ProgressBar::new(total as u64);
+    pb.set_style(EXTRACT_BAR_STYLE.clone());
+    pb.enable_steady_tick(TICK_INTERVAL);
     pb
 }
 
