@@ -292,7 +292,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `crt-st
 | `source-dir` | Directory containing the Rust project | `${{ github.workspace }}` |
 | `github-proxy-mirror` | GitHub proxy mirror URL | |
 | `cross-compiler-dir` | Directory to store cross compilers | |
-| `ndk-version` | Android NDK version | `r27` |
+| `ndk-version` | Android NDK version (e.g., r27d, r29) | `r27d` (LTS) |
 | `glibc-version` | Glibc version for GNU targets (e.g., 2.31, 2.42) | (default) |
 | `iphone-sdk-version` | iPhone SDK version for iOS targets (non-macOS: bundled SDKs, macOS: installed Xcode SDK) | (default 26.2) |
 | `iphone-sdk-path` | Override iPhoneOS SDK path for device targets (skips version lookup, native macOS only) | |
@@ -357,7 +357,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `crt-st
     targets: |
       aarch64-linux-android
       armv7-linux-androideabi
-    ndk-version: r27
+    # ndk-version: r29  # Optional: specify NDK version (default: r27d LTS)
 ```
 
 ### Custom Compiler
@@ -714,12 +714,13 @@ This action uses the following toolchain versions from [cross-make](https://gith
 
 | Component | Version |
 |-----------|---------|
-| GCC | 14.3.0 |
+| GCC | 15.2.0 |
 | Binutils | 2.45.1 |
 | GMP | 6.3.0 |
 | MPC | 1.3.1 |
 | MPFR | 4.2.2 |
 | ISL | 0.27 |
+| Zstd | 1.5.7 |
 
 ### Platform-Specific
 
@@ -733,7 +734,7 @@ This action uses the following toolchain versions from [cross-make](https://gith
 | FreeBSD 14 | FreeBSD | 14.3 |
 | macOS | macOS SDK | 26.2 (default), 14.0-26.2 available |
 | iOS | iPhone SDK | 26.2 (default), 17.0-26.2 available |
-| Android | NDK | r27 (default) |
+| Android | NDK | r27d LTS (default), r29 stable available |
 
 ### Supported Glibc Versions
 

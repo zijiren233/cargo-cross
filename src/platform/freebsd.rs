@@ -64,13 +64,13 @@ pub async fn setup(
     }
 
     let mut env = CrossEnv::new();
+    let bin_dir = compiler_dir.join("bin");
 
-    // Set compiler paths
     env.set_cc(&gcc_name);
     env.set_cxx(format!("{bin_prefix}-g++{exe_ext}"));
     env.set_ar(format!("{bin_prefix}-ar{exe_ext}"));
     env.set_linker(&gcc_name);
-    env.add_path(compiler_dir.join("bin"));
+    env.add_path(&bin_dir);
 
     // Add library search paths from gcc to rustc
     set_gcc_lib_paths(&mut env, &compiler_dir, &bin_prefix);

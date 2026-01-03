@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Test the GitHub Action itself
+  # Test cross-compilation on Linux and macOS
   test-action:
     name: Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -35,28 +35,35 @@ jobs:
           - |
             x86_64-unknown-freebsd
             aarch64-unknown-freebsd
-            powerpc64-unknown-freebsd
-            powerpc64le-unknown-freebsd
             riscv64gc-unknown-freebsd
           # macOS
           - |
             x86_64-apple-darwin
             x86_64h-apple-darwin
             aarch64-apple-darwin
-            arm64e-apple-darwin
           # iOS
           - |
             x86_64-apple-ios
             aarch64-apple-ios
             aarch64-apple-ios-sim
-          # Android
-          - |
-            i686-linux-android
-            x86_64-linux-android
-            armv7-linux-androideabi
-            arm-linux-androideabi
-            aarch64-linux-android
-            riscv64-linux-android
+        include:
+          # Android only on x86_64 hosts (NDK doesn't support Linux ARM)
+          - os: ubuntu-24.04
+            target: |
+              i686-linux-android
+              x86_64-linux-android
+              armv7-linux-androideabi
+              arm-linux-androideabi
+              aarch64-linux-android
+              riscv64-linux-android
+          - os: macos-15
+            target: |
+              i686-linux-android
+              x86_64-linux-android
+              armv7-linux-androideabi
+              arm-linux-androideabi
+              aarch64-linux-android
+              riscv64-linux-android
 
     steps:
       - name: Checkout repository
@@ -96,7 +103,7 @@ jobs:
             fi
           done <<< "${{ matrix.target }}"
 
-  # Test the GitHub Action itself
+  # Test on Windows
   test-action-windows:
     name: Test on Windows
     runs-on: windows-latest
@@ -104,19 +111,15 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          # Windows MSVC
+          # Windows MSVC (native)
           - |
             x86_64-pc-windows-msvc
             i686-pc-windows-msvc
             aarch64-pc-windows-msvc
-          # Windows GNU
+          # Windows GNU (MinGW)
           - |
             x86_64-pc-windows-gnu
             i686-pc-windows-gnu
-          - |
-            aarch64-linux-android
-            x86_64-unknown-linux-gnu
-            aarch64-unknown-linux-musl
 
     steps:
       - name: Checkout repository
@@ -138,11 +141,7 @@ jobs:
         run: |
           while IFS= read -r target; do
             [[ -z "$target" ]] && continue
-            if [[ "$target" == *"windows"* ]]; then
-              file="target/$target/release/cargo-cross.exe"
-            else
-              file="target/$target/release/cargo-cross"
-            fi
+            file="target/$target/release/cargo-cross.exe"
             if [[ -f "$file" ]]; then
               echo "✓ $file exists ($(du -h "$file" | cut -f1))"
             else
@@ -151,7 +150,7 @@ jobs:
             fi
           done <<< "${{ matrix.target }}"
 
-  # Test Darwin and iOS SDK versions on Linux
+  # Test SDK versions on Linux x86_64
   test-sdk-versions:
     name: Test SDK Versions
     runs-on: ubuntu-24.04

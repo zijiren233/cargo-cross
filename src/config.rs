@@ -36,8 +36,8 @@ pub const DEFAULT_FREEBSD_VERSION: &str = "13";
 /// Default cross-compiler dependencies version
 pub const DEFAULT_CROSS_DEPS_VERSION: &str = "v0.7.4";
 
-/// Default Android NDK version
-pub const DEFAULT_NDK_VERSION: &str = "r27";
+/// Default Android NDK version (LTS)
+pub const DEFAULT_NDK_VERSION: &str = "r27d";
 
 /// Default QEMU version
 pub const DEFAULT_QEMU_VERSION: &str = "v10.2.0";

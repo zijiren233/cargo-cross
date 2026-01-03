@@ -60,9 +60,8 @@ inputs:
     description: "Directory to store cross compilers"
     required: false
   ndk-version:
-    description: "Android NDK version for Android builds"
+    description: "Android NDK version for Android builds (e.g., r27d, r29). Leave empty for default version (r27d LTS)"
     required: false
-    default: "r27"
   glibc-version:
     description: "Glibc version for GNU targets (e.g., 2.31, 2.42). Leave empty for default version"
     required: false
