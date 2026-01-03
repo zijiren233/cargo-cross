@@ -246,16 +246,24 @@ async fn download_and_extract_zip(url: &str, dest: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Extract ZIP archive from file
+/// Extract ZIP archive from file with progress reporting
+/// Based on zip crate's extract_internal implementation
 fn extract_zip_archive(zip_path: &Path, dest: &Path, pb: &ProgressBar) -> Result<()> {
     use std::fs;
-    use std::io::{Read, Write};
+    use std::io::Read;
+
+    // Create destination directory
+    fs::create_dir_all(dest)?;
 
     let file = fs::File::open(zip_path)?;
     let mut archive =
         zip::ZipArchive::new(file).map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
 
     let total_files = archive.len();
+
+    // Collect files that need permission setting (set at the end)
+    #[cfg(unix)]
+    let mut files_by_unix_mode: Vec<(std::path::PathBuf, u32)> = Vec::new();
 
     for i in 0..total_files {
         let mut file = archive
@@ -267,35 +275,103 @@ fn extract_zip_archive(zip_path: &Path, dest: &Path, pb: &ProgressBar) -> Result
             None => continue,
         };
 
-        if file.is_dir() {
-            fs::create_dir_all(&outpath)?;
+        // Handle symlinks: read target first, then drop file handle before creating symlink
+        let symlink_target = if file.is_symlink() && (cfg!(unix) || cfg!(windows)) {
+            let mut target = Vec::with_capacity(file.size() as usize);
+            file.read_to_end(&mut target)
+                .map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
+            Some(target)
+        } else if file.is_dir() {
+            // Create directory and ensure it's writable for subsequent file extractions
+            make_writable_dir_all(&outpath)?;
+            pb.set_message(format!("{}/{} files", i + 1, total_files));
+            continue;
         } else {
+            None
+        };
+
+        // Drop file handle before creating symlink or re-opening for copy
+        drop(file);
+
+        if let Some(target) = symlink_target {
+            // Create parent directory if needed
             if let Some(parent) = outpath.parent() {
-                if !parent.exists() {
+                make_writable_dir_all(parent)?;
+            }
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::symlink;
+                let target_str = std::str::from_utf8(&target)
+                    .map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
+                // Remove existing file/symlink if present
+                if outpath.symlink_metadata().is_ok() {
+                    fs::remove_file(&outpath).ok();
+                }
+                symlink(target_str, &outpath)
+                    .map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
+            }
+            #[cfg(not(unix))]
+            {
+                // On non-Unix, write target as file content
+                if let Some(parent) = outpath.parent() {
                     fs::create_dir_all(parent)?;
                 }
+                fs::write(&outpath, &target)?;
+            }
+        } else {
+            // Regular file: re-open file handle and copy content
+            let mut file = archive
+                .by_index(i)
+                .map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
+
+            if let Some(parent) = outpath.parent() {
+                make_writable_dir_all(parent)?;
             }
 
             let mut outfile = fs::File::create(&outpath)?;
-            let mut buffer = Vec::new();
-            file.read_to_end(&mut buffer)
-                .map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
-            outfile.write_all(&buffer)?;
-        }
+            std::io::copy(&mut file, &mut outfile)?;
 
-        // Set permissions on Unix
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
+            // Collect permissions for later (don't set immediately)
+            #[cfg(unix)]
             if let Some(mode) = file.unix_mode() {
-                fs::set_permissions(&outpath, fs::Permissions::from_mode(mode))?;
+                files_by_unix_mode.push((outpath.clone(), mode));
             }
         }
 
         pb.set_message(format!("{}/{} files", i + 1, total_files));
     }
 
+    // Set permissions at the end, in reverse path order
+    // This ensures child permissions are set before parent becomes unwritable
+    #[cfg(unix)]
+    {
+        use std::cmp::Reverse;
+        use std::os::unix::fs::PermissionsExt;
+
+        if files_by_unix_mode.len() > 1 {
+            files_by_unix_mode.sort_by_key(|(path, _)| Reverse(path.clone()));
+        }
+        for (path, mode) in files_by_unix_mode {
+            fs::set_permissions(&path, fs::Permissions::from_mode(mode))?;
+        }
+    }
+
     pb.finish_with_message(format!("{total_files} files extracted"));
+    Ok(())
+}
+
+/// Create directory and ensure it's writable (for subsequent file extractions)
+fn make_writable_dir_all(path: &Path) -> Result<()> {
+    std::fs::create_dir_all(path)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let metadata = std::fs::metadata(path)?;
+        let current_mode = metadata.permissions().mode();
+        // Add owner rwx permissions to ensure directory is writable
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700 | current_mode))?;
+    }
     Ok(())
 }
 

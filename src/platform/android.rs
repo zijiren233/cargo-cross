@@ -6,6 +6,7 @@ use crate::config::{Arch, HostPlatform, TargetConfig};
 use crate::download::download_and_extract;
 use crate::env::CrossEnv;
 use crate::error::{CrossError, Result};
+use std::path::PathBuf;
 use tokio::fs;
 
 /// Setup Android cross-compilation environment
@@ -21,13 +22,10 @@ pub async fn setup(
         .cross_compiler_dir
         .join(format!("android-ndk-{}-{}", host.os, args.ndk_version));
 
-    let clang_base_dir = ndk_dir
-        .join("toolchains/llvm/prebuilt")
-        .join(format!("{}-x86_64", host.os))
-        .join("bin");
+    let prebuilt_dir = ndk_dir.join("toolchains/llvm/prebuilt");
 
     // Download NDK if not present
-    if !ndk_dir.exists() || !clang_base_dir.exists() {
+    if !ndk_dir.exists() {
         let ndk_url = format!(
             "https://dl.google.com/android/repository/android-ndk-{}-{}.zip",
             args.ndk_version, host.os
@@ -54,6 +52,9 @@ pub async fn setup(
         }
     }
 
+    // Detect available prebuilt directory after download
+    let clang_base_dir = find_prebuilt_bin_dir(&prebuilt_dir, host).await?;
+
     // Map architecture to Android target prefix
     let (clang_prefix, android_abi) = match arch {
         Arch::Armv7 => ("armv7a-linux-androideabi24", "armeabi-v7a"),
@@ -71,11 +72,12 @@ pub async fn setup(
 
     let mut env = CrossEnv::new();
 
-    // Set compiler paths
-    env.set_cc(format!("{clang_prefix}-clang"));
-    env.set_cxx(format!("{clang_prefix}-clang++"));
-    env.set_ar("llvm-ar".to_string());
-    env.set_linker(format!("{clang_prefix}-clang"));
+    // Set compiler paths (add .exe extension on Windows)
+    let exe_ext = if host.is_windows() { ".exe" } else { "" };
+    env.set_cc(format!("{clang_prefix}-clang{exe_ext}"));
+    env.set_cxx(format!("{clang_prefix}-clang++{exe_ext}"));
+    env.set_ar(format!("llvm-ar{exe_ext}"));
+    env.set_linker(format!("{clang_prefix}-clang{exe_ext}"));
     env.add_path(&clang_base_dir);
 
     // Create wrapper toolchain file for cmake
@@ -108,14 +110,16 @@ include("{}")
     );
 
     // Set LIBCLANG_PATH for bindgen
-    let ndk_llvm_base = ndk_dir
-        .join("toolchains/llvm/prebuilt")
-        .join(format!("{}-x86_64", host.os));
+    let ndk_llvm_base = clang_base_dir.parent().unwrap_or(&clang_base_dir);
+    let libclang_name = if host.is_windows() {
+        "libclang.dll"
+    } else {
+        "libclang.so"
+    };
 
     for lib_dir in &["lib", "lib64", "musl/lib"] {
         let libclang_path = ndk_llvm_base.join(lib_dir);
-        let libclang_so = libclang_path.join("libclang.so");
-        if libclang_so.exists() {
+        if libclang_path.join(libclang_name).exists() {
             env.set_env("LIBCLANG_PATH", libclang_path.display().to_string());
             break;
         }
@@ -127,4 +131,46 @@ include("{}")
     ));
 
     Ok(env)
+}
+
+/// Find the prebuilt bin directory in the NDK
+/// Tries multiple possible directory names for cross-platform compatibility
+async fn find_prebuilt_bin_dir(prebuilt_dir: &PathBuf, host: &HostPlatform) -> Result<PathBuf> {
+    // Possible prebuilt directory names in order of preference
+    let candidates = if host.os == "darwin" {
+        // macOS: try arch-specific first, then generic
+        vec![
+            format!("darwin-{}", host.arch),  // darwin-aarch64 or darwin-x86_64
+            "darwin-x86_64".to_string(),      // Rosetta fallback for ARM Mac
+            "darwin".to_string(),             // Generic (some NDK versions)
+        ]
+    } else {
+        // Linux/Windows: typically os-x86_64
+        vec![
+            format!("{}-{}", host.os, host.arch),
+            format!("{}-x86_64", host.os),
+        ]
+    };
+
+    for candidate in &candidates {
+        let bin_dir = prebuilt_dir.join(candidate).join("bin");
+        if bin_dir.exists() {
+            return Ok(bin_dir);
+        }
+    }
+
+    // If no known directory found, try to find any directory in prebuilt
+    if prebuilt_dir.exists() {
+        let mut entries = fs::read_dir(prebuilt_dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let bin_dir = entry.path().join("bin");
+            if bin_dir.exists() {
+                return Ok(bin_dir);
+            }
+        }
+    }
+
+    Err(CrossError::CompilerNotFound {
+        path: prebuilt_dir.clone(),
+    })
 }

@@ -94,11 +94,11 @@ async fn setup_mingw(
 
     let mut env = CrossEnv::new();
 
-    // Set compiler paths (without .exe suffix for env vars, the system will find them)
-    env.set_cc(format!("{bin_prefix}-gcc"));
-    env.set_cxx(format!("{bin_prefix}-g++"));
-    env.set_ar(format!("{bin_prefix}-ar"));
-    env.set_linker(format!("{bin_prefix}-gcc"));
+    // Set compiler paths (with .exe suffix on Windows)
+    env.set_cc(&gcc_name);
+    env.set_cxx(format!("{bin_prefix}-g++{exe_ext}"));
+    env.set_ar(format!("{bin_prefix}-ar{exe_ext}"));
+    env.set_linker(&gcc_name);
     env.add_path(compiler_dir.join("bin"));
 
     // Add library search paths from gcc to rustc

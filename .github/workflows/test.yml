@@ -81,7 +81,8 @@ jobs:
       - name: Verify build artifacts
         shell: bash
         run: |
-          for target in ${{ matrix.target }}; do
+          while IFS= read -r target; do
+            [[ -z "$target" ]] && continue
             if [[ "$target" == *"windows"* ]]; then
               file="target/$target/release/cargo-cross.exe"
             else
@@ -93,7 +94,7 @@ jobs:
               echo "✗ $file not found"
               exit 1
             fi
-          done
+          done <<< "${{ matrix.target }}"
 
   # Test the GitHub Action itself
   test-action-windows:
@@ -112,6 +113,10 @@ jobs:
           - |
             x86_64-pc-windows-gnu
             i686-pc-windows-gnu
+          - |
+            aarch64-linux-android
+            x86_64-unknown-linux-gnu
+            aarch64-unknown-linux-musl
 
     steps:
       - name: Checkout repository
@@ -131,15 +136,20 @@ jobs:
       - name: Verify build artifacts
         shell: bash
         run: |
-          for target in ${{ matrix.target }}; do
-            file="target/$target/release/cargo-cross.exe"
+          while IFS= read -r target; do
+            [[ -z "$target" ]] && continue
+            if [[ "$target" == *"windows"* ]]; then
+              file="target/$target/release/cargo-cross.exe"
+            else
+              file="target/$target/release/cargo-cross"
+            fi
             if [[ -f "$file" ]]; then
-              echo "✓ $file exists"
+              echo "✓ $file exists ($(du -h "$file" | cut -f1))"
             else
               echo "✗ $file not found"
               exit 1
             fi
-          done
+          done <<< "${{ matrix.target }}"
 
   # Test Darwin and iOS SDK versions on Linux
   test-sdk-versions:
