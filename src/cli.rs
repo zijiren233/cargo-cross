@@ -1317,87 +1317,49 @@ pub fn parse_args() -> Result<ParseResult> {
 
 /// Parse arguments from a vector (for testing)
 pub fn parse_args_from(args: Vec<String>) -> Result<ParseResult> {
-    // Handle special case: no args or just program name
-    // Default to build command with host target
-    if args.len() <= 1 {
-        return Ok(ParseResult::Build(Box::new(create_default_args())));
-    }
+    use std::env;
 
-    let mut args = args;
     let mut toolchain: Option<String> = None;
 
-    // Extract +toolchain from args (can appear after program name)
+    // When invoked as `cargo cross`, cargo sets the CARGO env var and passes
+    // args as ["cargo-cross", "cross", ...]. We need to skip both.
+    // When invoked directly as `cargo-cross`, only skip the program name.
+    let is_cargo_subcommand = env::var("CARGO").is_ok()
+        && env::var("CARGO_HOME").is_ok()
+        && args.get(1).map(String::as_str) == Some("cross");
+
+    let skip_count = if is_cargo_subcommand { 2 } else { 1 };
+    let mut args: Vec<String> = args.iter().skip(skip_count).cloned().collect();
+
+    // Extract +toolchain from args (can appear at the beginning)
     // e.g., cargo-cross +nightly build -t x86_64-unknown-linux-musl
-    if args.len() > 1 {
-        if let Some(tc) = args[1].strip_prefix('+') {
-            toolchain = Some(tc.to_string());
-            args.remove(1);
-        }
+    if let Some(tc) = args.first().and_then(|a| a.strip_prefix('+')) {
+        toolchain = Some(tc.to_string());
+        args.remove(0);
     }
 
-    // Handle `cargo cross` invocation - skip the "cross" subcommand marker
-    if args.len() > 1 && args[1] == "cross" {
-        args.remove(1);
-        // Check for toolchain again after "cross"
-        if args.len() > 1 {
-            if let Some(tc) = args[1].strip_prefix('+') {
-                toolchain = Some(tc.to_string());
-                args.remove(1);
-            }
-        }
-    }
-
-    // If no subcommand provided after extracting toolchain, default to build
-    if args.len() <= 1 {
-        return Ok(ParseResult::Build(Box::new(
-            create_default_args_with_toolchain(toolchain),
-        )));
-    }
-
-    // If the next arg doesn't look like a subcommand, insert "build"
-    if !is_subcommand(&args[1]) && !args[1].starts_with('-') {
-        // Unknown positional, treat as error
-        return Err(CrossError::InvalidArgument(args[1].clone()));
-    }
-
-    // If the next arg is an option, insert "build" as default subcommand
-    if args[1].starts_with('-') {
-        args.insert(1, "build".to_string());
-    }
+    // Prepend program name for clap
+    args.insert(0, "cargo-cross".to_string());
 
     // Try to parse with clap
     let cli = match Cli::try_parse_from(&args) {
         Ok(cli) => cli,
         Err(e) => {
-            // For help/version, print and return success-like behavior
-            if e.kind() == clap::error::ErrorKind::DisplayHelp
-                || e.kind() == clap::error::ErrorKind::DisplayVersion
-            {
+            // For help/version/missing subcommand, let clap print and exit
+            if matches!(
+                e.kind(),
+                clap::error::ErrorKind::DisplayHelp
+                    | clap::error::ErrorKind::DisplayVersion
+                    | clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
+            ) {
                 e.exit();
             }
-            return Err(CrossError::ClapError(e.to_string()));
+            // For argument errors, return Err so tests can catch them
+            return Err(CrossError::ClapError(e.render().to_string()));
         }
     };
 
     process_cli(cli, toolchain)
-}
-
-fn is_subcommand(s: &str) -> bool {
-    matches!(
-        s,
-        "build"
-            | "b"
-            | "check"
-            | "c"
-            | "run"
-            | "r"
-            | "test"
-            | "t"
-            | "bench"
-            | "targets"
-            | "help"
-            | "version"
-    )
 }
 
 fn process_cli(cli: Cli, toolchain: Option<String>) -> Result<ParseResult> {
@@ -1424,26 +1386,6 @@ fn process_cli(cli: Cli, toolchain: Option<String>) -> Result<ParseResult> {
         }
         CliCommand::Targets(args) => Ok(ParseResult::ShowTargets(args.format)),
         CliCommand::Version => Ok(ParseResult::ShowVersion),
-    }
-}
-
-fn create_default_args() -> Args {
-    create_default_args_with_toolchain(None)
-}
-
-fn create_default_args_with_toolchain(toolchain: Option<String>) -> Args {
-    let host = config::HostPlatform::detect();
-    let mut build = BuildArgs::default_for_host();
-    build.use_default_linker = true;
-
-    Args {
-        toolchain,
-        command: Command::Build,
-        targets: vec![host.triple],
-        no_cargo_target: true,
-        cross_deps_version: DEFAULT_CROSS_DEPS_VERSION.to_string(),
-        cross_compiler_dir: std::env::temp_dir().join("rust-cross-compiler"),
-        build,
     }
 }
 
@@ -1555,8 +1497,7 @@ pub fn print_all_targets(format: OutputFormat) {
             }
         }
         OutputFormat::Json => {
-            let json_array =
-                serde_json::to_string(&targets).unwrap_or_else(|_| "[]".to_string());
+            let json_array = serde_json::to_string(&targets).unwrap_or_else(|_| "[]".to_string());
             println!("{json_array}");
         }
         OutputFormat::Plain => {
@@ -1568,8 +1509,7 @@ pub fn print_all_targets(format: OutputFormat) {
 
     // Output to GITHUB_OUTPUT if running in GitHub Actions
     if let Ok(github_output) = std::env::var("GITHUB_OUTPUT") {
-        let json_array =
-            serde_json::to_string(&targets).unwrap_or_else(|_| "[]".to_string());
+        let json_array = serde_json::to_string(&targets).unwrap_or_else(|_| "[]".to_string());
         if let Ok(mut file) = std::fs::OpenOptions::new()
             .append(true)
             .open(&github_output)
@@ -1606,12 +1546,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_parse_empty() {
-        let args = parse(&["cargo-cross"]).unwrap();
-        assert_eq!(args.command, Command::Build);
-        assert_eq!(args.profile, "release");
-    }
+    // Note: test_parse_empty_requires_subcommand removed because MissingSubcommand
+    // now calls exit() which cannot be tested
 
     #[test]
     fn test_parse_build_command() {

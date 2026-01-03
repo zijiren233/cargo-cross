@@ -365,7 +365,6 @@ runs:
       working-directory: ${{ inputs.source-dir }}
       env:
         CLICOLOR_FORCE: "1"
-        COMMAND: ${{ inputs.command }}
         TARGETS: ${{ inputs.target || inputs.targets }}
         PROFILE: ${{ inputs.profile }}
         FEATURES: ${{ inputs.features }}
@@ -454,8 +453,4 @@ runs:
         CARGO_TARGET_DIR: ${{ inputs.target-dir }}
         QUIET: ${{ inputs.quiet }}
         RELEASE: ${{ inputs.release }}
-      run: |
-        echo "DEBUG: TARGETS=$TARGETS"
-        echo "DEBUG: TOOLCHAIN=$TOOLCHAIN"
-        echo "DEBUG: COMMAND=$COMMAND"
-        cargo-cross ${{ inputs.cross-args }}
+      run: cargo-cross ${{ inputs.command }} ${{ inputs.cross-args }}
