@@ -85,7 +85,7 @@ pub enum CrossError {
     #[error("Environment variable error: {0}")]
     EnvError(String),
 
-    #[error("No matching targets found for pattern '{pattern}'\nUse 'cargo-cross targets' to see available targets")]
+    #[error("No matching targets found for pattern '{pattern}'\nUse '{prog} targets' to see available targets", prog = crate::cli::program_name())]
     NoMatchingTargets { pattern: String },
 
     #[error("Invalid target triple '{target}': contains invalid character '{char}'\nTarget triples may only contain lowercase letters (a-z), digits (0-9), hyphens (-), and underscores (_)")]

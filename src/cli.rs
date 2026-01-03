@@ -8,8 +8,40 @@ use crate::config::{
 };
 use crate::error::{CrossError, Result};
 use clap::builder::styling::{AnsiColor, Effects, Styles};
-use clap::{Args as ClapArgs, Parser, Subcommand, ValueHint};
+use clap::{Args as ClapArgs, CommandFactory, FromArgMatches, Parser, Subcommand, ValueHint};
 use std::path::PathBuf;
+use std::sync::LazyLock;
+
+/// Binary name from Cargo.toml (e.g., "cargo-cross")
+const BIN_NAME: &str = env!("CARGO_PKG_NAME");
+
+/// Define subcommand-related constants from a single literal
+macro_rules! define_subcommand {
+    ($name:literal) => {
+        const SUBCOMMAND: &str = $name;
+        const CARGO_DISPLAY_NAME: &str = concat!("cargo ", $name);
+    };
+}
+define_subcommand!("cross");
+
+/// Program name - either "cargo cross" or "cargo-cross" based on invocation style
+static PROGRAM_NAME: LazyLock<&'static str> = LazyLock::new(|| {
+    let args: Vec<String> = std::env::args().collect();
+    let is_cargo_subcommand = std::env::var("CARGO").is_ok()
+        && std::env::var("CARGO_HOME").is_ok()
+        && args.get(1).map(String::as_str) == Some(SUBCOMMAND);
+
+    if is_cargo_subcommand {
+        CARGO_DISPLAY_NAME
+    } else {
+        BIN_NAME
+    }
+});
+
+/// Get the program name for display
+pub fn program_name() -> &'static str {
+    *PROGRAM_NAME
+}
 
 /// Custom styles for CLI help output
 fn cli_styles() -> Styles {
@@ -62,11 +94,8 @@ pub enum CliCommand {
     #[command(long_about = "\
 Compile the current package and all of its dependencies.
 
-When no target selection options are given, cargo-cross will build all binary
+When no target selection options are given, this tool will build all binary
 and library targets of the selected packages.")]
-    #[command(
-        override_usage = "cargo-cross [+toolchain] build [OPTIONS] [-- <PASSTHROUGH_ARGS>...]"
-    )]
     Build(BuildArgs),
 
     /// Analyze the current package and report errors, but don't build object files
@@ -76,9 +105,6 @@ Check the current package and all of its dependencies for errors.
 
 This will essentially compile packages without performing the final step of
 code generation, which is faster than running build.")]
-    #[command(
-        override_usage = "cargo-cross [+toolchain] check [OPTIONS] [-- <PASSTHROUGH_ARGS>...]"
-    )]
     Check(BuildArgs),
 
     /// Run a binary or example of the current package
@@ -87,9 +113,6 @@ code generation, which is faster than running build.")]
 Run a binary or example of the local package.
 
 For cross-compilation targets, QEMU user-mode emulation is used to run the binary.")]
-    #[command(
-        override_usage = "cargo-cross [+toolchain] run [OPTIONS] [-- <PASSTHROUGH_ARGS>...]"
-    )]
     Run(BuildArgs),
 
     /// Run the tests
@@ -98,9 +121,6 @@ For cross-compilation targets, QEMU user-mode emulation is used to run the binar
 Execute all unit and integration tests and build examples of a local package.
 
 For cross-compilation targets, QEMU user-mode emulation is used to run tests.")]
-    #[command(
-        override_usage = "cargo-cross [+toolchain] test [OPTIONS] [-- <PASSTHROUGH_ARGS>...]"
-    )]
     Test(BuildArgs),
 
     /// Run the benchmarks
@@ -108,9 +128,6 @@ For cross-compilation targets, QEMU user-mode emulation is used to run tests.")]
 Execute all benchmarks of a local package.
 
 For cross-compilation targets, QEMU user-mode emulation is used to run benchmarks.")]
-    #[command(
-        override_usage = "cargo-cross [+toolchain] bench [OPTIONS] [-- <PASSTHROUGH_ARGS>...]"
-    )]
     Bench(BuildArgs),
 
     /// Display all supported cross-compilation targets
@@ -174,7 +191,7 @@ Examples:
   -t aarch64-unknown-linux-gnu,armv7-unknown-linux-gnueabihf
   -t '*-linux-musl'
 
-Use 'cargo-cross targets' to see all supported targets."
+Run the 'targets' subcommand to see all supported targets."
     )]
     pub targets: Vec<String>,
 
@@ -504,7 +521,7 @@ This option is unstable and requires the nightly toolchain.")]
           long_help = "\
 Override the C compiler path.
 
-By default, cargo-cross automatically configures the appropriate cross-compiler
+By default, the appropriate cross-compiler is automatically configured
 for the target. Use this option to specify a custom C compiler.")]
     pub cc: Option<PathBuf>,
 
@@ -514,7 +531,7 @@ for the target. Use this option to specify a custom C compiler.")]
           long_help = "\
 Override the C++ compiler path.
 
-By default, cargo-cross automatically configures the appropriate cross-compiler
+By default, the appropriate cross-compiler is automatically configured
 for the target. Use this option to specify a custom C++ compiler.")]
     pub cxx: Option<PathBuf>,
 
@@ -524,7 +541,7 @@ for the target. Use this option to specify a custom C++ compiler.")]
           long_help = "\
 Override the archiver (ar) path.
 
-By default, cargo-cross automatically configures the appropriate archiver
+By default, the appropriate archiver is automatically configured
 for the target. Use this option to specify a custom archiver.")]
     pub ar: Option<PathBuf>,
 
@@ -535,7 +552,7 @@ for the target. Use this option to specify a custom archiver.")]
           long_help = "\
 Override the linker path.
 
-By default, cargo-cross uses the cross-compiler as the linker.
+By default, the cross-compiler is used as the linker.
 Use this option to specify a custom linker (e.g., lld, mold).")]
     pub linker: Option<PathBuf>,
 
@@ -1022,7 +1039,7 @@ Use 'default' to reset to the default value."
 Build as many crates in the dependency graph as possible.
 
 Rather than aborting the build on the first crate that fails to build,
-cargo-cross will continue building other crates in the dependency graph."
+the build will continue with other crates in the dependency graph."
     )]
     pub keep_going: bool,
 
@@ -1135,8 +1152,8 @@ Everything after -- is passed directly to cargo/test runner.
 For test command, these are passed to the test binary.
 
 Examples:
-  cargo-cross test -- --nocapture --test-threads=1
-  cargo-cross run -- --arg1 --arg2"
+  <PROGRAM> test -- --nocapture --test-threads=1
+  <PROGRAM> run -- --arg1 --arg2"
     )]
     pub passthrough_args: Vec<String>,
 }
@@ -1301,24 +1318,29 @@ pub fn parse_args_from(args: Vec<String>) -> Result<ParseResult> {
     // When invoked directly as `cargo-cross`, only skip the program name.
     let is_cargo_subcommand = env::var("CARGO").is_ok()
         && env::var("CARGO_HOME").is_ok()
-        && args.get(1).map(String::as_str) == Some("cross");
+        && args.get(1).map(String::as_str) == Some(SUBCOMMAND);
 
     let skip_count = if is_cargo_subcommand { 2 } else { 1 };
     let mut args: Vec<String> = args.iter().skip(skip_count).cloned().collect();
 
     // Extract +toolchain from args (can appear at the beginning)
-    // e.g., cargo-cross +nightly build -t x86_64-unknown-linux-musl
+    // e.g., cargo cross +nightly build -t x86_64-unknown-linux-musl
     if let Some(tc) = args.first().and_then(|a| a.strip_prefix('+')) {
         toolchain = Some(tc.to_string());
         args.remove(0);
     }
 
-    // Prepend program name for clap
-    args.insert(0, "cargo-cross".to_string());
+    // Prepend program name for clap (internal name, not displayed)
+    args.insert(0, BIN_NAME.to_string());
 
-    // Try to parse with clap
-    let cli = match Cli::try_parse_from(&args) {
-        Ok(cli) => cli,
+    // Build command with dynamic help text
+    let cmd = build_command_with_dynamic_help();
+
+    // Try to parse with clap using modified command
+    let cli = match cmd.try_get_matches_from(&args) {
+        Ok(matches) => {
+            Cli::from_arg_matches(&matches).map_err(|e| CrossError::ClapError(e.to_string()))?
+        }
         Err(e) => {
             // For help/version/missing subcommand, let clap print and exit
             if matches!(
@@ -1335,6 +1357,40 @@ pub fn parse_args_from(args: Vec<String>) -> Result<ParseResult> {
     };
 
     process_cli(cli, toolchain)
+}
+
+/// Build the clap Command with dynamic help text based on invocation style
+fn build_command_with_dynamic_help() -> clap::Command {
+    let prog = program_name();
+
+    // Build dynamic help strings
+    let usage = format!("{prog} [+toolchain] <COMMAND> [OPTIONS]");
+    let after_help = format!(
+        "Use '{prog} <COMMAND> --help' for more information about a command.\n\n\
+TOOLCHAIN:\n    \
+    If the first argument begins with +, it will be interpreted as a Rust toolchain\n    \
+    name (such as +nightly, +stable, or +1.75.0). This follows the same convention\n    \
+    as rustup and cargo.\n\n\
+EXAMPLES:\n    \
+    {prog} build -t x86_64-unknown-linux-musl\n    \
+    {prog} +nightly build -t aarch64-unknown-linux-gnu --profile release\n    \
+    {prog} build -t '*-linux-musl' --crt-static true\n    \
+    {prog} test -t x86_64-unknown-linux-musl -- --nocapture"
+    );
+
+    // Get base command and modify it
+    let mut cmd = Cli::command().override_usage(usage).after_help(after_help);
+
+    // Update subcommand usage strings
+    for subcmd_name in &["build", "check", "run", "test", "bench"] {
+        cmd = cmd.mut_subcommand(*subcmd_name, |subcmd| {
+            subcmd.override_usage(format!(
+                "{prog} [+toolchain] {subcmd_name} [OPTIONS] [-- <PASSTHROUGH_ARGS>...]"
+            ))
+        });
+    }
+
+    cmd
 }
 
 fn process_cli(cli: Cli, toolchain: Option<String>) -> Result<ParseResult> {
@@ -2840,7 +2896,9 @@ mod tests {
     fn test_glob_pattern_matches_target() {
         // x86_64*unknown-linux-musl matches x86_64-unknown-linux-musl (glob * matches -)
         let args = parse(&["cargo-cross", "build", "-t", "x86_64*unknown-linux-musl"]).unwrap();
-        assert!(args.targets.contains(&"x86_64-unknown-linux-musl".to_string()));
+        assert!(args
+            .targets
+            .contains(&"x86_64-unknown-linux-musl".to_string()));
     }
 
     #[test]
@@ -2888,7 +2946,13 @@ mod tests {
 
     #[test]
     fn test_valid_target_triple_with_numbers() {
-        let args = parse(&["cargo-cross", "build", "-t", "armv7-unknown-linux-gnueabihf"]).unwrap();
+        let args = parse(&[
+            "cargo-cross",
+            "build",
+            "-t",
+            "armv7-unknown-linux-gnueabihf",
+        ])
+        .unwrap();
         assert_eq!(args.targets, vec!["armv7-unknown-linux-gnueabihf"]);
     }
 
@@ -2928,5 +2992,76 @@ mod tests {
         assert!(validate_target_triple("x86_64*linux").is_err()); // special char *
         assert!(validate_target_triple("x86_64.linux").is_err()); // special char .
         assert!(validate_target_triple("x86_64 linux").is_err()); // space
+    }
+
+    // Short argument concatenation tests (no separator between flag and value)
+
+    #[test]
+    fn test_short_concat_features() {
+        let args = parse(&["cargo-cross", "build", "-Ffoo,bar"]).unwrap();
+        assert_eq!(args.features, Some("foo,bar".to_string()));
+    }
+
+    #[test]
+    fn test_short_concat_jobs() {
+        let args = parse(&["cargo-cross", "build", "-j4"]).unwrap();
+        assert_eq!(args.jobs, Some("4".to_string()));
+    }
+
+    #[test]
+    fn test_short_concat_package() {
+        let args = parse(&["cargo-cross", "build", "-pmypackage"]).unwrap();
+        assert_eq!(args.package, Some("mypackage".to_string()));
+    }
+
+    #[test]
+    fn test_short_concat_target() {
+        let args = parse(&["cargo-cross", "build", "-tx86_64-unknown-linux-musl"]).unwrap();
+        assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
+    }
+
+    #[test]
+    fn test_short_concat_z_flag() {
+        let args = parse(&["cargo-cross", "build", "-Zbuild-std"]).unwrap();
+        assert_eq!(args.cargo_z_flags, vec!["build-std"]);
+    }
+
+    #[test]
+    fn test_short_concat_directory() {
+        let args = parse(&["cargo-cross", "build", "-C/path/to/project"]).unwrap();
+        assert_eq!(args.cargo_cwd, Some(PathBuf::from("/path/to/project")));
+    }
+
+    #[test]
+    fn test_short_concat_multiple() {
+        let args = parse(&[
+            "cargo-cross",
+            "build",
+            "-tx86_64-unknown-linux-musl",
+            "-Ffoo,bar",
+            "-j8",
+            "-pmypkg",
+        ])
+        .unwrap();
+        assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
+        assert_eq!(args.features, Some("foo,bar".to_string()));
+        assert_eq!(args.jobs, Some("8".to_string()));
+        assert_eq!(args.package, Some("mypkg".to_string()));
+    }
+
+    #[test]
+    fn test_short_concat_mixed_with_space() {
+        let args = parse(&[
+            "cargo-cross",
+            "build",
+            "-j4",
+            "-t",
+            "x86_64-unknown-linux-musl",
+            "-Fbar",
+        ])
+        .unwrap();
+        assert_eq!(args.jobs, Some("4".to_string()));
+        assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
+        assert_eq!(args.features, Some("bar".to_string()));
     }
 }
