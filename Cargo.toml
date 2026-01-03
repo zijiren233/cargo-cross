@@ -56,10 +56,19 @@ nix = { version = "0.30", features = ["process", "signal"] }
 [dev-dependencies]
 tokio-test = "0.4"
 
+[profile.dev]
+opt-level = 0
+debug = 0
+lto = 'off'
+panic = "abort"
+strip = "symbols"
+debug-assertions = false
+overflow-checks = false
+
 [profile.release]
 opt-level = "z"
 debug = 0
-lto = 'off'
+lto = 'thin'
 panic = "abort"
 strip = "symbols"
 debug-assertions = false

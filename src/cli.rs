@@ -127,10 +127,39 @@ Display all supported cross-compilation targets.
 
 You can also use glob patterns with --target to match multiple targets,
 for example: --target '*-linux-musl' or --target 'aarch64-*'")]
-    Targets,
+    Targets(TargetsArgs),
 
     /// Print version information
     Version,
+}
+
+// ============================================================================
+// Targets Arguments
+// ============================================================================
+
+/// Output format for targets command
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
+pub enum OutputFormat {
+    /// Human-readable colored text (default)
+    #[default]
+    Text,
+    /// JSON array format
+    Json,
+    /// Plain text, one target per line
+    Plain,
+}
+
+#[derive(ClapArgs, Debug, Clone, Default)]
+pub struct TargetsArgs {
+    /// Output format
+    #[arg(
+        short = 'f',
+        long = "format",
+        value_enum,
+        default_value = "text",
+        help = "Output format (text, json, plain)"
+    )]
+    pub format: OutputFormat,
 }
 
 // ============================================================================
@@ -1271,7 +1300,7 @@ pub enum ParseResult {
     /// Normal build/check/run/test/bench command
     Build(Box<Args>),
     /// Show targets command
-    ShowTargets,
+    ShowTargets(OutputFormat),
     /// Show version
     ShowVersion,
 }
@@ -1393,7 +1422,7 @@ fn process_cli(cli: Cli, toolchain: Option<String>) -> Result<ParseResult> {
             let args = finalize_args(args, Command::Bench, toolchain)?;
             Ok(ParseResult::Build(Box::new(args)))
         }
-        CliCommand::Targets => Ok(ParseResult::ShowTargets),
+        CliCommand::Targets(args) => Ok(ParseResult::ShowTargets(args.format)),
         CliCommand::Version => Ok(ParseResult::ShowVersion),
     }
 }
@@ -1506,14 +1535,28 @@ fn validate_versions(args: &Args) -> Result<()> {
 }
 
 /// Print all supported targets
-pub fn print_all_targets() {
-    use colored::Colorize;
-
-    println!("{}", "Supported Rust targets:".bright_green());
+pub fn print_all_targets(format: OutputFormat) {
     let mut targets: Vec<_> = config::all_targets().collect();
     targets.sort_unstable();
-    for target in &targets {
-        println!("  {}", target.bright_cyan());
+
+    match format {
+        OutputFormat::Text => {
+            use colored::Colorize;
+            println!("{}", "Supported Rust targets:".bright_green());
+            for target in &targets {
+                println!("  {}", target.bright_cyan());
+            }
+        }
+        OutputFormat::Json => {
+            let json_array =
+                serde_json::to_string(&targets).unwrap_or_else(|_| "[]".to_string());
+            println!("{json_array}");
+        }
+        OutputFormat::Plain => {
+            for target in &targets {
+                println!("{target}");
+            }
+        }
     }
 
     // Output to GITHUB_OUTPUT if running in GitHub Actions
@@ -1551,7 +1594,7 @@ mod tests {
         let args: Vec<String> = args.iter().map(std::string::ToString::to_string).collect();
         match parse_args_from(args)? {
             ParseResult::Build(args) => Ok(*args),
-            ParseResult::ShowTargets => panic!("unexpected ShowTargets"),
+            ParseResult::ShowTargets(_) => panic!("unexpected ShowTargets"),
             ParseResult::ShowVersion => panic!("unexpected ShowVersion"),
         }
     }
@@ -1672,7 +1715,41 @@ mod tests {
     fn test_targets_subcommand() {
         let args: Vec<String> = vec!["cargo-cross".to_string(), "targets".to_string()];
         match parse_args_from(args).unwrap() {
-            ParseResult::ShowTargets => {}
+            ParseResult::ShowTargets(format) => {
+                assert_eq!(format, OutputFormat::Text);
+            }
+            _ => panic!("expected ShowTargets"),
+        }
+    }
+
+    #[test]
+    fn test_targets_json_format() {
+        let args: Vec<String> = vec![
+            "cargo-cross".to_string(),
+            "targets".to_string(),
+            "--format".to_string(),
+            "json".to_string(),
+        ];
+        match parse_args_from(args).unwrap() {
+            ParseResult::ShowTargets(format) => {
+                assert_eq!(format, OutputFormat::Json);
+            }
+            _ => panic!("expected ShowTargets"),
+        }
+    }
+
+    #[test]
+    fn test_targets_plain_format() {
+        let args: Vec<String> = vec![
+            "cargo-cross".to_string(),
+            "targets".to_string(),
+            "-f".to_string(),
+            "plain".to_string(),
+        ];
+        match parse_args_from(args).unwrap() {
+            ParseResult::ShowTargets(format) => {
+                assert_eq!(format, OutputFormat::Plain);
+            }
             _ => panic!("expected ShowTargets"),
         }
     }
@@ -2565,7 +2642,7 @@ mod tests {
             "targets".to_string(),
         ];
         match parse_args_from(args).unwrap() {
-            ParseResult::ShowTargets => {}
+            ParseResult::ShowTargets(_) => {}
             _ => panic!("expected ShowTargets"),
         }
     }

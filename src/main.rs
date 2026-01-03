@@ -64,8 +64,8 @@ async fn run() -> Result<ExitCode> {
     // Parse command-line arguments
     let args = match parse_args()? {
         ParseResult::Build(args) => *args,
-        ParseResult::ShowTargets => {
-            print_all_targets();
+        ParseResult::ShowTargets(format) => {
+            print_all_targets(format);
             return Ok(ExitCode::SUCCESS);
         }
         ParseResult::ShowVersion => {

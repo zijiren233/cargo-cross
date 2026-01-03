@@ -346,13 +346,18 @@ runs:
     - name: Setup Rustup
       uses: actions-rust-lang/setup-rust-toolchain@v1
 
+    - name: Build cargo-cross
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        [ -x target/debug/cargo-cross ] || cargo build
+
     - name: Show all targets
       id: show-targets
       if: ${{ inputs.show-all-targets == 'true' }}
       shell: bash
       working-directory: ${{ inputs.source-dir }}
-      run: |
-        cargo run ${{ github.action_path }} -- targets
+      run: ${{ github.action_path }}/target/debug/cargo-cross targets --format json
 
     - name: Execute
       id: execute
@@ -449,5 +454,4 @@ runs:
         CARGO_TARGET_DIR: ${{ inputs.target-dir }}
         QUIET: ${{ inputs.quiet }}
         RELEASE: ${{ inputs.release }}
-      run: |
-        cargo run ${{ github.action_path }} -- ${{ inputs.cross-args }}
+      run: ${{ github.action_path }}/target/debug/cargo-cross ${{ inputs.cross-args }}
