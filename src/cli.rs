@@ -1306,6 +1306,26 @@ pub enum ParseResult {
 }
 
 // ============================================================================
+// Environment Sanitization
+// ============================================================================
+
+/// Remove empty environment variables that clap would incorrectly treat as having values.
+/// Clap's `env = "VAR"` attribute treats empty strings as valid values, which causes
+/// parsing errors for PathBuf and other types that don't accept empty strings.
+fn sanitize_clap_env() {
+    // Remove all empty environment variables - this is safe because empty string
+    // env vars are almost never meaningful and would cause clap parsing errors
+    let empty_vars: Vec<_> = std::env::vars()
+        .filter(|(_, v)| v.is_empty())
+        .map(|(k, _)| k)
+        .collect();
+
+    for var in empty_vars {
+        std::env::remove_var(&var);
+    }
+}
+
+// ============================================================================
 // Entry Point
 // ============================================================================
 
@@ -1318,6 +1338,10 @@ pub fn parse_args() -> Result<ParseResult> {
 /// Parse arguments from a vector (for testing)
 pub fn parse_args_from(args: Vec<String>) -> Result<ParseResult> {
     use std::env;
+
+    // Remove empty environment variables that clap would incorrectly treat as having values
+    // This must be done before clap parses, as clap reads from env vars with `env = "VAR"`
+    sanitize_clap_env();
 
     let mut toolchain: Option<String> = None;
 
