@@ -62,6 +62,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install nasm (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y nasm
+
+      - name: Install nasm (macOS)
+        if: runner.os == 'macOS'
+        run: brew install nasm
+
       - name: Build using action
         uses: ./
         with:
@@ -109,6 +117,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install nasm (Windows)
+        uses: ilammy/setup-nasm@v1
+
       - name: Build using action
         uses: ./
         with:
@@ -152,6 +163,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install nasm
+        run: sudo apt-get update && sudo apt-get install -y nasm
 
       - name: Build with SDK version
         uses: ./

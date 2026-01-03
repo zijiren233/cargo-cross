@@ -184,19 +184,30 @@ fn search_xcode_apps_for_sdk(platform_name: &str, version: &str) -> Option<PathB
     None
 }
 
-/// Find a file matching a wildcard pattern in a directory
+/// Find a file matching a glob pattern in a directory
+///
+/// Pattern uses glob syntax where `*` matches any sequence of characters.
+/// The pattern must match the entire filename, not just a substring.
 pub async fn find_file_by_pattern(dir: &Path, pattern: &str) -> Option<PathBuf> {
-    let regex = regex::Regex::new(&pattern.replace('*', ".*")).ok()?;
+    let matcher = globset::Glob::new(pattern).ok()?.compile_matcher();
 
     let mut entries = tokio::fs::read_dir(dir).await.ok()?;
     while let Ok(Some(entry)) = entries.next_entry().await {
         let name = entry.file_name();
-        if regex.is_match(&name.to_string_lossy()) {
+        if matcher.is_match(name.to_string_lossy().as_ref()) {
             return Some(entry.path());
         }
     }
 
     None
+}
+
+/// Check if a filename matches a glob pattern (for testing)
+#[cfg(test)]
+fn glob_matches(pattern: &str, filename: &str) -> bool {
+    globset::Glob::new(pattern)
+        .map(|g| g.compile_matcher().is_match(filename))
+        .unwrap_or(false)
 }
 
 #[cfg(test)]
@@ -244,5 +255,91 @@ mod tests {
     fn test_linux_folder_name_with_abi() {
         let name = get_linux_folder_name(Arch::Armv7, Libc::Gnu, Some(Abi::Eabihf), "2.28", "2.28");
         assert_eq!(name, "armv7-linux-gnueabihf-cross");
+    }
+
+    // Tests for glob pattern matching (verifying the fix for -libc++ suffix issue)
+
+    #[test]
+    fn test_glob_matches_clang_exact() {
+        // Should match the exact clang binary
+        assert!(glob_matches(
+            "x86_64-apple-darwin*-clang",
+            "x86_64-apple-darwin25.2-clang"
+        ));
+    }
+
+    #[test]
+    fn test_glob_does_not_match_clang_plus_plus() {
+        // Should NOT match clang++ when looking for clang
+        // This was the bug: regex "x86_64-apple-darwin.*-clang" would match
+        // "x86_64-apple-darwin25.2-clang++" because "clang" is a substring
+        assert!(!glob_matches(
+            "x86_64-apple-darwin*-clang",
+            "x86_64-apple-darwin25.2-clang++"
+        ));
+    }
+
+    #[test]
+    fn test_glob_does_not_match_clang_with_libc_suffix() {
+        // Should NOT match clang++-libc++ when looking for clang
+        // This was the exact bug reported: finding "clang++-libc++" instead of "clang"
+        assert!(!glob_matches(
+            "x86_64-apple-darwin*-clang",
+            "x86_64-apple-darwin25.2-clang++-libc++"
+        ));
+    }
+
+    #[test]
+    fn test_glob_matches_clang_plus_plus_exact() {
+        // Should match clang++ when pattern is for clang++
+        assert!(glob_matches(
+            "x86_64-apple-darwin*-clang++",
+            "x86_64-apple-darwin25.2-clang++"
+        ));
+    }
+
+    #[test]
+    fn test_glob_does_not_match_clang_plus_plus_with_suffix() {
+        // Should NOT match clang++-libc++ when looking for clang++
+        assert!(!glob_matches(
+            "x86_64-apple-darwin*-clang++",
+            "x86_64-apple-darwin25.2-clang++-libc++"
+        ));
+    }
+
+    #[test]
+    fn test_glob_matches_aarch64_darwin_clang() {
+        assert!(glob_matches(
+            "aarch64-apple-darwin*-clang",
+            "aarch64-apple-darwin25.2-clang"
+        ));
+        assert!(!glob_matches(
+            "aarch64-apple-darwin*-clang",
+            "aarch64-apple-darwin25.2-clang++"
+        ));
+    }
+
+    #[test]
+    fn test_glob_matches_different_darwin_versions() {
+        let pattern = "x86_64-apple-darwin*-clang";
+        assert!(glob_matches(pattern, "x86_64-apple-darwin24.0-clang"));
+        assert!(glob_matches(pattern, "x86_64-apple-darwin25.2-clang"));
+        assert!(glob_matches(pattern, "x86_64-apple-darwin26.0-clang"));
+        // Should not match clang++ variants
+        assert!(!glob_matches(pattern, "x86_64-apple-darwin24.0-clang++"));
+        assert!(!glob_matches(pattern, "x86_64-apple-darwin25.2-clang++"));
+    }
+
+    #[test]
+    fn test_glob_matches_ios_compiler() {
+        // iOS uses darwin11 prefix
+        assert!(glob_matches(
+            "arm64-apple-darwin*-clang",
+            "arm64-apple-darwin11-clang"
+        ));
+        assert!(!glob_matches(
+            "arm64-apple-darwin*-clang",
+            "arm64-apple-darwin11-clang++"
+        ));
     }
 }

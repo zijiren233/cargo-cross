@@ -348,7 +348,7 @@ runs:
       working-directory: ${{ inputs.source-dir }}
       run: |
         echo "::group::Install cargo-cross"
-        command -v cargo-cross || cargo install --debug --path .
+        command -v cargo-cross || cargo install --quiet --debug --path .
         echo "::endgroup::"
 
     - name: Show all targets
