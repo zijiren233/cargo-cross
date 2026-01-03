@@ -35,10 +35,6 @@ pub async fn setup_cross_env(
     }
 }
 
-// ============================================================================
-// Common utilities for platform modules
-// ============================================================================
-
 /// Get the binary prefix for a Linux target
 pub fn get_linux_bin_prefix(arch: Arch, libc: Libc, abi: Option<crate::config::Abi>) -> String {
     let arch_str = arch.as_str();

@@ -125,10 +125,6 @@ impl From<std::io::Error> for CrossError {
 /// Result type alias for cargo-cross
 pub type Result<T> = std::result::Result<T, CrossError>;
 
-// ============================================================================
-// Command execution helpers with better error messages
-// ============================================================================
-
 /// Execute a command and return its status, with improved error messages
 pub async fn run_command(cmd: &mut Command, program: &str) -> Result<std::process::ExitStatus> {
     cmd.status().await.map_err(|e| match e.kind() {

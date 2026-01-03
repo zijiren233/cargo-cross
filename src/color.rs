@@ -6,12 +6,6 @@
 use colored::{ColoredString, Colorize};
 use std::io::{self, Write};
 
-// =============================================================================
-// Color helper functions - for embedding colors within log messages
-// All colors use bold for better visibility
-// =============================================================================
-
-/// Format text as bold bright cyan (for keys, options, commands)
 pub fn cyan(s: &str) -> ColoredString {
     s.bright_cyan().bold()
 }
@@ -51,12 +45,6 @@ pub fn dim(s: &str) -> ColoredString {
     s.dimmed().bold()
 }
 
-// =============================================================================
-// Log functions - now accept pre-formatted content with embedded colors
-// All use bold for better visibility
-// =============================================================================
-
-/// Log an informational message (bold blue, supports embedded colors)
 /// Example: log_info(&format!("Downloading {} to {}", green(url), green(path)))
 pub fn log_info(msg: &str) {
     println!("{}", msg.bright_blue().bold());
@@ -77,10 +65,6 @@ pub fn log_warning(msg: &str) {
 pub fn log_error(msg: &str) {
     eprintln!("{}", msg.bright_red().bold());
 }
-
-// =============================================================================
-// Utility functions
-// =============================================================================
 
 /// Print a separator line
 pub fn print_separator() {

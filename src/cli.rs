@@ -11,10 +11,6 @@ use clap::builder::styling::{AnsiColor, Effects, Styles};
 use clap::{Args as ClapArgs, Parser, Subcommand, ValueHint};
 use std::path::PathBuf;
 
-// ============================================================================
-// CLI Styles
-// ============================================================================
-
 /// Custom styles for CLI help output
 fn cli_styles() -> Styles {
     Styles::styled()
@@ -26,10 +22,6 @@ fn cli_styles() -> Styles {
         .invalid(AnsiColor::BrightRed.on_default())
         .error(AnsiColor::BrightRed.on_default() | Effects::BOLD)
 }
-
-// ============================================================================
-// CLI Structure
-// ============================================================================
 
 /// Cross-compilation tool for Rust projects
 #[derive(Parser, Debug)]
@@ -133,10 +125,6 @@ for example: --target '*-linux-musl' or --target 'aarch64-*'")]
     Version,
 }
 
-// ============================================================================
-// Targets Arguments
-// ============================================================================
-
 /// Output format for targets command
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
 pub enum OutputFormat {
@@ -161,10 +149,6 @@ pub struct TargetsArgs {
     )]
     pub format: OutputFormat,
 }
-
-// ============================================================================
-// Build Arguments
-// ============================================================================
 
 #[derive(ClapArgs, Debug, Clone, Default)]
 #[command(next_help_heading = "Target Selection")]
@@ -1158,10 +1142,6 @@ Examples:
     pub passthrough_args: Vec<String>,
 }
 
-// ============================================================================
-// BuildArgs impl
-// ============================================================================
-
 impl BuildArgs {
     /// Create default BuildArgs with proper version defaults
     pub fn default_for_host() -> Self {
@@ -1178,10 +1158,6 @@ impl BuildArgs {
     }
 }
 
-// ============================================================================
-// Custom Parsers
-// ============================================================================
-
 /// Parse optional bool value (true/false)
 fn parse_optional_bool(s: &str) -> std::result::Result<bool, String> {
     match s.to_lowercase().as_str() {
@@ -1191,20 +1167,14 @@ fn parse_optional_bool(s: &str) -> std::result::Result<bool, String> {
     }
 }
 
-/// Parse build-std value
+/// Parse build-std value (returns empty string for disabled, which is filtered later)
 fn parse_build_std(s: &str) -> std::result::Result<String, String> {
-    if s == "false" || s == "0" {
-        Err("build-std disabled".to_string())
-    } else if s == "true" || s == "1" {
-        Ok("true".to_string())
-    } else {
-        Ok(s.to_string())
+    match s.to_lowercase().as_str() {
+        "false" | "0" | "no" | "" => Ok(String::new()), // Will be converted to None later
+        "true" | "1" | "yes" => Ok("true".to_string()),
+        _ => Ok(s.to_string()),
     }
 }
-
-// ============================================================================
-// Command Enum (for internal use)
-// ============================================================================
 
 /// Cargo command to execute
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -1232,10 +1202,6 @@ impl Command {
         matches!(self, Self::Run | Self::Test | Self::Bench)
     }
 }
-
-// ============================================================================
-// Args (converted from BuildArgs)
-// ============================================================================
 
 /// Parsed and validated arguments
 #[derive(Debug, Clone)]
@@ -1291,10 +1257,6 @@ impl Args {
     }
 }
 
-// ============================================================================
-// Parse Result
-// ============================================================================
-
 /// Result of parsing CLI arguments
 pub enum ParseResult {
     /// Normal build/check/run/test/bench command
@@ -1304,10 +1266,6 @@ pub enum ParseResult {
     /// Show version
     ShowVersion,
 }
-
-// ============================================================================
-// Environment Sanitization
-// ============================================================================
 
 /// Remove empty environment variables that clap would incorrectly treat as having values.
 /// Clap's `env = "VAR"` attribute treats empty strings as valid values, which causes
@@ -1324,10 +1282,6 @@ fn sanitize_clap_env() {
         std::env::remove_var(&var);
     }
 }
-
-// ============================================================================
-// Entry Point
-// ============================================================================
 
 /// Parse command-line arguments
 pub fn parse_args() -> Result<ParseResult> {
@@ -1451,6 +1405,11 @@ fn finalize_args(
         build_args.profile = "release".to_string();
     }
 
+    // Handle build_std: empty string means disabled (from env var "false")
+    if build_args.build_std.as_ref().is_some_and(|s| s.is_empty()) {
+        build_args.build_std = None;
+    }
+
     // Merge toolchain: +toolchain syntax takes precedence over --toolchain option
     let final_toolchain = toolchain.or_else(|| build_args.toolchain_option.clone());
 
@@ -1553,10 +1512,6 @@ pub fn print_version() {
     println!("{} {}", name.bright_green(), version.bright_cyan());
 }
 
-// ============================================================================
-// Tests
-// ============================================================================
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1634,6 +1589,12 @@ mod tests {
     fn test_parse_build_std_crates() {
         let args = parse(&["cargo-cross", "build", "--build-std", "core,alloc"]).unwrap();
         assert_eq!(args.build_std, Some("core,alloc".to_string()));
+    }
+
+    #[test]
+    fn test_parse_build_std_false() {
+        let args = parse(&["cargo-cross", "build", "--build-std", "false"]).unwrap();
+        assert_eq!(args.build_std, None);
     }
 
     #[test]
@@ -1742,9 +1703,7 @@ mod tests {
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
     }
 
-    // =========================================================================
     // Equals syntax vs space syntax tests
-    // =========================================================================
 
     #[test]
     fn test_equals_syntax_target() {
@@ -1788,9 +1747,170 @@ mod tests {
         assert_eq!(args.crt_static, Some(true));
     }
 
-    // =========================================================================
+    #[test]
+    fn test_equals_syntax_build_std() {
+        let args = parse(&["cargo-cross", "build", "--build-std=core,alloc"]).unwrap();
+        assert_eq!(args.build_std, Some("core,alloc".to_string()));
+    }
+
+    #[test]
+    fn test_equals_syntax_manifest_path() {
+        let args = parse(&[
+            "cargo-cross",
+            "build",
+            "--manifest-path=/path/to/Cargo.toml",
+        ])
+        .unwrap();
+        assert_eq!(
+            args.manifest_path,
+            Some(PathBuf::from("/path/to/Cargo.toml"))
+        );
+    }
+
+    #[test]
+    fn test_equals_syntax_cross_compiler_dir() {
+        let args = parse(&["cargo-cross", "build", "--cross-compiler-dir=/opt/cross"]).unwrap();
+        assert_eq!(args.cross_compiler_dir, PathBuf::from("/opt/cross"));
+    }
+
+    #[test]
+    fn test_equals_syntax_glibc_version() {
+        let args = parse(&["cargo-cross", "build", "--glibc-version=2.31"]).unwrap();
+        assert_eq!(args.glibc_version, "2.31");
+    }
+
+    #[test]
+    fn test_equals_syntax_cc_cxx_ar() {
+        let args = parse(&[
+            "cargo-cross",
+            "build",
+            "--cc=/usr/bin/gcc",
+            "--cxx=/usr/bin/g++",
+            "--ar=/usr/bin/ar",
+        ])
+        .unwrap();
+        assert_eq!(args.cc, Some(PathBuf::from("/usr/bin/gcc")));
+        assert_eq!(args.cxx, Some(PathBuf::from("/usr/bin/g++")));
+        assert_eq!(args.ar, Some(PathBuf::from("/usr/bin/ar")));
+    }
+
+    #[test]
+    fn test_equals_syntax_linker() {
+        let args = parse(&["cargo-cross", "build", "--linker=/usr/bin/ld.lld"]).unwrap();
+        assert_eq!(args.linker, Some(PathBuf::from("/usr/bin/ld.lld")));
+    }
+
+    #[test]
+    fn test_equals_syntax_cflags_with_spaces() {
+        let args = parse(&["cargo-cross", "build", "--cflags=-O2 -Wall -Wextra"]).unwrap();
+        assert_eq!(args.cflags, Some("-O2 -Wall -Wextra".to_string()));
+    }
+
+    #[test]
+    fn test_equals_syntax_ldflags() {
+        let args = parse(&["cargo-cross", "build", "--ldflags=-L/usr/local/lib -static"]).unwrap();
+        assert_eq!(args.ldflags, Some("-L/usr/local/lib -static".to_string()));
+    }
+
+    #[test]
+    fn test_equals_syntax_rustflag() {
+        let args = parse(&["cargo-cross", "build", "--rustflag=-C opt-level=3"]).unwrap();
+        assert_eq!(args.rustflags, vec!["-C opt-level=3"]);
+    }
+
+    #[test]
+    fn test_equals_syntax_github_proxy() {
+        let args = parse(&[
+            "cargo-cross",
+            "build",
+            "--github-proxy=https://mirror.example.com/",
+        ])
+        .unwrap();
+        assert_eq!(
+            args.github_proxy,
+            Some("https://mirror.example.com/".to_string())
+        );
+    }
+
+    #[test]
+    fn test_equals_syntax_sccache_options() {
+        let args = parse(&[
+            "cargo-cross",
+            "build",
+            "--enable-sccache",
+            "--sccache-dir=/tmp/sccache",
+            "--sccache-cache-size=20G",
+        ])
+        .unwrap();
+        assert!(args.enable_sccache);
+        assert_eq!(args.sccache_dir, Some(PathBuf::from("/tmp/sccache")));
+        assert_eq!(args.sccache_cache_size, Some("20G".to_string()));
+    }
+
+    #[test]
+    fn test_equals_syntax_config_with_equals_in_value() {
+        let args = parse(&["cargo-cross", "build", "--config=build.jobs=4"]).unwrap();
+        assert_eq!(args.cargo_config, vec!["build.jobs=4"]);
+    }
+
+    #[test]
+    fn test_equals_syntax_multiple_options() {
+        let args = parse(&[
+            "cargo-cross",
+            "build",
+            "-t=x86_64-unknown-linux-musl",
+            "--profile=release",
+            "-F=serde,json",
+            "-j=8",
+            "--crt-static=true",
+            "--build-std=core,alloc",
+        ])
+        .unwrap();
+        assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
+        assert_eq!(args.profile, "release");
+        assert_eq!(args.features, Some("serde,json".to_string()));
+        assert_eq!(args.jobs, Some("8".to_string()));
+        assert_eq!(args.crt_static, Some(true));
+        assert_eq!(args.build_std, Some("core,alloc".to_string()));
+    }
+
+    #[test]
+    fn test_equals_syntax_toolchain() {
+        let args = parse(&["cargo-cross", "build", "--toolchain=nightly-2024-01-01"]).unwrap();
+        assert_eq!(args.toolchain, Some("nightly-2024-01-01".to_string()));
+    }
+
+    #[test]
+    fn test_equals_syntax_target_dir() {
+        let args = parse(&["cargo-cross", "build", "--target-dir=/tmp/target"]).unwrap();
+        assert_eq!(args.cargo_target_dir, Some(PathBuf::from("/tmp/target")));
+    }
+
+    #[test]
+    fn test_equals_syntax_z_flag() {
+        let args = parse(&["cargo-cross", "build", "-Z=build-std"]).unwrap();
+        assert_eq!(args.cargo_z_flags, vec!["build-std"]);
+    }
+
+    #[test]
+    fn test_equals_syntax_directory() {
+        let args = parse(&["cargo-cross", "build", "-C=/path/to/project"]).unwrap();
+        assert_eq!(args.cargo_cwd, Some(PathBuf::from("/path/to/project")));
+    }
+
+    #[test]
+    fn test_equals_syntax_message_format() {
+        let args = parse(&["cargo-cross", "build", "--message-format=json"]).unwrap();
+        assert_eq!(args.message_format, Some("json".to_string()));
+    }
+
+    #[test]
+    fn test_equals_syntax_color() {
+        let args = parse(&["cargo-cross", "build", "--color=always"]).unwrap();
+        assert_eq!(args.color, Some("always".to_string()));
+    }
+
     // Mixed flags and options tests
-    // =========================================================================
 
     #[test]
     fn test_mixed_crt_static_then_flag() {
@@ -1878,9 +1998,7 @@ mod tests {
         assert_eq!(args.verbose_level, 2);
     }
 
-    // =========================================================================
     // Complex option ordering tests
-    // =========================================================================
 
     #[test]
     fn test_options_before_command_style() {
@@ -1926,9 +2044,7 @@ mod tests {
         assert!(args.locked);
     }
 
-    // =========================================================================
     // Verbose flag variations
-    // =========================================================================
 
     #[test]
     fn test_verbose_single() {
@@ -1975,9 +2091,7 @@ mod tests {
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
     }
 
-    // =========================================================================
     // Timings option (optional value) tests
-    // =========================================================================
 
     #[test]
     fn test_timings_without_value() {
@@ -2012,9 +2126,7 @@ mod tests {
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
     }
 
-    // =========================================================================
     // Multiple values / repeated options tests
-    // =========================================================================
 
     #[test]
     fn test_multiple_targets_comma_separated() {
@@ -2089,9 +2201,7 @@ mod tests {
         assert_eq!(args.cargo_z_flags.len(), 2);
     }
 
-    // =========================================================================
     // Hyphen values tests (for compiler flags)
-    // =========================================================================
 
     #[test]
     fn test_cflags_with_hyphen() {
@@ -2111,9 +2221,7 @@ mod tests {
         assert_eq!(args.rustflags, vec!["-C target-cpu=native"]);
     }
 
-    // =========================================================================
     // Passthrough arguments tests
-    // =========================================================================
 
     #[test]
     fn test_passthrough_single() {
@@ -2162,9 +2270,7 @@ mod tests {
         assert_eq!(args.passthrough_args, vec!["--foo", "--bar"]);
     }
 
-    // =========================================================================
     // Alias tests
-    // =========================================================================
 
     #[test]
     fn test_alias_targets() {
@@ -2196,9 +2302,7 @@ mod tests {
         assert_eq!(args.cargo_trim_paths, Some("all".to_string()));
     }
 
-    // =========================================================================
     // Command alias tests
-    // =========================================================================
 
     #[test]
     fn test_command_alias_b() {
@@ -2224,9 +2328,7 @@ mod tests {
         assert_eq!(args.command, Command::Test);
     }
 
-    // =========================================================================
     // Requires relationship tests
-    // =========================================================================
 
     #[test]
     fn test_requires_exclude_needs_workspace() {
@@ -2264,9 +2366,7 @@ mod tests {
         );
     }
 
-    // =========================================================================
     // Conflicts relationship tests
-    // =========================================================================
 
     #[test]
     fn test_conflicts_quiet_verbose() {
@@ -2304,9 +2404,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // =========================================================================
     // Complex real-world scenario tests
-    // =========================================================================
 
     #[test]
     fn test_real_world_linux_musl_build() {
@@ -2446,9 +2544,7 @@ mod tests {
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
     }
 
-    // =========================================================================
     // Edge case tests
-    // =========================================================================
 
     #[test]
     fn test_edge_case_equals_in_value() {
@@ -2562,9 +2658,7 @@ mod tests {
         );
     }
 
-    // =========================================================================
     // Cargo cross invocation style tests
-    // =========================================================================
 
     #[test]
     fn test_cargo_cross_style_build() {
@@ -2614,9 +2708,7 @@ mod tests {
         }
     }
 
-    // =========================================================================
     // New alias and option tests
-    // =========================================================================
 
     #[test]
     fn test_github_proxy_mirror_alias() {

@@ -9,10 +9,6 @@ use std::collections::HashMap;
 use std::process::ExitStatus;
 use tokio::process::Command as TokioCommand;
 
-// ============================================================================
-// Cargo execution
-// ============================================================================
-
 /// Build and execute cargo command for a target
 pub async fn execute_cargo(
     target: &str,
@@ -291,10 +287,6 @@ fn add_compiler_flags_env(env: &mut HashMap<String, String>, args: &Args, target
     }
 }
 
-// ============================================================================
-// Cargo command building
-// ============================================================================
-
 /// Build the cargo command with all arguments
 fn build_cargo_command(target: &str, args: &Args, cross_env: &CrossEnv) -> TokioCommand {
     let mut cmd = TokioCommand::new("cargo");
@@ -532,10 +524,6 @@ fn add_build_config_args(cmd: &mut TokioCommand, args: &Args) {
     }
 }
 
-// ============================================================================
-// Utilities
-// ============================================================================
-
 /// Helper to append a flag to a space-separated string
 fn append_flag(flags: &mut String, flag: &str) {
     if !flags.is_empty() {
@@ -560,10 +548,6 @@ fn print_env_vars(env: &HashMap<String, String>) {
         }
     }
 }
-
-// ============================================================================
-// Target and rust-src installation
-// ============================================================================
 
 /// Install Rust target if needed
 /// Returns Ok(true) if build-std is required, Ok(false) otherwise
