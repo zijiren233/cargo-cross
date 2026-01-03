@@ -6,7 +6,6 @@ authors = ["pyh1670605849@gmail.com"]
 description = "A cargo subcommand for cross-compilation, no need docker!"
 license = "MIT"
 repository = "https://github.com/zijiren233/cargo-cross"
-rust-version = "1.75"
 
 [[bin]]
 name = "cargo-cross"
@@ -60,8 +59,7 @@ tokio-test = "0.4"
 [profile.release]
 opt-level = "z"
 debug = 0
-lto = 'thin'
-incremental = false
+lto = 'off'
 panic = "abort"
 strip = "symbols"
 debug-assertions = false
