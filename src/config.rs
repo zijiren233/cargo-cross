@@ -1,6 +1,5 @@
 //! Target configuration database for cargo-cross
 
-use once_cell::sync::Lazy;
 use std::collections::HashMap;
 
 /// Supported glibc versions

@@ -368,33 +368,33 @@ runs:
         TARGETS: ${{ inputs.target || inputs.targets }}
         PROFILE: ${{ inputs.release == 'true' && 'release' || inputs.profile }}
         FEATURES: ${{ inputs.features }}
-        NO_DEFAULT_FEATURES: ${{ inputs.no-default-features }}
-        ALL_FEATURES: ${{ inputs.all-features }}
+        NO_DEFAULT_FEATURES: ${{ inputs.no-default-features == 'true' && 'true' || '' }}
+        ALL_FEATURES: ${{ inputs.all-features == 'true' && 'true' || '' }}
         PACKAGE: ${{ inputs.package }}
         EXCLUDE: ${{ inputs.exclude }}
         BIN_TARGET: ${{ inputs.bin }}
-        BUILD_BINS: ${{ inputs.bins }}
-        BUILD_LIB: ${{ inputs.lib }}
+        BUILD_BINS: ${{ inputs.bins == 'true' && 'true' || '' }}
+        BUILD_LIB: ${{ inputs.lib == 'true' && 'true' || '' }}
         EXAMPLE_TARGET: ${{ inputs.example }}
-        BUILD_EXAMPLES: ${{ inputs.examples }}
+        BUILD_EXAMPLES: ${{ inputs.examples == 'true' && 'true' || '' }}
         TEST_TARGET: ${{ inputs.test }}
-        BUILD_TESTS: ${{ inputs.tests }}
+        BUILD_TESTS: ${{ inputs.tests == 'true' && 'true' || '' }}
         BENCH_TARGET: ${{ inputs.bench }}
-        BUILD_BENCHES: ${{ inputs.benches }}
-        BUILD_ALL_TARGETS: ${{ inputs.all-targets }}
-        BUILD_WORKSPACE: ${{ inputs.workspace }}
+        BUILD_BENCHES: ${{ inputs.benches == 'true' && 'true' || '' }}
+        BUILD_ALL_TARGETS: ${{ inputs.all-targets == 'true' && 'true' || '' }}
+        BUILD_WORKSPACE: ${{ inputs.workspace == 'true' && 'true' || '' }}
         MESSAGE_FORMAT: ${{ inputs.message-format }}
-        IGNORE_RUST_VERSION: ${{ inputs.ignore-rust-version }}
-        LOCKED: ${{ inputs.locked }}
-        OFFLINE: ${{ inputs.offline }}
-        FROZEN: ${{ inputs.frozen }}
+        IGNORE_RUST_VERSION: ${{ inputs.ignore-rust-version == 'true' && 'true' || '' }}
+        LOCKED: ${{ inputs.locked == 'true' && 'true' || '' }}
+        OFFLINE: ${{ inputs.offline == 'true' && 'true' || '' }}
+        FROZEN: ${{ inputs.frozen == 'true' && 'true' || '' }}
         LOCKFILE_PATH: ${{ inputs.lockfile-path }}
         JOBS: ${{ inputs.jobs }}
-        KEEP_GOING: ${{ inputs.keep-going }}
-        FUTURE_INCOMPAT_REPORT: ${{ inputs.future-incompat-report }}
+        KEEP_GOING: ${{ inputs.keep-going == 'true' && 'true' || '' }}
+        FUTURE_INCOMPAT_REPORT: ${{ inputs.future-incompat-report == 'true' && 'true' || '' }}
         ARTIFACT_DIR: ${{ inputs.artifact-dir }}
         COLOR: ${{ inputs.color }}
-        BUILD_PLAN: ${{ inputs.build-plan }}
+        BUILD_PLAN: ${{ inputs.build-plan == 'true' && 'true' || '' }}
         TIMINGS: ${{ inputs.timings }}
         CARGO_CWD: ${{ inputs.cargo-cwd }}
         MANIFEST_PATH: ${{ inputs.manifest-path }}
@@ -409,7 +409,7 @@ runs:
         MACOS_SDK_PATH: ${{ inputs.macos-sdk-path }}
         FREEBSD_VERSION: ${{ inputs.freebsd-version }}
         QEMU_VERSION: ${{ inputs.qemu-version }}
-        USE_DEFAULT_LINKER: ${{ inputs.use-default-linker }}
+        USE_DEFAULT_LINKER: ${{ inputs.use-default-linker == 'true' && 'true' || '' }}
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
         AR: ${{ inputs.ar }}
@@ -418,7 +418,7 @@ runs:
         CXXFLAGS: ${{ inputs.cxxflags }}
         CXXSTDLIB: ${{ inputs.cxxstdlib }}
         RUSTC_WRAPPER: ${{ inputs.rustc-wrapper }}
-        ENABLE_SCCACHE: ${{ inputs.enable-sccache }}
+        ENABLE_SCCACHE: ${{ inputs.enable-sccache == 'true' && 'true' || '' }}
         SCCACHE_DIR: ${{ inputs.sccache-dir }}
         SCCACHE_CACHE_SIZE: ${{ inputs.sccache-cache-size }}
         SCCACHE_IDLE_TIMEOUT: ${{ inputs.sccache-idle-timeout }}
@@ -438,18 +438,18 @@ runs:
         CC_ENABLE_DEBUG_OUTPUT: ${{ inputs.cc-enable-debug == 'true' && '1' || '' }}
         ADDITIONAL_RUSTFLAGS: ${{ inputs.rustflags }}
         CRT_STATIC: ${{ inputs.crt-static != '' && inputs.crt-static || inputs.static-crt }}
-        PANIC_IMMEDIATE_ABORT: ${{ inputs.panic-immediate-abort }}
+        PANIC_IMMEDIATE_ABORT: ${{ inputs.panic-immediate-abort == 'true' && 'true' || '' }}
         BUILD_STD: ${{ inputs.build-std }}
         BUILD_STD_FEATURES: ${{ inputs.build-std-features }}
-        CLEAN_CACHE: ${{ inputs.clean-cache }}
-        NO_STRIP: ${{ inputs.no-strip }}
+        CLEAN_CACHE: ${{ inputs.clean-cache == 'true' && 'true' || '' }}
+        NO_STRIP: ${{ inputs.no-strip == 'true' && 'true' || '' }}
         VERBOSE_LEVEL: ${{ inputs.verbose == 'true' && '1' || inputs.verbose }}
         CARGO_ARGS: ${{ inputs.args }}
         CARGO_PASSTHROUGH_ARGS: ${{ inputs.passthrough-args && format('-- {0}', inputs.passthrough-args) || '' }}
         TOOLCHAIN: ${{ inputs.toolchain }}
         CARGO_TRIM_PATHS: ${{ inputs.cargo-trim-paths || inputs.trim-paths }}
-        NO_EMBED_METADATA: ${{ inputs.no-embed-metadata }}
+        NO_EMBED_METADATA: ${{ inputs.no-embed-metadata == 'true' && 'true' || '' }}
         RUSTC_BOOTSTRAP: ${{ inputs.rustc-bootstrap }}
         CARGO_TARGET_DIR: ${{ inputs.target-dir }}
-        QUIET: ${{ inputs.quiet }}
+        QUIET: ${{ inputs.quiet == 'true' && 'true' || '' }}
       run: cargo-cross ${{ inputs.command }} ${{ inputs.cross-args }}
