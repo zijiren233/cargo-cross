@@ -343,18 +343,17 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Build cargo-cross
+    - name: Install cargo-cross
       shell: bash
-      working-directory: ${{ github.action_path }}
       run: |
-        [ -x target/debug/cargo-cross ] || cargo build
+        command -v cargo-cross || cargo install --path "${{ github.action_path }}"
 
     - name: Show all targets
       id: show-targets
       if: ${{ inputs.show-all-targets == 'true' }}
       shell: bash
       working-directory: ${{ inputs.source-dir }}
-      run: ${{ github.action_path }}/target/debug/cargo-cross targets --format json
+      run: cargo-cross targets --format json
 
     - name: Execute
       id: execute
@@ -451,4 +450,4 @@ runs:
         CARGO_TARGET_DIR: ${{ inputs.target-dir }}
         QUIET: ${{ inputs.quiet }}
         RELEASE: ${{ inputs.release }}
-      run: ${{ github.action_path }}/target/debug/cargo-cross ${{ inputs.cross-args }}
+      run: cargo-cross ${{ inputs.cross-args }}
