@@ -183,15 +183,10 @@ pub struct BuildArgs {
         long_help = "\
 Build for the specified target architecture. This flag may be specified multiple
 times or with comma-separated values. Supports glob patterns like '*-linux-musl'.
-
 The general format of the triple is <arch><sub>-<vendor>-<sys>-<abi>.
+Run the 'targets' subcommand to see all supported targets.
 
-Examples:
-  -t x86_64-unknown-linux-musl
-  -t aarch64-unknown-linux-gnu,armv7-unknown-linux-gnueabihf
-  -t '*-linux-musl'
-
-Run the 'targets' subcommand to see all supported targets."
+Examples: -t x86_64-unknown-linux-musl, -t '*-linux-musl'"
     )]
     pub targets: Vec<String>,
 
@@ -205,10 +200,8 @@ Run the 'targets' subcommand to see all supported targets."
         conflicts_with = "all_features",
         help_heading = "Feature Selection",
         long_help = "\
-Space or comma separated list of features to activate.
-
-Features of workspace members may be enabled with package-name/feature-name syntax.
-This flag may be specified multiple times, which enables all specified features."
+Space or comma separated list of features to activate. Features of workspace members
+may be enabled with package-name/feature-name syntax. May be specified multiple times."
     )]
     pub features: Option<String>,
 
@@ -233,10 +226,7 @@ This flag may be specified multiple times, which enables all specified features.
         conflicts_with = "profile",
         help_heading = "Profile",
         long_help = "\
-Build artifacts in release mode, with optimizations.
-
-This is equivalent to --profile=release.
-This flag is provided for compatibility with cargo's -r/--release option."
+Build artifacts in release mode, with optimizations. Equivalent to --profile=release."
     )]
     pub release: bool,
 
@@ -249,11 +239,8 @@ This flag is provided for compatibility with cargo's -r/--release option."
         conflicts_with = "release",
         help_heading = "Profile",
         long_help = "\
-Build artifacts with the specified profile.
-
-Built-in profiles: dev, release, test, bench.
-Custom profiles can be defined in Cargo.toml.
-Default is 'release' for cross-compilation (differs from cargo's default of 'dev')."
+Build artifacts with the specified profile. Built-in: dev, release, test, bench.
+Custom profiles can be defined in Cargo.toml. Default is 'release' (differs from cargo's 'dev')."
     )]
     pub profile: String,
 
@@ -400,90 +387,67 @@ in the current directory or any parent directory.")]
     #[arg(long, default_value = DEFAULT_GLIBC_VERSION, env = "GLIBC_VERSION",
           value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions",
           long_help = "\
-Specify glibc version for GNU libc targets.
-
-Supported versions: 2.28, 2.31, 2.32, 2.33, 2.34, 2.35, 2.36, 2.37, 2.38, 2.39, 2.40, 2.41, 2.42
-
-The glibc version determines the minimum Linux kernel version required to run the built binary.
-Lower versions provide better compatibility with older systems.")]
+Specify glibc version for GNU libc targets. The version determines the minimum Linux kernel
+version required. Lower versions provide better compatibility with older systems.
+Supported: 2.28, 2.31, 2.32, 2.33, 2.34, 2.35, 2.36, 2.37, 2.38, 2.39, 2.40, 2.41, 2.42")]
     pub glibc_version: String,
 
     /// iPhone SDK version for iOS targets
     #[arg(long, default_value = DEFAULT_IPHONE_SDK_VERSION, env = "IPHONE_SDK_VERSION",
           value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions",
           long_help = "\
-Specify iPhone SDK version for iOS targets.
-
-On Linux (cross-compilation): Uses pre-built SDK from releases.
-On macOS (native): Uses installed Xcode SDK (warns if version not found).
-
-Supported versions on Linux: 17.0, 17.2, 17.4, 17.5, 18.0, 18.1, 18.2, 18.4, 18.5, 26.0, 26.1, 26.2")]
+Specify iPhone SDK version for iOS targets. On Linux: uses pre-built SDK from releases.
+On macOS: uses installed Xcode SDK. Supported on Linux: 17.0, 17.2, 17.4, 17.5, 18.0, 18.1, 18.2, 18.4, 18.5, 26.0, 26.1, 26.2")]
     pub iphone_sdk_version: String,
 
     /// Override iPhoneOS SDK path (skips version lookup)
     #[arg(long, env = "IPHONE_SDK_PATH", value_name = "PATH",
           value_hint = ValueHint::DirPath, help_heading = "Toolchain Versions",
           long_help = "\
-Override iPhoneOS SDK path for device targets (skips version lookup).
-
-Use this option to specify a custom SDK location instead of the version-based lookup.")]
+Override iPhoneOS SDK path for device targets. Skips version lookup.")]
     pub iphone_sdk_path: Option<PathBuf>,
 
     /// Override iPhoneSimulator SDK path
     #[arg(long, env = "IPHONE_SIMULATOR_SDK_PATH", value_name = "PATH",
           value_hint = ValueHint::DirPath, help_heading = "Toolchain Versions",
           long_help = "\
-Override iPhoneSimulator SDK path for simulator targets.
-
-Use this option to specify a custom SDK location for iOS simulator builds.")]
+Override iPhoneSimulator SDK path for simulator targets. Skips version lookup.")]
     pub iphone_simulator_sdk_path: Option<PathBuf>,
 
     /// macOS SDK version for Darwin targets
     #[arg(long, default_value = DEFAULT_MACOS_SDK_VERSION, env = "MACOS_SDK_VERSION",
           value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions",
           long_help = "\
-Specify macOS SDK version for Darwin targets.
-
-On Linux (cross-compilation): Uses osxcross with pre-built SDK from releases.
-On macOS (native): Uses installed Xcode SDK (warns if version not found).
-
-Supported versions on Linux: 14.0, 14.2, 14.4, 14.5, 15.0, 15.1, 15.2, 15.4, 15.5, 26.0, 26.1, 26.2")]
+Specify macOS SDK version for Darwin targets. On Linux: uses osxcross with pre-built SDK.
+On macOS: uses installed Xcode SDK. Supported on Linux: 14.0, 14.2, 14.4, 14.5, 15.0, 15.1, 15.2, 15.4, 15.5, 26.0, 26.1, 26.2")]
     pub macos_sdk_version: String,
 
     /// Override macOS SDK path (skips version lookup)
     #[arg(long, env = "MACOS_SDK_PATH", value_name = "PATH",
           value_hint = ValueHint::DirPath, help_heading = "Toolchain Versions",
           long_help = "\
-Override macOS SDK path directly (skips version lookup).
-
-Use this option to specify a custom SDK location instead of the version-based lookup.")]
+Override macOS SDK path directly. Skips version lookup.")]
     pub macos_sdk_path: Option<PathBuf>,
 
     /// FreeBSD version for FreeBSD targets
     #[arg(long, default_value = DEFAULT_FREEBSD_VERSION, env = "FREEBSD_VERSION",
           value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions",
           long_help = "\
-Specify FreeBSD version for FreeBSD targets.
-
-Supported versions: 13, 14")]
+Specify FreeBSD version for FreeBSD targets. Supported: 13, 14")]
     pub freebsd_version: String,
 
     /// Android NDK version
     #[arg(long, default_value = DEFAULT_NDK_VERSION, env = "NDK_VERSION",
           value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions",
           long_help = "\
-Specify Android NDK version for Android targets.
-
-The NDK will be automatically downloaded from Google's official repository.")]
+Specify Android NDK version for Android targets. Auto-downloaded from Google's official repository.")]
     pub ndk_version: String,
 
     /// QEMU version for user-mode emulation
     #[arg(long, default_value = DEFAULT_QEMU_VERSION, env = "QEMU_VERSION",
           value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions",
           long_help = "\
-Specify QEMU version for user-mode emulation.
-
-QEMU is used to run cross-compiled binaries during test/run/bench commands.")]
+Specify QEMU version for user-mode emulation. Used to run cross-compiled binaries during test/run/bench.")]
     pub qemu_version: String,
 
     // ===== Directories =====
@@ -491,27 +455,22 @@ QEMU is used to run cross-compiled binaries during test/run/bench commands.")]
     #[arg(long, env = "CROSS_COMPILER_DIR", value_name = "DIR",
           value_hint = ValueHint::DirPath, help_heading = "Directories",
           long_help = "\
-Specify the directory where cross-compiler toolchains will be downloaded and stored.
-
-Defaults to a temporary directory. Set this to reuse downloaded toolchains across builds.")]
+Directory where cross-compiler toolchains will be downloaded and stored. Defaults to temp dir.
+Set this to reuse downloaded toolchains across builds.")]
     pub cross_compiler_dir: Option<PathBuf>,
 
     /// Directory for all generated artifacts
     #[arg(long, visible_alias = "target-dir", env = "CARGO_TARGET_DIR", value_name = "DIR",
           value_hint = ValueHint::DirPath, help_heading = "Directories",
           long_help = "\
-Directory for all generated artifacts and intermediate files.
-
-Defaults to 'target' in the root of the workspace.")]
+Directory for all generated artifacts and intermediate files. Defaults to 'target'.")]
     pub cargo_target_dir: Option<PathBuf>,
 
     /// Copy final artifacts to this directory (unstable)
     #[arg(long, env = "ARTIFACT_DIR", value_name = "DIR",
           value_hint = ValueHint::DirPath, help_heading = "Directories",
           long_help = "\
-Copy final artifacts to this directory.
-
-This option is unstable and requires the nightly toolchain.")]
+Copy final artifacts to this directory. Unstable, requires nightly toolchain.")]
     pub artifact_dir: Option<PathBuf>,
 
     // ===== Compiler Options =====
@@ -519,30 +478,21 @@ This option is unstable and requires the nightly toolchain.")]
     #[arg(long, env = "CC", value_name = "PATH",
           value_hint = ValueHint::ExecutablePath, help_heading = "Compiler Options",
           long_help = "\
-Override the C compiler path.
-
-By default, the appropriate cross-compiler is automatically configured
-for the target. Use this option to specify a custom C compiler.")]
+Override the C compiler path. By default, the appropriate cross-compiler is auto-configured.")]
     pub cc: Option<PathBuf>,
 
     /// Override C++ compiler path
     #[arg(long, env = "CXX", value_name = "PATH",
           value_hint = ValueHint::ExecutablePath, help_heading = "Compiler Options",
           long_help = "\
-Override the C++ compiler path.
-
-By default, the appropriate cross-compiler is automatically configured
-for the target. Use this option to specify a custom C++ compiler.")]
+Override the C++ compiler path. By default, the appropriate cross-compiler is auto-configured.")]
     pub cxx: Option<PathBuf>,
 
     /// Override archiver (ar) path
     #[arg(long, env = "AR", value_name = "PATH",
           value_hint = ValueHint::ExecutablePath, help_heading = "Compiler Options",
           long_help = "\
-Override the archiver (ar) path.
-
-By default, the appropriate archiver is automatically configured
-for the target. Use this option to specify a custom archiver.")]
+Override the archiver (ar) path. By default, the appropriate archiver is auto-configured.")]
     pub ar: Option<PathBuf>,
 
     /// Override linker path
@@ -550,10 +500,7 @@ for the target. Use this option to specify a custom archiver.")]
           value_hint = ValueHint::ExecutablePath,
           conflicts_with = "use_default_linker", help_heading = "Compiler Options",
           long_help = "\
-Override the linker path.
-
-By default, the cross-compiler is used as the linker.
-Use this option to specify a custom linker (e.g., lld, mold).")]
+Override the linker path. By default, the cross-compiler is used as linker.")]
     pub linker: Option<PathBuf>,
 
     /// Additional flags for C compilation
@@ -564,9 +511,7 @@ Use this option to specify a custom linker (e.g., lld, mold).")]
         allow_hyphen_values = true,
         help_heading = "Compiler Options",
         long_help = "\
-Additional flags to pass to the C compiler.
-
-These flags are appended to the default CFLAGS for the target.
+Additional flags to pass to the C compiler. Appended to default CFLAGS.
 Example: --cflags '-O2 -Wall -march=native'"
     )]
     pub cflags: Option<String>,
@@ -579,9 +524,7 @@ Example: --cflags '-O2 -Wall -march=native'"
         allow_hyphen_values = true,
         help_heading = "Compiler Options",
         long_help = "\
-Additional flags to pass to the C++ compiler.
-
-These flags are appended to the default CXXFLAGS for the target.
+Additional flags to pass to the C++ compiler. Appended to default CXXFLAGS.
 Example: --cxxflags '-O2 -Wall -std=c++17'"
     )]
     pub cxxflags: Option<String>,
@@ -594,9 +537,7 @@ Example: --cxxflags '-O2 -Wall -std=c++17'"
         allow_hyphen_values = true,
         help_heading = "Compiler Options",
         long_help = "\
-Additional flags to pass to the linker.
-
-These flags are appended to the default LDFLAGS for the target.
+Additional flags to pass to the linker. Appended to default LDFLAGS.
 Example: --ldflags '-L/usr/local/lib -static'"
     )]
     pub ldflags: Option<String>,
@@ -608,10 +549,7 @@ Example: --ldflags '-L/usr/local/lib -static'"
         value_name = "LIB",
         help_heading = "Compiler Options",
         long_help = "\
-Specify the C++ standard library to use.
-
-Common values: libc++, libstdc++
-This affects which C++ standard library implementation is linked."
+Specify the C++ standard library to use (libc++, libstdc++, etc)."
     )]
     pub cxxstdlib: Option<String>,
 
@@ -620,9 +558,7 @@ This affects which C++ standard library implementation is linked."
           env = "ADDITIONAL_RUSTFLAGS", allow_hyphen_values = true,
           action = clap::ArgAction::Append, help_heading = "Compiler Options",
           long_help = "\
-Additional flags to pass to rustc via RUSTFLAGS.
-
-This option can be specified multiple times.
+Additional flags to pass to rustc via RUSTFLAGS. Can be specified multiple times.
 Example: --rustflag '-C target-cpu=native' --rustflag '-C lto=thin'")]
     pub rustflags: Vec<String>,
 
@@ -631,10 +567,7 @@ Example: --rustflag '-C target-cpu=native' --rustflag '-C lto=thin'")]
           value_hint = ValueHint::ExecutablePath,
           conflicts_with = "enable_sccache", help_heading = "Compiler Options",
           long_help = "\
-Specify a rustc wrapper program.
-
-The wrapper will be invoked instead of rustc directly.
-Common wrappers include sccache and cachepot for compilation caching.")]
+Specify a rustc wrapper program (sccache, cachepot, etc) for compilation caching.")]
     pub rustc_wrapper: Option<PathBuf>,
 
     /// Use the default system linker instead of cross-compiler
@@ -645,9 +578,7 @@ Common wrappers include sccache and cachepot for compilation caching.")]
         help_heading = "Compiler Options",
         long_help = "\
 Use the default system linker instead of the cross-compiler linker.
-
-This is useful when building for the host target or when you have
-a custom linker setup."
+Useful when building for host target or with custom linker setup."
     )]
     pub use_default_linker: bool,
 
@@ -660,9 +591,7 @@ a custom linker setup."
         help_heading = "Sccache Options",
         long_help = "\
 Enable sccache as the rustc wrapper for compilation caching.
-
-sccache is a compiler caching tool that speeds up compilation by caching
-previous compilations and detecting when the same compilation is being done again."
+Speeds up compilation by caching previous compilations."
     )]
     pub enable_sccache: bool,
 
@@ -670,9 +599,7 @@ previous compilations and detecting when the same compilation is being done agai
     #[arg(long, env = "SCCACHE_DIR", value_name = "DIR",
           value_hint = ValueHint::DirPath, help_heading = "Sccache Options",
           long_help = "\
-Specify the directory for sccache's local disk cache.
-
-Defaults to $HOME/.cache/sccache on Linux/macOS.")]
+Directory for sccache's local disk cache. Defaults to $HOME/.cache/sccache.")]
     pub sccache_dir: Option<PathBuf>,
 
     /// Maximum cache size (e.g., '10G', '500M')
@@ -682,10 +609,7 @@ Defaults to $HOME/.cache/sccache on Linux/macOS.")]
         value_name = "SIZE",
         help_heading = "Sccache Options",
         long_help = "\
-Maximum size of the local disk cache.
-
-Accepts values like '10G' (10 gigabytes), '500M' (500 megabytes).
-Default is 10GB."
+Maximum size of the local disk cache (e.g., '10G', '500M'). Default is 10GB."
     )]
     pub sccache_cache_size: Option<String>,
 
@@ -696,10 +620,7 @@ Default is 10GB."
         value_name = "SECONDS",
         help_heading = "Sccache Options",
         long_help = "\
-Idle timeout in seconds for the sccache server.
-
-The server will shut down after being idle for this duration.
-Set to 0 to run indefinitely."
+Idle timeout in seconds for the sccache server. Set to 0 to run indefinitely."
     )]
     pub sccache_idle_timeout: Option<String>,
 
@@ -710,9 +631,7 @@ Set to 0 to run indefinitely."
         value_name = "LEVEL",
         help_heading = "Sccache Options",
         long_help = "\
-Set the log level for sccache.
-
-Valid values: error, warn, info, debug, trace"
+Log level for sccache. Valid: error, warn, info, debug, trace"
     )]
     pub sccache_log: Option<String>,
 
@@ -722,10 +641,7 @@ Valid values: error, warn, info, debug, trace"
         env = "SCCACHE_NO_DAEMON",
         help_heading = "Sccache Options",
         long_help = "\
-Run sccache without the background daemon.
-
-This runs sccache in single-process mode, which may be slower but
-avoids daemon startup issues in some environments."
+Run sccache without daemon (single-process mode). May be slower but avoids daemon startup issues."
     )]
     pub sccache_no_daemon: bool,
 
@@ -735,10 +651,7 @@ avoids daemon startup issues in some environments."
         env = "SCCACHE_DIRECT",
         help_heading = "Sccache Options",
         long_help = "\
-Enable sccache direct mode.
-
-Direct mode caches based on source file content directly,
-bypassing the preprocessor for potentially faster cache lookups."
+Enable sccache direct mode. Caches based on source file content directly, bypassing preprocessor."
     )]
     pub sccache_direct: bool,
 
@@ -775,13 +688,8 @@ bypassing the preprocessor for potentially faster cache lookups."
     #[arg(long, value_parser = parse_optional_bool, env = "CRT_STATIC",
           value_name = "BOOL", num_args = 1, help_heading = "Build Options",
           long_help = "\
-Control whether the C runtime is statically linked.
-
-  --crt-static true   Link C runtime statically (larger binary, more portable)
-  --crt-static false  Link C runtime dynamically (smaller binary, requires libc)
-
-For musl targets, static linking is the default.
-For glibc targets, dynamic linking is the default.")]
+Control whether the C runtime is statically linked. true=static (larger, portable),
+false=dynamic (smaller, requires libc). Musl defaults to static, glibc to dynamic.")]
     pub crt_static: Option<bool>,
 
     /// Abort immediately on panic (smaller binary, implies --build-std)
@@ -790,12 +698,8 @@ For glibc targets, dynamic linking is the default.")]
         env = "PANIC_IMMEDIATE_ABORT",
         help_heading = "Build Options",
         long_help = "\
-Use panic=abort and remove panic formatting code.
-
-This produces smaller binaries by eliminating panic message formatting.
-Requires the nightly toolchain and implies --build-std.
-
-Note: Stack traces and panic messages will not be available."
+Use panic=abort and remove panic formatting code for smaller binaries.
+Requires nightly and implies --build-std. Stack traces will not be available."
     )]
     pub panic_immediate_abort: bool,
 
@@ -811,13 +715,8 @@ Note: Stack traces and panic messages will not be available."
     #[arg(long, value_parser = parse_build_std, env = "BUILD_STD",
           value_name = "CRATES", help_heading = "Build Options",
           long_help = "\
-Build the standard library from source (requires nightly).
-
-  --build-std true          Build std, core, alloc, and proc_macro
-  --build-std core,alloc    Build only specified crates
-
-This is required for targets not supported by pre-built std,
-or when using panic=abort or other std-modifying options.")]
+Build the standard library from source (requires nightly). Use 'true' for full std
+or specify crates like 'core,alloc'. Required for unsupported targets or panic=abort.")]
     pub build_std: Option<String>,
 
     /// Features to enable when building std
@@ -828,13 +727,7 @@ or when using panic=abort or other std-modifying options.")]
         requires = "build_std",
         help_heading = "Build Options",
         long_help = "\
-Space-separated list of features to enable for the standard library.
-
-Example: --build-std core,alloc --build-std-features panic_immediate_abort
-
-Common features:
-  panic_immediate_abort  - Abort without formatting panic messages
-  optimize_for_size      - Optimize std for binary size"
+Space-separated features for std. Common: panic_immediate_abort, optimize_for_size"
     )]
     pub build_std_features: Option<String>,
 
@@ -846,12 +739,8 @@ Common features:
         value_name = "VALUE",
         help_heading = "Build Options",
         long_help = "\
-Control how paths are trimmed in compiler output.
-
-This helps with reproducible builds by removing local path prefixes.
-
-Valid values: true, macro, diagnostics, object, all, none
-Default: false (no trimming)"
+Control how paths are trimmed in compiler output for reproducible builds.
+Valid: true, macro, diagnostics, object, all, none (default: false)"
     )]
     pub cargo_trim_paths: Option<String>,
 
@@ -880,11 +769,7 @@ Default: false (no trimming)"
           env = "VERBOSE_LEVEL", conflicts_with = "quiet",
           help_heading = "Output Options",
           long_help = "\
-Use verbose output. May be specified twice for 'very verbose' output.
-
-  -v   Show compilation commands and warnings
-  -vv  Show dependency warnings and build script output
-  -vvv Maximum verbosity")]
+Use verbose output. -v=commands/warnings, -vv=+deps/build scripts, -vvv=max verbosity")]
     pub verbose_level: u8,
 
     /// Do not print cargo log messages
@@ -895,9 +780,7 @@ Use verbose output. May be specified twice for 'very verbose' output.
         conflicts_with = "verbose_level",
         help_heading = "Output Options",
         long_help = "\
-Do not print cargo log messages.
-
-This silences cargo's informational output, showing only errors and warnings."
+Do not print cargo log messages. Shows only errors and warnings."
     )]
     pub quiet: bool,
 
@@ -908,12 +791,7 @@ This silences cargo's informational output, showing only errors and warnings."
         value_name = "FMT",
         help_heading = "Output Options",
         long_help = "\
-The output format for diagnostic messages.
-
-Valid values:
-  human (default)  - Human-readable text format
-  short            - Shorter, human-readable text messages
-  json             - Emit JSON messages to stdout"
+Output format for diagnostics. Valid: human (default), short, json"
     )]
     pub message_format: Option<String>,
 
@@ -924,12 +802,7 @@ Valid values:
         value_name = "WHEN",
         help_heading = "Output Options",
         long_help = "\
-Control when colored output is used.
-
-Valid values:
-  auto (default)  - Automatically detect if color support is available
-  always          - Always display colors
-  never           - Never display colors"
+Control when colored output is used. Valid: auto (default), always, never"
     )]
     pub color: Option<String>,
 
@@ -942,12 +815,7 @@ Valid values:
           num_args = 0..=1, default_missing_value = "true",
           help_heading = "Output Options",
           long_help = "\
-Output information about how long each compilation takes.
-
-  --timings        Output timing report as HTML (default)
-  --timings=json   Output machine-readable JSON (requires -Z unstable-options)
-
-The HTML report is saved to target/cargo-timings/.")]
+Output timing information. --timings=HTML report, --timings=json for JSON. Saved to target/cargo-timings/.")]
     pub timings: Option<String>,
 
     // ===== Dependency Options =====
@@ -957,9 +825,7 @@ The HTML report is saved to target/cargo-timings/.")]
         env = "IGNORE_RUST_VERSION",
         help_heading = "Dependency Options",
         long_help = "\
-Ignore rust-version specification in packages.
-
-This allows building with a Rust version older than what the package specifies."
+Ignore rust-version specification in packages. Allows building with older Rust versions."
     )]
     pub ignore_rust_version: bool,
 
@@ -969,11 +835,7 @@ This allows building with a Rust version older than what the package specifies."
         env = "LOCKED",
         help_heading = "Dependency Options",
         long_help = "\
-Assert that the exact same dependencies and versions are used as when
-the existing Cargo.lock file was originally generated.
-
-Cargo will exit with an error if Cargo.lock is missing or needs updating.
-Use in CI pipelines for deterministic builds."
+Assert Cargo.lock will remain unchanged. Exits with error if missing or needs updating. Use in CI."
     )]
     pub locked: bool,
 
@@ -983,12 +845,7 @@ Use in CI pipelines for deterministic builds."
         env = "OFFLINE",
         help_heading = "Dependency Options",
         long_help = "\
-Prevents Cargo from accessing the network for any reason.
-
-Cargo will attempt to proceed with locally cached data.
-May result in different dependency resolution than online mode.
-
-Use 'cargo fetch' to download dependencies before going offline."
+Prevent network access. Uses locally cached data. Run 'cargo fetch' first if needed."
     )]
     pub offline: bool,
 
@@ -998,9 +855,7 @@ Use 'cargo fetch' to download dependencies before going offline."
         env = "FROZEN",
         help_heading = "Dependency Options",
         long_help = "\
-Equivalent to specifying both --locked and --offline.
-
-Requires that both Cargo.lock and the dependency cache are up to date."
+Equivalent to --locked --offline. Requires Cargo.lock and cache are up to date."
     )]
     pub frozen: bool,
 
@@ -1008,9 +863,7 @@ Requires that both Cargo.lock and the dependency cache are up to date."
     #[arg(long, env = "LOCKFILE_PATH", value_name = "PATH",
           value_hint = ValueHint::FilePath, help_heading = "Dependency Options",
           long_help = "\
-Changes the path of the lockfile from the default (<workspace_root>/Cargo.lock).
-
-This option requires the nightly toolchain.")]
+Override lockfile path from default (<workspace_root>/Cargo.lock). Requires nightly.")]
     pub lockfile_path: Option<PathBuf>,
 
     // ===== Build Configuration =====
@@ -1022,11 +875,7 @@ This option requires the nightly toolchain.")]
         value_name = "N",
         help_heading = "Build Configuration",
         long_help = "\
-Number of parallel jobs to run.
-
-Defaults to the number of logical CPUs.
-If negative, sets max jobs to (logical CPUs + N).
-Use 'default' to reset to the default value."
+Number of parallel jobs. Defaults to logical CPUs. Negative=CPUs+N. 'default' to reset."
     )]
     pub jobs: Option<String>,
 
@@ -1036,10 +885,8 @@ Use 'default' to reset to the default value."
         env = "KEEP_GOING",
         help_heading = "Build Configuration",
         long_help = "\
-Build as many crates in the dependency graph as possible.
-
-Rather than aborting the build on the first crate that fails to build,
-the build will continue with other crates in the dependency graph."
+Build as many crates in the dependency graph as possible. Rather than aborting on the first
+crate that fails to build, continue with other crates in the dependency graph."
     )]
     pub keep_going: bool,
 
@@ -1049,10 +896,8 @@ the build will continue with other crates in the dependency graph."
         env = "FUTURE_INCOMPAT_REPORT",
         help_heading = "Build Configuration",
         long_help = "\
-Displays a future-incompat report for any future-incompatible warnings
-produced during execution of this command.
-
-See 'cargo report' for more information."
+Displays a future-incompat report for any future-incompatible warnings produced during
+execution of this command. See 'cargo report' for more information."
     )]
     pub future_incompat_report: bool,
 
@@ -1073,9 +918,7 @@ See 'cargo report' for more information."
     #[arg(short = 'Z', value_name = "FLAG",
           action = clap::ArgAction::Append, help_heading = "Additional Options",
           long_help = "\
-Unstable (nightly-only) flags to Cargo.
-
-Run 'cargo -Z help' for details on available flags.
+Unstable (nightly-only) flags to Cargo. Run 'cargo -Z help' for details on available flags.
 Common flags: build-std, unstable-options")]
     pub cargo_z_flags: Vec<String>,
 
@@ -1083,11 +926,8 @@ Common flags: build-std, unstable-options")]
     #[arg(long = "config", value_name = "KEY=VALUE",
           action = clap::ArgAction::Append, help_heading = "Additional Options",
           long_help = "\
-Override a Cargo configuration value.
-
-The argument should be in TOML syntax of KEY=VALUE.
+Override a Cargo configuration value. The argument should be in TOML syntax of KEY=VALUE.
 This flag may be specified multiple times.
-
 Example: --config 'build.jobs=4' --config 'profile.release.lto=true'")]
     pub cargo_config: Vec<String>,
 
@@ -1097,9 +937,7 @@ Example: --config 'build.jobs=4' --config 'profile.release.lto=true'")]
           help_heading = "Additional Options",
           long_help = "\
 Changes the current working directory before executing any specified operations.
-
-This affects where cargo looks for the project manifest (Cargo.toml),
-as well as the directories searched for .cargo/config.toml.")]
+This affects where cargo looks for the project manifest (Cargo.toml) and .cargo/config.toml.")]
     pub cargo_cwd: Option<PathBuf>,
 
     /// Rust toolchain to use (alternative to +toolchain syntax)
@@ -1109,10 +947,8 @@ as well as the directories searched for .cargo/config.toml.")]
         value_name = "TOOLCHAIN",
         help_heading = "Additional Options",
         long_help = "\
-Specify the Rust toolchain to use for compilation.
-
-This is an alternative to the +toolchain syntax (e.g., +nightly).
-Examples: --toolchain nightly, --toolchain stable, --toolchain 1.75.0"
+Specify the Rust toolchain to use for compilation. This is an alternative to the +toolchain
+syntax (e.g., +nightly). Examples: --toolchain nightly, --toolchain stable, --toolchain 1.75.0"
     )]
     pub toolchain_option: Option<String>,
 
@@ -1122,7 +958,6 @@ Examples: --toolchain nightly, --toolchain stable, --toolchain 1.75.0"
           help_heading = "Additional Options",
           long_help = "\
 Specify a GitHub mirror/proxy URL for downloading cross-compiler toolchains.
-
 Useful in regions where GitHub access is slow or restricted.
 Example: --github-proxy 'https://ghproxy.com/'")]
     pub github_proxy: Option<String>,
@@ -1133,9 +968,7 @@ Example: --github-proxy 'https://ghproxy.com/'")]
         env = "CLEAN_CACHE",
         help_heading = "Additional Options",
         long_help = "\
-Clean the target directory before building.
-
-Equivalent to running 'cargo clean' before the build."
+Clean the target directory before building. Equivalent to running 'cargo clean' before the build."
     )]
     pub clean_cache: bool,
 
@@ -1146,14 +979,9 @@ Equivalent to running 'cargo clean' before the build."
         value_name = "ARGS",
         help = "Arguments passed through to the underlying cargo command",
         long_help = "\
-Arguments passed through to the underlying cargo command.
-
-Everything after -- is passed directly to cargo/test runner.
-For test command, these are passed to the test binary.
-
-Examples:
-  <PROGRAM> test -- --nocapture --test-threads=1
-  <PROGRAM> run -- --arg1 --arg2"
+Arguments passed through to the underlying cargo command. Everything after -- is passed
+directly to cargo/test runner. For test command, these are passed to the test binary.
+Examples: test -- --nocapture --test-threads=1, run -- --arg1 --arg2"
     )]
     pub passthrough_args: Vec<String>,
 }
