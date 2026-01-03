@@ -1451,16 +1451,23 @@ fn create_default_args_with_toolchain(toolchain: Option<String>) -> Args {
 fn expand_target_list(targets: &[String]) -> Vec<String> {
     let mut result = Vec::new();
     for target in targets {
-        let expanded = config::expand_targets(target);
-        if expanded.is_empty() {
-            if !result.contains(target) {
-                result.push(target.clone());
+        // Split by comma or newline to support multiple delimiters
+        for part in target.split([',', '\n']) {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
             }
-        } else {
-            for t in expanded {
-                let t = t.to_string();
-                if !result.contains(&t) {
-                    result.push(t);
+            let expanded = config::expand_targets(part);
+            if expanded.is_empty() {
+                if !result.contains(&part.to_string()) {
+                    result.push(part.to_string());
+                }
+            } else {
+                for t in expanded {
+                    let t = t.to_string();
+                    if !result.contains(&t) {
+                        result.push(t);
+                    }
                 }
             }
         }

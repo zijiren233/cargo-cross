@@ -70,6 +70,23 @@ jobs:
           toolchain: nightly
           target: ${{ matrix.target }}
 
+      - name: Verify build artifacts
+        shell: bash
+        run: |
+          for target in ${{ matrix.target }}; do
+            if [[ "$target" == *"windows"* ]]; then
+              file="target/$target/release/cargo-cross.exe"
+            else
+              file="target/$target/release/cargo-cross"
+            fi
+            if [[ -f "$file" ]]; then
+              echo "✓ $file exists ($(du -h "$file" | cut -f1))"
+            else
+              echo "✗ $file not found"
+              exit 1
+            fi
+          done
+
   # Test the GitHub Action itself
   test-action-windows:
     name: Test on Windows
@@ -99,6 +116,19 @@ jobs:
           profile: release
           toolchain: nightly
           target: ${{ matrix.target }}
+
+      - name: Verify build artifacts
+        shell: bash
+        run: |
+          for target in ${{ matrix.target }}; do
+            file="target/$target/release/cargo-cross.exe"
+            if [[ -f "$file" ]]; then
+              echo "✓ $file exists"
+            else
+              echo "✗ $file not found"
+              exit 1
+            fi
+          done
 
   # Test Darwin and iOS SDK versions on Linux
   test-sdk-versions:
@@ -131,3 +161,13 @@ jobs:
           target: ${{ matrix.target }}
           macos-sdk-version: ${{ matrix.macos-sdk-version }}
           iphone-sdk-version: ${{ matrix.iphone-sdk-version }}
+
+      - name: Verify build artifacts
+        run: |
+          file="target/${{ matrix.target }}/release/cargo-cross"
+          if [[ -f "$file" ]]; then
+            echo "✓ $file exists ($(du -h "$file" | cut -f1))"
+          else
+            echo "✗ $file not found"
+            exit 1
+          fi

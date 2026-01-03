@@ -347,7 +347,9 @@ runs:
       shell: bash
       working-directory: ${{ inputs.source-dir }}
       run: |
+        echo "::group::Install cargo-cross"
         command -v cargo-cross || cargo install --debug --path .
+        echo "::endgroup::"
 
     - name: Show all targets
       id: show-targets
@@ -362,6 +364,7 @@ runs:
       shell: bash
       working-directory: ${{ inputs.source-dir }}
       env:
+        CLICOLOR_FORCE: "1"
         COMMAND: ${{ inputs.command }}
         TARGETS: ${{ inputs.target || inputs.targets }}
         PROFILE: ${{ inputs.profile }}
