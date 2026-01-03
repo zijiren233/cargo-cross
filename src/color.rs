@@ -1,37 +1,95 @@
 //! Color output utilities for cargo-cross
+//!
+//! This module provides rich color support similar to the bash version,
+//! allowing multiple colors within a single log line.
 
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 use std::io::{self, Write};
 
-/// Log an informational message (blue, bold)
+// =============================================================================
+// Color helper functions - for embedding colors within log messages
+// All colors use bold for better visibility
+// =============================================================================
+
+/// Format text as bold bright cyan (for keys, options, commands)
+pub fn cyan(s: &str) -> ColoredString {
+    s.bright_cyan().bold()
+}
+
+/// Format text as bold bright yellow (for values, targets, times)
+pub fn yellow(s: &str) -> ColoredString {
+    s.bright_yellow().bold()
+}
+
+/// Format text as bold bright green (for URLs, paths, success highlights)
+pub fn green(s: &str) -> ColoredString {
+    s.bright_green().bold()
+}
+
+/// Format text as bold bright blue (for info text)
+pub fn blue(s: &str) -> ColoredString {
+    s.bright_blue().bold()
+}
+
+/// Format text as bold bright red (for errors)
+pub fn red(s: &str) -> ColoredString {
+    s.bright_red().bold()
+}
+
+/// Format text as bold bright magenta (for special highlights)
+pub fn magenta(s: &str) -> ColoredString {
+    s.bright_magenta().bold()
+}
+
+/// Format text as bold white (for separators, neutral highlights)
+pub fn white(s: &str) -> ColoredString {
+    s.bright_white().bold()
+}
+
+/// Format text as bold dim/dark gray
+pub fn dim(s: &str) -> ColoredString {
+    s.dimmed().bold()
+}
+
+// =============================================================================
+// Log functions - now accept pre-formatted content with embedded colors
+// All use bold for better visibility
+// =============================================================================
+
+/// Log an informational message (bold blue, supports embedded colors)
+/// Example: log_info(&format!("Downloading {} to {}", green(url), green(path)))
 pub fn log_info(msg: &str) {
     println!("{}", msg.bright_blue().bold());
 }
 
-/// Log a success message (green, bold)
+/// Log a success message (bold green, supports embedded colors)
+/// Example: log_success(&format!("Completed in {}s", yellow(&secs.to_string())))
 pub fn log_success(msg: &str) {
     println!("{}", msg.bright_green().bold());
 }
 
-/// Log a warning message (yellow, bold)
+/// Log a warning message (bold yellow, supports embedded colors)
 pub fn log_warning(msg: &str) {
     println!("{}", msg.bright_yellow().bold());
 }
 
-/// Log an error message (red, bold) to stderr
+/// Log an error message (bold red, supports embedded colors) to stderr
 pub fn log_error(msg: &str) {
     eprintln!("{}", msg.bright_red().bold());
 }
 
+// =============================================================================
+// Utility functions
+// =============================================================================
+
 /// Print a separator line
 pub fn print_separator() {
     let width = terminal_width();
-    println!("{}", "-".repeat(width).bright_white());
+    println!("{}", "-".repeat(width).dimmed());
 }
 
 /// Get terminal width, defaulting to 80 if unavailable
 fn terminal_width() -> usize {
-    // Try to get terminal width from environment variable
     if let Ok(cols) = std::env::var("COLUMNS") {
         if let Ok(width) = cols.parse::<usize>() {
             if width > 0 {
@@ -44,12 +102,20 @@ fn terminal_width() -> usize {
 
 /// Format a key-value pair for configuration display
 pub fn format_config(key: &str, value: &str) -> String {
-    format!("  {}: {}", key.bright_cyan().bold(), value.bright_yellow())
+    format!(
+        "  {}: {}",
+        key.bright_cyan().bold(),
+        value.bright_yellow().bold()
+    )
 }
 
 /// Format environment variable for display
 pub fn format_env(key: &str, value: &str) -> String {
-    format!("  {}={}", key.bright_cyan().bold(), value.bright_yellow())
+    format!(
+        "  {}={}",
+        key.bright_cyan().bold(),
+        value.bright_yellow().bold()
+    )
 }
 
 /// Format a command for display

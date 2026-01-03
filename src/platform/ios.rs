@@ -30,11 +30,7 @@ pub async fn setup(
 }
 
 /// Setup native iOS compilation (on macOS host)
-async fn setup_native(
-    rust_target: &str,
-    args: &Args,
-    is_simulator: bool,
-) -> Result<CrossEnv> {
+async fn setup_native(rust_target: &str, args: &Args, is_simulator: bool) -> Result<CrossEnv> {
     let mut env = CrossEnv::new();
 
     let sdk_type = if is_simulator {
@@ -65,7 +61,10 @@ async fn setup_native(
     if let Some(ref sdk) = sdk_path {
         env.set_sdkroot(sdk);
         env.add_rustflag(format!("-C link-arg=--sysroot={}", sdk.display()));
-        color::log_success(&format!("Using iPhone SDK at {}", sdk.display()));
+        color::log_success(&format!(
+            "Using iPhone SDK at {}",
+            color::cyan(&sdk.display().to_string())
+        ));
     }
 
     // Set deployment target to match Rust's minimum iOS version
@@ -80,7 +79,10 @@ async fn setup_native(
     // and is compatible with modern Rust iOS targets
     env.set_env(deployment_target, "12.0");
 
-    color::log_success(&format!("Using native macOS toolchain for {rust_target}"));
+    color::log_success(&format!(
+        "Using native macOS toolchain for {}",
+        color::yellow(rust_target)
+    ));
 
     Ok(env)
 }
@@ -185,7 +187,10 @@ async fn setup_ioscross(
     };
     env.set_env(deployment_target, "12.0");
 
-    color::log_success(&format!("Configured iOS toolchain for {rust_target}"));
+    color::log_success(&format!(
+        "Configured iOS toolchain for {}",
+        color::yellow(rust_target)
+    ));
 
     Ok(env)
 }

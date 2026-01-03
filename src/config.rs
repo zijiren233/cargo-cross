@@ -35,7 +35,7 @@ pub const SUPPORTED_FREEBSD_VERSIONS: &[&str] = &["13", "14"];
 pub const DEFAULT_FREEBSD_VERSION: &str = "13";
 
 /// Default cross-compiler dependencies version
-pub const DEFAULT_CROSS_DEPS_VERSION: &str = "v0.7.3";
+pub const DEFAULT_CROSS_DEPS_VERSION: &str = "v0.7.4";
 
 /// Default Android NDK version
 pub const DEFAULT_NDK_VERSION: &str = "r27";
@@ -367,27 +367,27 @@ pub fn expand_targets(pattern: &str) -> Vec<&'static str> {
         TARGETS.keys().copied().collect()
     } else if let Some(regex_pattern) = pattern.strip_prefix('~') {
         // Regex mode: prefix with ~
-        if let Ok(re) = regex::Regex::new(regex_pattern) {
-            TARGETS.keys().copied().filter(|t| re.is_match(t)).collect()
-        } else {
-            vec![]
-        }
+        regex::Regex::new(regex_pattern).map_or_else(
+            |_| vec![],
+            |re| TARGETS.keys().copied().filter(|t| re.is_match(t)).collect(),
+        )
     } else if pattern.contains('*')
         || pattern.contains('?')
         || pattern.contains('[')
         || pattern.contains('{')
     {
         // Use globset for glob pattern matching
-        if let Ok(glob) = globset::Glob::new(pattern) {
-            let matcher = glob.compile_matcher();
-            TARGETS
-                .keys()
-                .copied()
-                .filter(|t| matcher.is_match(t))
-                .collect()
-        } else {
-            vec![]
-        }
+        globset::Glob::new(pattern).map_or_else(
+            |_| vec![],
+            |glob| {
+                let matcher = glob.compile_matcher();
+                TARGETS
+                    .keys()
+                    .copied()
+                    .filter(|t| matcher.is_match(t))
+                    .collect()
+            },
+        )
     } else {
         // Direct target name - lookup to get the static reference
         TARGETS

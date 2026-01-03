@@ -85,7 +85,9 @@ pub async fn setup(
     };
 
     color::log_success(&format!(
-        "Configured Linux {libc_display} toolchain for {rust_target}"
+        "Configured Linux {} toolchain for {}",
+        color::yellow(&libc_display),
+        color::yellow(rust_target)
     ));
 
     Ok(env)

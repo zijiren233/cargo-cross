@@ -53,8 +53,8 @@ pub async fn setup_qemu_runner(
 
         color::log_success(&format!(
             "Configured QEMU runner: {} for {}",
-            qemu_binary,
-            arch.as_str()
+            color::yellow(qemu_binary),
+            color::yellow(arch.as_str())
         ));
     }
 
@@ -189,9 +189,9 @@ docker exec "$CONTAINER_ID" /usr/bin/$QEMU_BINARY -L /sysroot /tmp/$BINARY_NAME 
 
     color::log_success(&format!(
         "Configured Docker QEMU runner: {} for {} (image: {})",
-        qemu_binary,
-        arch.as_str(),
-        docker_image
+        color::yellow(qemu_binary),
+        color::yellow(arch.as_str()),
+        color::cyan(docker_image)
     ));
 
     Ok(())
@@ -201,7 +201,10 @@ docker exec "$CONTAINER_ID" /usr/bin/$QEMU_BINARY -L /sysroot /tmp/$BINARY_NAME 
 pub fn setup_wine_runner(env: &mut CrossEnv, rust_target: &str) {
     if which::which("wine").is_ok() {
         env.set_runner("wine");
-        color::log_success(&format!("Configured Wine runner for {rust_target}"));
+        color::log_success(&format!(
+            "Configured Wine runner for {}",
+            color::yellow(rust_target)
+        ));
     }
 }
 
@@ -232,5 +235,8 @@ pub fn setup_rosetta_runner(
     }
 
     env.set_runner("arch -x86_64");
-    color::log_success(&format!("Configured Rosetta runner for {rust_target}"));
+    color::log_success(&format!(
+        "Configured Rosetta runner for {}",
+        color::yellow(rust_target)
+    ));
 }

@@ -21,7 +21,10 @@ pub async fn setup(
     // MSVC targets on Windows host use native toolchain
     if target_config.libc == Some(Libc::Msvc) {
         if host.is_windows() {
-            color::log_success(&format!("Using native MSVC toolchain for {rust_target}"));
+            color::log_success(&format!(
+                "Using native MSVC toolchain for {}",
+                color::yellow(rust_target)
+            ));
             return Ok(CrossEnv::new());
         }
         // MSVC cross-compilation from non-Windows is not supported
@@ -109,7 +112,10 @@ async fn setup_mingw(
         runner::setup_wine_runner(&mut env, rust_target);
     }
 
-    color::log_success(&format!("Configured MinGW-w64 toolchain for {rust_target}"));
+    color::log_success(&format!(
+        "Configured MinGW-w64 toolchain for {}",
+        color::yellow(rust_target)
+    ));
 
     Ok(env)
 }

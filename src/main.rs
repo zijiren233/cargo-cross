@@ -2,13 +2,26 @@
 
 use cargo_cross::{
     cargo::{ensure_rust_src, ensure_target_installed, execute_cargo},
-    cli::parse_args,
+    cli::{parse_args, print_all_targets, print_version, ParseResult},
     color,
     config::{get_target_config, HostPlatform},
     error::Result,
     platform::setup_cross_env,
 };
 use std::process::ExitCode;
+use std::time::Duration;
+
+/// Format duration as human-readable string
+fn format_duration(duration: Duration) -> String {
+    let secs = duration.as_secs();
+    if secs >= 60 {
+        let mins = secs / 60;
+        let remaining_secs = secs % 60;
+        format!("{mins}m {remaining_secs}s")
+    } else {
+        format!("{secs}s")
+    }
+}
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -45,7 +58,17 @@ async fn main() -> ExitCode {
 
 async fn run() -> Result<ExitCode> {
     // Parse command-line arguments
-    let args = parse_args()?;
+    let args = match parse_args()? {
+        ParseResult::Build(args) => *args,
+        ParseResult::ShowTargets => {
+            print_all_targets();
+            return Ok(ExitCode::SUCCESS);
+        }
+        ParseResult::ShowVersion => {
+            print_version();
+            return Ok(ExitCode::SUCCESS);
+        }
+    };
 
     // Detect host platform
     let host = HostPlatform::detect();
@@ -60,13 +83,15 @@ async fn run() -> Result<ExitCode> {
     for (i, target) in args.targets.iter().enumerate() {
         color::log_success(&format!(
             "[{}/{}] Processing target: {}",
-            i + 1,
-            total_targets,
-            target
+            color::yellow(&(i + 1).to_string()),
+            color::yellow(&total_targets.to_string()),
+            color::cyan(target)
         ));
 
-        // Execute build for this target
+        // Execute build for this target with timing
+        let target_start = std::time::Instant::now();
         let result = execute_target(target, &args, &host).await;
+        let target_elapsed = target_start.elapsed();
 
         if let Err(e) = result {
             let command = args.command.as_str();
@@ -75,19 +100,31 @@ async fn run() -> Result<ExitCode> {
                 command.chars().next().unwrap().to_uppercase(),
                 &command[1..]
             );
-            color::log_error(&format!("{command_cap} failed for target: {target}"));
-            color::log_error(&format!("Error: {e}"));
+            color::log_error(&format!(
+                "{command_cap} failed for target: {}",
+                color::yellow(target)
+            ));
+            color::log_error(&format!("Error: {}", color::white(&e.to_string())));
             return Ok(ExitCode::FAILURE);
         }
+
+        color::log_success(&format!(
+            "Target {} completed (took {})",
+            color::yellow(target),
+            color::yellow(&format_duration(target_elapsed))
+        ));
     }
 
     let elapsed = start_time.elapsed();
     color::print_separator();
     color::log_success(&format!(
         "All {} operations completed successfully!",
-        args.command.as_str()
+        color::cyan(args.command.as_str())
     ));
-    color::log_success(&format!("Total time: {}s", elapsed.as_secs()));
+    color::log_success(&format!(
+        "Total time: {}",
+        color::yellow(&format_duration(elapsed))
+    ));
 
     // Set GitHub output if in GitHub Actions
     set_github_output(&args);
@@ -99,8 +136,8 @@ async fn execute_target(target: &str, args: &cargo_cross::Args, host: &HostPlatf
     color::print_separator();
     color::log_info(&format!(
         "Executing {} for {}...",
-        args.command.as_str(),
-        target
+        color::magenta(args.command.as_str()),
+        color::magenta(target)
     ));
 
     // Clean cache if requested
@@ -118,13 +155,21 @@ async fn execute_target(target: &str, args: &cargo_cross::Args, host: &HostPlatf
     // Ensure target is installed and check if build-std is required
     let auto_build_std = ensure_target_installed(target, args.toolchain.as_deref()).await?;
 
-    // Setup cross-compilation environment
-    let mut cross_env = if let Some(config) = target_config {
+    // Check for pre-configured compiler environment variables first
+    // This allows users to skip toolchain download if they have their own compiler setup
+    let mut cross_env = if let Some(env) = check_preconfigured_env(target, args) {
+        color::log_success(&format!(
+            "Using pre-configured compiler from environment variables for {}",
+            color::yellow(target)
+        ));
+        env
+    } else if let Some(config) = target_config {
         setup_cross_env(config, args, host).await?
     } else {
         // Unknown target, use default environment
         color::log_warning(&format!(
-            "No specific toolchain configuration for {target}, using default"
+            "No specific toolchain configuration for {}, using default",
+            color::cyan(target)
         ));
         cargo_cross::env::CrossEnv::new()
     };
@@ -157,9 +202,88 @@ async fn execute_target(target: &str, args: &cargo_cross::Args, host: &HostPlatf
         command.chars().next().unwrap().to_uppercase(),
         &command[1..]
     );
-    color::log_success(&format!("{command_cap} successful: {target}"));
+    color::log_success(&format!(
+        "{command_cap} successful: {}",
+        color::yellow(target)
+    ));
 
     Ok(())
+}
+
+/// Check for pre-configured compiler environment variables
+/// Returns Some(CrossEnv) if CC_<target> or generic CC/CXX are set
+fn check_preconfigured_env(
+    target: &str,
+    args: &cargo_cross::Args,
+) -> Option<cargo_cross::env::CrossEnv> {
+    // Skip if user explicitly wants default linker
+    if args.use_default_linker {
+        return None;
+    }
+
+    let target_lower = target.replace('-', "_");
+    let target_upper = target.to_uppercase().replace('-', "_");
+
+    // Check target-specific CC_<target> first
+    let cc_target_var = format!("CC_{target_lower}");
+    let cxx_target_var = format!("CXX_{target_lower}");
+    let ar_target_var = format!("AR_{target_lower}");
+    let linker_var = format!("CARGO_TARGET_{target_upper}_LINKER");
+    let runner_var = format!("CARGO_TARGET_{target_upper}_RUNNER");
+
+    // Helper to get non-empty env var
+    let get_env = |name: &str| std::env::var(name).ok().filter(|s| !s.is_empty());
+
+    // Check if target-specific CC is set
+    if let Some(cc) = get_env(&cc_target_var) {
+        let mut env = cargo_cross::env::CrossEnv::new();
+        env.set_cc(&cc);
+
+        if let Some(cxx) = get_env(&cxx_target_var) {
+            env.set_cxx(&cxx);
+        }
+        if let Some(ar) = get_env(&ar_target_var) {
+            env.set_ar(&ar);
+        }
+        if let Some(linker) = get_env(&linker_var) {
+            env.set_linker(&linker);
+        }
+        if let Some(runner) = get_env(&runner_var) {
+            env.set_runner(&runner);
+        }
+        return Some(env);
+    }
+
+    // Check generic CC/CXX environment variables
+    // Only use if both CC and CXX are set (matching cross.sh behavior)
+    if let (Some(cc), Some(cxx)) = (get_env("CC"), get_env("CXX")) {
+        let mut env = cargo_cross::env::CrossEnv::new();
+        env.set_cc(&cc);
+        env.set_cxx(&cxx);
+
+        // AR defaults to CC with -gcc suffix replaced by -ar
+        if let Some(ar) = get_env("AR") {
+            env.set_ar(&ar);
+        } else if cc.ends_with("-gcc") {
+            env.set_ar(format!("{}-ar", cc.trim_end_matches("-gcc")));
+        }
+
+        // Linker defaults to CC
+        if let Some(linker) = get_env("LINKER") {
+            env.set_linker(&linker);
+        } else {
+            env.set_linker(&cc);
+        }
+
+        // RUNNER support
+        if let Some(runner) = get_env("RUNNER") {
+            env.set_runner(&runner);
+        }
+
+        return Some(env);
+    }
+
+    None
 }
 
 fn print_config(args: &cargo_cross::Args, _host: &HostPlatform) {

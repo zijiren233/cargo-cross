@@ -56,10 +56,16 @@ async fn setup_native(
     if let Some(ref sdk) = sdk_path {
         env.set_sdkroot(sdk);
         env.add_rustflag(format!("-C link-arg=--sysroot={}", sdk.display()));
-        color::log_success(&format!("Using macOS SDK at {}", sdk.display()));
+        color::log_success(&format!(
+            "Using macOS SDK at {}",
+            color::cyan(&sdk.display().to_string())
+        ));
     }
 
-    color::log_success(&format!("Using native macOS toolchain for {rust_target}"));
+    color::log_success(&format!(
+        "Using native macOS toolchain for {}",
+        color::yellow(rust_target)
+    ));
 
     Ok(env)
 }
@@ -122,6 +128,11 @@ async fn setup_osxcross(
     env.set_env("OSXCROSS_MP_INC", "1");
     env.set_env("MACOSX_DEPLOYMENT_TARGET", "10.12");
 
+    // Enable osxcross debug output in verbose mode
+    if args.verbose_level > 0 {
+        env.set_env("OCDEBUG", "1");
+    }
+
     // Find the clang binary using wildcard pattern
     let clang_pattern = format!("{}-apple-darwin*-clang", arch.as_str());
     let clang_path = super::find_file_by_pattern(&osxcross_dir.join("bin"), &clang_pattern)
@@ -177,7 +188,8 @@ async fn setup_osxcross(
 
     color::log_success(&format!(
         "Configured osxcross toolchain (SDK {}) for {}",
-        args.macos_sdk_version, rust_target
+        color::cyan(&args.macos_sdk_version),
+        color::yellow(rust_target)
     ));
 
     Ok(env)

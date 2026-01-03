@@ -63,7 +63,9 @@ pub async fn setup(
     setup_sysroot_env(&mut env, &compiler_dir, &bin_prefix, rust_target);
 
     color::log_success(&format!(
-        "Configured FreeBSD {freebsd_version} toolchain for {rust_target}"
+        "Configured FreeBSD {} toolchain for {}",
+        color::yellow(freebsd_version),
+        color::yellow(rust_target)
     ));
 
     Ok(env)

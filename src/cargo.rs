@@ -166,6 +166,7 @@ fn add_wrapper_env(env: &mut HashMap<String, String>, args: &Args) {
 
 /// Add sccache environment variables
 fn add_sccache_env(env: &mut HashMap<String, String>, args: &Args) {
+    // Args-based sccache settings
     if let Some(ref dir) = args.sccache_dir {
         env.insert("SCCACHE_DIR".to_string(), dir.display().to_string());
     }
@@ -184,6 +185,46 @@ fn add_sccache_env(env: &mut HashMap<String, String>, args: &Args) {
     if args.sccache_direct {
         env.insert("SCCACHE_DIRECT".to_string(), "true".to_string());
     }
+
+    // Pass through sccache environment variables from current environment
+    let passthrough_vars = [
+        // Misc sccache settings
+        "SCCACHE_ERROR_LOG",
+        "SCCACHE_RECACHE",
+        "SCCACHE_IGNORE_SERVER_IO_ERROR",
+        // S3 backend
+        "SCCACHE_BUCKET",
+        "SCCACHE_ENDPOINT",
+        "SCCACHE_REGION",
+        "SCCACHE_S3_USE_SSL",
+        "SCCACHE_S3_KEY_PREFIX",
+        // Redis backend
+        "SCCACHE_REDIS_ENDPOINT",
+        "SCCACHE_REDIS_USERNAME",
+        "SCCACHE_REDIS_PASSWORD",
+        "SCCACHE_REDIS_DB",
+        "SCCACHE_REDIS_EXPIRATION",
+        "SCCACHE_REDIS_KEY_PREFIX",
+        // GCS backend
+        "SCCACHE_GCS_BUCKET",
+        "SCCACHE_GCS_KEY_PREFIX",
+        "SCCACHE_GCS_RW_MODE",
+        "SCCACHE_GCS_KEY_PATH",
+        // Azure backend
+        "SCCACHE_AZURE_CONNECTION_STRING",
+        "SCCACHE_AZURE_BLOB_CONTAINER",
+        "SCCACHE_AZURE_KEY_PREFIX",
+        // GitHub Actions backend
+        "SCCACHE_GHA_CACHE_TO",
+        "SCCACHE_GHA_CACHE_FROM",
+    ];
+    for var in passthrough_vars {
+        if let Ok(val) = std::env::var(var) {
+            if !val.is_empty() {
+                env.insert(var.to_string(), val);
+            }
+        }
+    }
 }
 
 /// Add CC crate environment variables
@@ -196,6 +237,16 @@ fn add_cc_crate_env(env: &mut HashMap<String, String>, args: &Args) {
     }
     if args.cc_enable_debug || args.verbose_level > 0 {
         env.insert("CC_ENABLE_DEBUG_OUTPUT".to_string(), "1".to_string());
+    }
+
+    // Pass through additional CC crate environment variables
+    let passthrough_vars = ["CC_FORCE_DISABLE", "CC_KNOWN_WRAPPER_CUSTOM"];
+    for var in passthrough_vars {
+        if let Ok(val) = std::env::var(var) {
+            if !val.is_empty() {
+                env.insert(var.to_string(), val);
+            }
+        }
     }
 }
 
@@ -227,6 +278,20 @@ fn add_compiler_flags_env(env: &mut HashMap<String, String>, args: &Args, target
         };
         env.insert(format!("CXXFLAGS_{target_lower}"), new_flags.clone());
         env.insert("CXXFLAGS".to_string(), new_flags);
+    }
+
+    if let Some(ref ldflags) = args.ldflags {
+        let existing = env
+            .get(&format!("LDFLAGS_{target_lower}"))
+            .cloned()
+            .unwrap_or_default();
+        let new_flags = if existing.is_empty() {
+            ldflags.clone()
+        } else {
+            format!("{existing} {ldflags}")
+        };
+        env.insert(format!("LDFLAGS_{target_lower}"), new_flags.clone());
+        env.insert("LDFLAGS".to_string(), new_flags);
     }
 
     if let Some(ref cxxstdlib) = args.cxxstdlib {
@@ -543,7 +608,10 @@ pub async fn ensure_target_installed(target: &str, toolchain: Option<&str>) -> R
         .any(|line| line.trim().starts_with(target))
     {
         // Install target
-        color::log_info(&format!("Installing Rust target: {target}"));
+        color::log_info(&format!(
+            "Installing Rust target: {}",
+            color::yellow(target)
+        ));
 
         let mut cmd = TokioCommand::new("rustup");
         cmd.arg("target").arg("add").arg(target);
@@ -569,7 +637,8 @@ pub async fn ensure_target_installed(target: &str, toolchain: Option<&str>) -> R
     let targets = String::from_utf8_lossy(&output.stdout);
     if targets.lines().any(|line| line.trim() == target) {
         color::log_info(&format!(
-            "Target {target} not available in rustup but exists in rustc, using build-std"
+            "Target {} not available in rustup but exists in rustc, using build-std",
+            color::yellow(target)
         ));
         return Ok(true);
     }
@@ -581,12 +650,13 @@ pub async fn ensure_target_installed(target: &str, toolchain: Option<&str>) -> R
 
 /// Add rust-src component if needed for build-std
 pub async fn ensure_rust_src(target: &str, toolchain: Option<&str>) -> Result<()> {
+    let toolchain_info = toolchain
+        .map(|t| format!(" and toolchain: {}", color::yellow(t)))
+        .unwrap_or_default();
     color::log_info(&format!(
         "Adding rust-src component for target: {}{}",
-        target,
-        toolchain
-            .map(|t| format!(" and toolchain: {t}"))
-            .unwrap_or_default()
+        color::yellow(target),
+        toolchain_info
     ));
 
     let mut cmd = TokioCommand::new("rustup");

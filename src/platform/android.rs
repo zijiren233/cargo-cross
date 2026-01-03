@@ -121,7 +121,10 @@ include("{}")
         }
     }
 
-    color::log_success(&format!("Configured Android toolchain for {rust_target}"));
+    color::log_success(&format!(
+        "Configured Android toolchain for {}",
+        color::yellow(rust_target)
+    ));
 
     Ok(env)
 }

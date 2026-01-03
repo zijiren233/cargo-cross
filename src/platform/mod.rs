@@ -84,11 +84,7 @@ pub fn setup_darwin_linker_library_path(env: &mut CrossEnv, compiler_dir: &Path)
 
 /// Get Ubuntu version from lsb_release (used for Linux cross-compilation downloads)
 pub async fn get_ubuntu_version() -> Option<String> {
-    let output = Command::new("lsb_release")
-        .arg("-rs")
-        .output()
-        .await
-        .ok()?;
+    let output = Command::new("lsb_release").arg("-rs").output().await.ok()?;
 
     if output.status.success() {
         let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -100,10 +96,7 @@ pub async fn get_ubuntu_version() -> Option<String> {
 }
 
 /// Find an Apple SDK by version using xcrun and xcode-select
-pub async fn find_apple_sdk(
-    sdk_type: AppleSdkType,
-    version: &str,
-) -> Option<PathBuf> {
+pub async fn find_apple_sdk(sdk_type: AppleSdkType, version: &str) -> Option<PathBuf> {
     let (sdk_name, platform_name) = sdk_type.names(version);
 
     // Try xcrun first
@@ -159,11 +152,7 @@ async fn try_xcrun_sdk(sdk_name: &str) -> Option<PathBuf> {
 
 /// Try to find SDK using xcode-select path
 async fn try_xcode_select_sdk(platform_name: &str, version: &str) -> Option<PathBuf> {
-    let output = Command::new("xcode-select")
-        .arg("-p")
-        .output()
-        .await
-        .ok()?;
+    let output = Command::new("xcode-select").arg("-p").output().await.ok()?;
 
     if output.status.success() {
         let xcode_path = String::from_utf8_lossy(&output.stdout).trim().to_string();

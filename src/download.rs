@@ -3,7 +3,7 @@
 use crate::color;
 use crate::error::{CrossError, Result};
 use futures_util::StreamExt;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::path::Path;
 use tokio::fs::{self, File};
 use tokio::io::AsyncWriteExt;
@@ -47,7 +47,7 @@ pub async fn download_file(url: &str, dest: &Path) -> Result<()> {
         )));
     }
 
-    let pb = create_progress_bar(response.content_length());
+    let pb = create_download_progress_bar(response.content_length());
 
     // Ensure parent directory exists
     if let Some(parent) = dest.parent() {
@@ -108,8 +108,8 @@ pub async fn download_and_extract(
 
     color::log_info(&format!(
         "Downloading \"{}\" to \"{}\"",
-        url,
-        dest.display()
+        color::green(&url),
+        color::green(&dest.display().to_string())
     ));
 
     let start_time = std::time::Instant::now();
@@ -131,8 +131,8 @@ pub async fn download_and_extract(
 
     let elapsed = start_time.elapsed();
     color::log_success(&format!(
-        "Download and extraction successful (took {}s)",
-        elapsed.as_secs()
+        "Download and extraction successful (took {})",
+        color::yellow(&format!("{}s", elapsed.as_secs()))
     ));
 
     Ok(())
@@ -141,6 +141,7 @@ pub async fn download_and_extract(
 /// Download and extract a tar.gz archive
 async fn download_and_extract_tar_gz(url: &str, dest: &Path) -> Result<()> {
     use async_compression::futures::bufread::GzipDecoder;
+    use async_tar::Archive;
     use futures_util::io::BufReader;
 
     let client = create_http_client()?;
@@ -154,28 +155,44 @@ async fn download_and_extract_tar_gz(url: &str, dest: &Path) -> Result<()> {
         )));
     }
 
-    let pb = create_progress_bar(response.content_length());
+    // Create multi-progress for simultaneous progress bars
+    let mp = MultiProgress::new();
+    let download_pb = mp.add(create_download_progress_bar(response.content_length()));
+    let extract_pb = mp.add(create_extract_spinner());
 
-    // Stream the response with progress tracking
+    // Stream download with progress tracking
     let stream = response.bytes_stream();
     let reader = tokio_util::io::StreamReader::new(
         stream.map(|result| result.map_err(std::io::Error::other)),
     );
-    let reader = ProgressReader::new(reader, pb.clone());
+    let reader = ProgressReader::new(reader, download_pb.clone());
 
     // Convert tokio AsyncRead to futures AsyncRead
     let reader = tokio_util::compat::TokioAsyncReadCompatExt::compat(reader);
     let buf_reader = BufReader::new(reader);
 
-    // Decompress and extract (async-tar uses futures AsyncRead directly)
+    // Decompress and extract
     let decoder = GzipDecoder::new(buf_reader);
-    let archive = async_tar::Archive::new(decoder);
-    archive
-        .unpack(dest)
-        .await
+    let archive = Archive::new(decoder);
+
+    let mut entries = archive
+        .entries()
         .map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
 
-    pb.finish_with_message("Extraction complete");
+    let mut file_count: u64 = 0;
+    while let Some(entry) = entries.next().await {
+        let mut entry = entry.map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
+        entry
+            .unpack_in(dest)
+            .await
+            .map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
+        file_count += 1;
+        extract_pb.set_message(format!("{file_count} files"));
+    }
+
+    download_pb.finish_with_message("Download complete");
+    extract_pb.finish_with_message(format!("{file_count} files extracted"));
+
     Ok(())
 }
 
@@ -192,60 +209,131 @@ async fn download_and_extract_zip(url: &str, dest: &Path) -> Result<()> {
         )));
     }
 
-    let pb = create_progress_bar(response.content_length());
+    // Create progress bar for download
+    let download_pb = create_download_progress_bar(response.content_length());
 
-    // Download to memory (ZIP needs random access)
-    let mut data = Vec::new();
+    // Download to {dest}.zip file
+    let zip_path = dest.with_extension("zip");
+
+    // Clean up existing zip file
+    if zip_path.exists() {
+        fs::remove_file(&zip_path).await.ok();
+    }
+
+    let mut file = File::create(&zip_path).await?;
     let mut stream = response.bytes_stream();
 
     while let Some(chunk) = stream.next().await {
         let chunk = chunk?;
-        pb.inc(chunk.len() as u64);
-        data.extend_from_slice(&chunk);
+        download_pb.inc(chunk.len() as u64);
+        file.write_all(&chunk).await?;
     }
 
-    pb.finish_with_message("Download complete, extracting...");
+    file.flush().await?;
+    drop(file);
 
-    // Extract ZIP
-    extract_zip_archive(&data, dest)?;
+    download_pb.finish_with_message("Download complete");
+
+    // Create extract spinner after download completes (so timing starts fresh)
+    let extract_pb = create_extract_spinner();
+
+    // Extract ZIP with progress
+    extract_zip_archive(&zip_path, dest, &extract_pb)?;
+
+    // Clean up zip file after extraction
+    fs::remove_file(&zip_path).await.ok();
 
     Ok(())
 }
 
-/// Extract ZIP archive from bytes
-fn extract_zip_archive(data: &[u8], dest: &Path) -> Result<()> {
-    let cursor = std::io::Cursor::new(data);
+/// Extract ZIP archive from file
+fn extract_zip_archive(zip_path: &Path, dest: &Path, pb: &ProgressBar) -> Result<()> {
+    use std::fs;
+    use std::io::{Read, Write};
+
+    let file = fs::File::open(zip_path)?;
     let mut archive =
-        zip::ZipArchive::new(cursor).map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
+        zip::ZipArchive::new(file).map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
 
-    // Use the built-in extract method which handles symlinks correctly
-    archive
-        .extract(dest)
-        .map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
+    let total_files = archive.len();
 
+    for i in 0..total_files {
+        let mut file = archive
+            .by_index(i)
+            .map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
+
+        let outpath = match file.enclosed_name() {
+            Some(path) => dest.join(path),
+            None => continue,
+        };
+
+        if file.is_dir() {
+            fs::create_dir_all(&outpath)?;
+        } else {
+            if let Some(parent) = outpath.parent() {
+                if !parent.exists() {
+                    fs::create_dir_all(parent)?;
+                }
+            }
+
+            let mut outfile = fs::File::create(&outpath)?;
+            let mut buffer = Vec::new();
+            file.read_to_end(&mut buffer)
+                .map_err(|e| CrossError::ExtractionFailed(e.to_string()))?;
+            outfile.write_all(&buffer)?;
+        }
+
+        // Set permissions on Unix
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Some(mode) = file.unix_mode() {
+                fs::set_permissions(&outpath, fs::Permissions::from_mode(mode))?;
+            }
+        }
+
+        pb.set_message(format!("{}/{} files", i + 1, total_files));
+    }
+
+    pb.finish_with_message(format!("{total_files} files extracted"));
     Ok(())
 }
 
-/// Create a progress bar based on content length
-fn create_progress_bar(total_size: Option<u64>) -> ProgressBar {
-    total_size.map_or_else(|| {
-        let pb = ProgressBar::new_spinner();
-        pb.set_style(
-            ProgressStyle::default_spinner()
-                .template("{spinner:.green} [{elapsed_precise}] {bytes}")
-                .unwrap(),
-        );
-        pb
-    }, |size| {
-        let pb = ProgressBar::new(size);
-        pb.set_style(
-            ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
-                .unwrap()
-                .progress_chars("#>-"),
-        );
-        pb
-    })
+/// Create a progress bar for download
+fn create_download_progress_bar(total_size: Option<u64>) -> ProgressBar {
+    total_size.map_or_else(
+        || {
+            let pb = ProgressBar::new_spinner();
+            pb.set_style(
+                ProgressStyle::default_spinner()
+                    .template("{spinner:.green} Downloading [{elapsed_precise}] {bytes}")
+                    .unwrap(),
+            );
+            pb
+        },
+        |size| {
+            let pb = ProgressBar::new(size);
+            pb.set_style(
+                ProgressStyle::default_bar()
+                    .template("{spinner:.green} Downloading [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+                    .unwrap()
+                    .progress_chars("#>-"),
+            );
+            pb
+        },
+    )
+}
+
+/// Create a spinner for extraction progress (file count shown in message)
+fn create_extract_spinner() -> ProgressBar {
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.magenta} Extracting  [{elapsed_precise}] {msg}")
+            .unwrap(),
+    );
+    pb.enable_steady_tick(std::time::Duration::from_millis(100));
+    pb
 }
 
 /// Apply GitHub proxy to URL if configured

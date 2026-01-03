@@ -336,6 +336,9 @@ outputs:
   targets:
     description: "Targets that were processed"
     value: ${{ steps.execute.outputs.targets }}
+  all-targets:
+    description: "All supported targets (only when show-all-targets is true)"
+    value: ${{ steps.show-targets.outputs.all-targets }}
 
 runs:
   using: "composite"
@@ -344,11 +347,12 @@ runs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
 
     - name: Show all targets
+      id: show-targets
       if: ${{ inputs.show-all-targets == 'true' }}
       shell: bash
       working-directory: ${{ inputs.source-dir }}
       run: |
-        "${{ github.action_path }}/cross.sh" --show-all-targets
+        cargo run ${{ github.action_path }} -- targets
 
     - name: Execute
       id: execute

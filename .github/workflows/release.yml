@@ -1,0 +1,24 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    name: Release ${{ github.ref_name }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Release create
+        env:
+          token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create \
+            "${{ github.ref_name }}" \
+            --repo ${{ github.repository }} \
+            --target "${{ github.sha }}" \
+            --generate-notes || \
+            gh release edit "${{ github.ref_name }}" --repo ${{ github.repository }} --target "${{ github.sha }}"
