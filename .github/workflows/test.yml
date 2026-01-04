@@ -84,6 +84,7 @@ jobs:
           profile: release
           toolchain: nightly
           target: ${{ matrix.target }}
+          skip-cache: true
 
       - name: Verify build artifacts
         shell: bash
@@ -145,6 +146,7 @@ jobs:
           profile: release
           toolchain: nightly
           target: ${{ matrix.target }}
+          skip-cache: true
 
       - name: Verify build artifacts
         shell: bash
@@ -194,6 +196,7 @@ jobs:
           target: ${{ matrix.target }}
           macos-sdk-version: ${{ matrix.macos-sdk-version }}
           iphone-sdk-version: ${{ matrix.iphone-sdk-version }}
+          skip-cache: true
 
       - name: Verify build artifacts
         run: |
