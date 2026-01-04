@@ -5,7 +5,7 @@ A powerful GitHub Action for building, testing, and checking Rust projects with 
 ## Features
 
 - 🚀 **Cross-compilation support** for Linux (GNU/musl), Windows, macOS, FreeBSD, Android, and iOS
-- 🖥️ **Multi-platform hosts** - runs on Linux (x86_64/aarch64/armv7) and macOS (x86_64/aarch64)
+- 🖥️ **Multi-platform hosts** - runs on Linux (x86_64/aarch64/armv7/riscv64/s390x/powerpc64/powerpc64le/mips64/mips64el/loongarch64), macOS (x86_64/aarch64), and Windows (x86_64)
 - 📦 **Automatic toolchain setup** - downloads and configures cross-compilers as needed
 - 🎯 **Multiple target support** - build for 63+ target platforms in a single run
 - 🏗️ **Workspace support** - work with entire workspaces or specific packages
