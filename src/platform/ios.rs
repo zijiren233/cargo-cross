@@ -6,6 +6,7 @@ use crate::config::{Arch, HostPlatform, Os, TargetConfig};
 use crate::download::download_and_extract;
 use crate::env::CrossEnv;
 use crate::error::{CrossError, Result};
+use crate::platform::setup_cmake;
 
 /// Setup iOS cross-compilation environment
 pub async fn setup(
@@ -18,7 +19,7 @@ pub async fn setup(
     let is_simulator = matches!(target_config.os, Os::IosSim) || arch == Arch::X86_64;
 
     if host.is_darwin() {
-        setup_native(rust_target, args, is_simulator).await
+        setup_native(rust_target, args, host, is_simulator).await
     } else if host.is_linux() {
         setup_ioscross(arch, rust_target, args, host, is_simulator).await
     } else {
@@ -30,7 +31,12 @@ pub async fn setup(
 }
 
 /// Setup native iOS compilation (on macOS host)
-async fn setup_native(rust_target: &str, args: &Args, is_simulator: bool) -> Result<CrossEnv> {
+async fn setup_native(
+    rust_target: &str,
+    args: &Args,
+    host: &HostPlatform,
+    is_simulator: bool,
+) -> Result<CrossEnv> {
     let mut env = CrossEnv::new();
 
     let sdk_type = if is_simulator {
@@ -78,6 +84,9 @@ async fn setup_native(rust_target: &str, args: &Args, is_simulator: bool) -> Res
     // Use iOS 12.0 as minimum - this is a reasonable baseline that has ___chkstk_darwin
     // and is compatible with modern Rust iOS targets
     env.set_env(deployment_target, "12.0");
+
+    // Setup CMake generator if specified
+    setup_cmake(&mut env, args.cmake_generator.as_deref(), host.is_windows());
 
     color::log_success(&format!(
         "Using native macOS toolchain for {}",
@@ -186,6 +195,9 @@ async fn setup_ioscross(
         "IPHONEOS_DEPLOYMENT_TARGET"
     };
     env.set_env(deployment_target, "12.0");
+
+    // Setup CMake generator if specified
+    setup_cmake(&mut env, args.cmake_generator.as_deref(), host.is_windows());
 
     color::log_success(&format!(
         "Configured iOS toolchain for {}",

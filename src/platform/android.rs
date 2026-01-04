@@ -6,7 +6,7 @@ use crate::config::{Arch, HostPlatform, TargetConfig};
 use crate::download::download_and_extract;
 use crate::env::CrossEnv;
 use crate::error::{CrossError, Result};
-use crate::platform::to_cmake_path;
+use crate::platform::{setup_cmake, to_cmake_path};
 use std::path::PathBuf;
 use tokio::fs;
 
@@ -122,7 +122,7 @@ include("{}")
     );
 
     // Setup CMake generator (auto-detect on Windows, use specified on any platform)
-    crate::platform::setup_cmake(&mut env, args.cmake_generator.as_deref(), host.is_windows());
+    setup_cmake(&mut env, args.cmake_generator.as_deref(), host.is_windows());
 
     // Set LIBCLANG_PATH for bindgen
     let ndk_llvm_base = clang_base_dir.parent().unwrap_or(&clang_base_dir);
