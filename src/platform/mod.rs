@@ -66,6 +66,39 @@ pub fn get_linux_folder_name(
     format!("{arch_str}-linux-{folder_suffix}-cross")
 }
 
+/// Setup cross-compilation environment for Windows host
+///
+/// On Windows, CMake defaults to Visual Studio which ignores CC/CXX.
+/// This function sets up Ninja generator and explicit compiler paths.
+/// Note: bin_dir should already be in PATH, so we use binary names directly.
+pub fn setup_windows_host_cmake(env: &mut CrossEnv, bin_prefix: &str, exe_ext: &str) {
+    // Force Ninja generator instead of Visual Studio
+    env.extra_env
+        .insert("CMAKE_GENERATOR".to_string(), "Ninja".to_string());
+
+    // Set CMAKE compiler names (bin_dir is already in PATH)
+    env.extra_env
+        .insert("CMAKE_C_COMPILER".to_string(), format!("{bin_prefix}-gcc{exe_ext}"));
+    env.extra_env
+        .insert("CMAKE_CXX_COMPILER".to_string(), format!("{bin_prefix}-g++{exe_ext}"));
+}
+
+/// Setup CROSS_COMPILE prefix for cc crate and other build systems
+///
+/// CROSS_COMPILE is a common convention used by:
+/// - Linux kernel builds
+/// - cc crate (Rust)
+/// - Many autoconf/automake projects
+/// Note: bin_dir should already be in PATH, so we use prefix directly.
+pub fn setup_cross_compile_prefix(env: &mut CrossEnv, bin_prefix: &str) {
+    // CROSS_COMPILE should be the prefix including trailing dash
+    // e.g., "armv7-linux-gnueabihf-" so tools become "${CROSS_COMPILE}gcc"
+    env.extra_env.insert(
+        "CROSS_COMPILE".to_string(),
+        format!("{bin_prefix}-"),
+    );
+}
+
 /// Setup library path for Darwin/iOS linker binaries
 ///
 /// The Darwin/iOS linker binaries from cross-compilation toolchains need to find their

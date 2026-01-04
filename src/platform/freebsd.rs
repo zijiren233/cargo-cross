@@ -5,6 +5,7 @@ use crate::color;
 use crate::config::{Arch, HostPlatform, TargetConfig};
 use crate::env::{set_gcc_lib_paths, setup_sysroot_env, CrossEnv};
 use crate::error::{CrossError, Result};
+use crate::platform::{setup_cross_compile_prefix, setup_windows_host_cmake};
 
 /// Setup FreeBSD cross-compilation environment
 pub async fn setup(
@@ -77,6 +78,14 @@ pub async fn setup(
 
     // Set BINDGEN_EXTRA_CLANG_ARGS for cross-compilation
     setup_sysroot_env(&mut env, &compiler_dir, &bin_prefix, rust_target);
+
+    // Set CROSS_COMPILE prefix for cc crate and other build systems
+    setup_cross_compile_prefix(&mut env, &bin_prefix);
+
+    // On Windows, CMake defaults to Visual Studio which ignores CC/CXX
+    if host.is_windows() {
+        setup_windows_host_cmake(&mut env, &bin_prefix, exe_ext);
+    }
 
     color::log_success(&format!(
         "Configured FreeBSD {} toolchain for {}",
