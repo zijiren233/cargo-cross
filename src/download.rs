@@ -183,7 +183,7 @@ pub async fn download_and_extract(
 async fn download_and_extract_tar_gz(url: &str, dest: &Path) -> Result<()> {
     use async_compression::tokio::bufread::GzipDecoder;
     use tokio::io::BufReader;
-    use tokio_tar::Archive;
+    use tokio_tar::ArchiveBuilder;
 
     let client = create_http_client()?;
     let response = client.get(url).send().await?;
@@ -200,7 +200,10 @@ async fn download_and_extract_tar_gz(url: &str, dest: &Path) -> Result<()> {
     // Create progress bars without steady tick first, add to MultiProgress, then enable tick
     // This prevents rendering race conditions when bars are added
     let mp = MultiProgress::with_draw_target(indicatif::ProgressDrawTarget::stderr_with_hz(10));
-    let download_pb = mp.insert(0, create_download_progress_bar_no_tick(response.content_length()));
+    let download_pb = mp.insert(
+        0,
+        create_download_progress_bar_no_tick(response.content_length()),
+    );
     let extract_pb = mp.insert(1, create_extract_spinner_no_tick());
     // Enable steady tick after both bars are registered with MultiProgress
     download_pb.enable_steady_tick(TICK_INTERVAL);
@@ -214,9 +217,11 @@ async fn download_and_extract_tar_gz(url: &str, dest: &Path) -> Result<()> {
     let reader = ProgressReader::new(reader, download_pb.clone());
     let buf_reader = BufReader::new(reader);
 
-    // Decompress and extract
+    // Decompress and extract with permission preservation for executable files
     let decoder = GzipDecoder::new(buf_reader);
-    let mut archive = Archive::new(decoder);
+    let mut archive = ArchiveBuilder::new(decoder)
+        .set_preserve_permissions(true)
+        .build();
 
     let mut entries = archive
         .entries()
