@@ -9,10 +9,9 @@ A powerful GitHub Action for building, testing, and checking Rust projects with 
 - 📦 **Automatic toolchain setup** - downloads and configures cross-compilers as needed
 - 🎯 **Multiple target support** - build for 63+ target platforms in a single run
 - 🏗️ **Workspace support** - work with entire workspaces or specific packages
-- ⚡ **Flexible linking** - most musl targets default to static (varies by target), GNU targets default to dynamic, both configurable via `crt-static` parameter
+- ⚡ **Flexible linking** - some musl targets default to static (varies by target), GNU targets default to dynamic, both configurable via `crt-static` parameter
 - 🔧 **Flexible configuration** - extensive customization options
-- 📁 **Organized output** - all artifacts collected in a single directory
-- 🛠️ **Multiple commands** - supports build, test, and check operations
+- 🛠️ **Multiple commands** - supports build, bench, test, and check operations
 
 ## Local Usage
 

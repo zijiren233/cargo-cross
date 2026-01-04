@@ -55,8 +55,9 @@ fn build_cargo_env(
     let target_lower = target.replace('-', "_");
     let mut env = cross_env.build_env(target, host);
 
-    // Handle host config for same-target builds
-    if target == host.triple {
+    // Handle host config for same-target builds (only when --target is explicitly passed)
+    // When no_cargo_target is true, we don't pass --target to cargo, so these aren't needed
+    if !args.no_cargo_target && target == host.triple {
         env.insert("CARGO_UNSTABLE_HOST_CONFIG".to_string(), "true".to_string());
         env.insert(
             "CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST".to_string(),
@@ -344,10 +345,8 @@ fn build_cargo_command(target: &str, args: &Args, cross_env: &CrossEnv) -> Tokio
     add_build_config_args(&mut cmd, args);
 
     // Additional cargo args
-    if let Some(ref cargo_args) = args.cargo_args {
-        for arg in cargo_args.split_whitespace() {
-            cmd.arg(arg);
-        }
+    for arg in &args.cargo_args {
+        cmd.arg(arg);
     }
 
     // Passthrough arguments
@@ -682,4 +681,5 @@ mod tests {
             "-C opt-level=3 -C target-feature=+crt-static -Z build-std"
         );
     }
+
 }

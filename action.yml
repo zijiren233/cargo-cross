@@ -52,7 +52,10 @@ inputs:
   source-dir:
     description: "The directory containing the Rust project to build"
     required: false
-    default: ${{ github.workspace }}
+    deprecationMessage: "Use working-directory instead of source-dir"
+  working-directory:
+    description: "The directory containing the Rust project to build, default is github.workspace"
+    required: false
   github-proxy-mirror:
     description: "GitHub proxy mirror URL for downloading cross compilers"
     required: false
@@ -214,6 +217,10 @@ inputs:
     default: "false"
   args:
     description: "Additional arguments to pass to cargo build"
+    deprecationMessage: "Use cargo-args instead of args"
+    required: false
+  cargo-args:
+    description: "Additional arguments to pass to cargo build"
     required: false
   passthrough-args:
     description: "Arguments to pass after -- (e.g., for cargo test: --show-output)"
@@ -344,7 +351,7 @@ runs:
   steps:
     - name: Install cargo-cross
       shell: bash
-      working-directory: ${{ inputs.source-dir }}
+      working-directory: ${{ github.action_path }}
       run: |
         echo "::group::Install cargo-cross"
         command -v cargo-cross || cargo install --quiet --debug --path .
@@ -354,14 +361,14 @@ runs:
       id: show-targets
       if: ${{ inputs.show-all-targets == 'true' }}
       shell: bash
-      working-directory: ${{ inputs.source-dir }}
+      working-directory: ${{ github.action_path }}
       run: cargo-cross targets --format json
 
     - name: Execute
       id: execute
       if: ${{ inputs.show-all-targets == 'false' }}
       shell: bash
-      working-directory: ${{ inputs.source-dir }}
+      working-directory: ${{ inputs.working-directory || inputs.source-dir || github.workspace }}
       env:
         CLICOLOR_FORCE: "1"
         TARGETS: ${{ inputs.target || inputs.targets }}
@@ -443,7 +450,7 @@ runs:
         CLEAN_CACHE: ${{ inputs.clean-cache == 'true' && 'true' || '' }}
         NO_STRIP: ${{ inputs.no-strip == 'true' && 'true' || '' }}
         VERBOSE_LEVEL: ${{ inputs.verbose == 'true' && '1' || inputs.verbose }}
-        CARGO_ARGS: ${{ inputs.args }}
+        CARGO_ARGS: ${{ inputs.cargo-args || inputs.args }}
         CARGO_PASSTHROUGH_ARGS: ${{ inputs.passthrough-args && format('-- {0}', inputs.passthrough-args) || '' }}
         TOOLCHAIN: ${{ inputs.toolchain }}
         CARGO_TRIM_PATHS: ${{ inputs.cargo-trim-paths || inputs.trim-paths }}

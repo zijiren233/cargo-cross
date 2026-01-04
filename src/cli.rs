@@ -899,16 +899,17 @@ execution of this command. See 'cargo report' for more information."
 
     // ===== Additional Cargo Arguments =====
     /// Additional arguments to pass to cargo
+    /// Note: CARGO_ARGS env var is handled manually in cargo.rs to support shell-style parsing
     #[arg(
         long,
         visible_alias = "args",
-        env = "CARGO_ARGS",
         value_name = "ARGS",
         hide = true,
         allow_hyphen_values = true,
+        action = clap::ArgAction::Append,
         help_heading = "Additional Options"
     )]
-    pub cargo_args: Option<String>,
+    pub cargo_args: Vec<String>,
 
     /// Unstable (nightly-only) flags to Cargo
     #[arg(short = 'Z', value_name = "FLAG",
@@ -969,6 +970,7 @@ Clean the target directory before building. Equivalent to running 'cargo clean' 
     pub clean_cache: bool,
 
     /// Arguments passed through to cargo (after --)
+    /// Note: CARGO_PASSTHROUGH_ARGS env var is handled manually in cargo.rs to support shell-style parsing
     #[arg(
         last = true,
         allow_hyphen_values = true,
@@ -1348,6 +1350,18 @@ fn finalize_args(
         build_args.build_std = None;
     }
 
+    // Handle env vars for cargo_args and passthrough_args (command line takes priority)
+    if build_args.cargo_args.is_empty() {
+        if let Some(env_args) = parse_env_args("CARGO_ARGS") {
+            build_args.cargo_args = env_args;
+        }
+    }
+    if build_args.passthrough_args.is_empty() {
+        if let Some(env_args) = parse_env_args("CARGO_PASSTHROUGH_ARGS") {
+            build_args.passthrough_args = env_args;
+        }
+    }
+
     // Merge toolchain: +toolchain syntax takes precedence over --toolchain option
     let final_toolchain = toolchain.or_else(|| build_args.toolchain_option.clone());
 
@@ -1365,6 +1379,24 @@ fn finalize_args(
     }
 
     Ok(args)
+}
+
+/// Parse environment variable as shell-style arguments using shlex
+/// Returns None if env var is not set or empty
+fn parse_env_args(env_name: &str) -> Option<Vec<String>> {
+    let value = std::env::var(env_name).ok()?;
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    match shlex::split(value) {
+        Some(parsed) if !parsed.is_empty() => Some(parsed),
+        Some(_) => None,
+        None => {
+            eprintln!("Warning: Failed to parse {env_name} (mismatched quotes?): {value}");
+            None
+        }
+    }
 }
 
 /// Validate version options
@@ -2774,13 +2806,27 @@ mod tests {
     #[test]
     fn test_args_alias() {
         let args = parse(&["cargo-cross", "build", "--args", "--verbose"]).unwrap();
-        assert_eq!(args.cargo_args, Some("--verbose".to_string()));
+        assert_eq!(args.cargo_args, vec!["--verbose"]);
     }
 
     #[test]
     fn test_cargo_args_original() {
         let args = parse(&["cargo-cross", "build", "--cargo-args", "--verbose"]).unwrap();
-        assert_eq!(args.cargo_args, Some("--verbose".to_string()));
+        assert_eq!(args.cargo_args, vec!["--verbose"]);
+    }
+
+    #[test]
+    fn test_cargo_args_multiple() {
+        let args = parse(&[
+            "cargo-cross",
+            "build",
+            "--cargo-args",
+            "--verbose",
+            "--cargo-args",
+            "--locked",
+        ])
+        .unwrap();
+        assert_eq!(args.cargo_args, vec!["--verbose", "--locked"]);
     }
 
     // Target validation tests
@@ -2966,5 +3012,94 @@ mod tests {
         assert_eq!(args.jobs, Some("4".to_string()));
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
         assert_eq!(args.features, Some("bar".to_string()));
+    }
+
+    // Tests for parse_env_args (shell-style argument parsing from env vars)
+
+    #[test]
+    fn test_parse_env_args_not_set() {
+        std::env::remove_var("TEST_PARSE_ENV_ARGS_NOT_SET");
+        let result = parse_env_args("TEST_PARSE_ENV_ARGS_NOT_SET");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_env_args_empty() {
+        std::env::set_var("TEST_PARSE_ENV_ARGS_EMPTY", "");
+        let result = parse_env_args("TEST_PARSE_ENV_ARGS_EMPTY");
+        assert!(result.is_none());
+        std::env::remove_var("TEST_PARSE_ENV_ARGS_EMPTY");
+    }
+
+    #[test]
+    fn test_parse_env_args_simple() {
+        std::env::set_var("TEST_PARSE_ENV_ARGS_SIMPLE", "--verbose --locked");
+        let result = parse_env_args("TEST_PARSE_ENV_ARGS_SIMPLE");
+        assert_eq!(
+            result,
+            Some(vec!["--verbose".to_string(), "--locked".to_string()])
+        );
+        std::env::remove_var("TEST_PARSE_ENV_ARGS_SIMPLE");
+    }
+
+    #[test]
+    fn test_parse_env_args_with_single_quotes() {
+        std::env::set_var(
+            "TEST_PARSE_ENV_ARGS_SINGLE_QUOTES",
+            "--config 'build.jobs=4' --verbose",
+        );
+        let result = parse_env_args("TEST_PARSE_ENV_ARGS_SINGLE_QUOTES");
+        assert_eq!(
+            result,
+            Some(vec![
+                "--config".to_string(),
+                "build.jobs=4".to_string(),
+                "--verbose".to_string()
+            ])
+        );
+        std::env::remove_var("TEST_PARSE_ENV_ARGS_SINGLE_QUOTES");
+    }
+
+    #[test]
+    fn test_parse_env_args_with_double_quotes() {
+        std::env::set_var(
+            "TEST_PARSE_ENV_ARGS_DOUBLE_QUOTES",
+            "--message-format \"json with spaces\"",
+        );
+        let result = parse_env_args("TEST_PARSE_ENV_ARGS_DOUBLE_QUOTES");
+        assert_eq!(
+            result,
+            Some(vec![
+                "--message-format".to_string(),
+                "json with spaces".to_string()
+            ])
+        );
+        std::env::remove_var("TEST_PARSE_ENV_ARGS_DOUBLE_QUOTES");
+    }
+
+    #[test]
+    fn test_parse_env_args_complex() {
+        std::env::set_var(
+            "TEST_PARSE_ENV_ARGS_COMPLEX",
+            "--config 'key=\"value with spaces\"' --verbose",
+        );
+        let result = parse_env_args("TEST_PARSE_ENV_ARGS_COMPLEX");
+        assert_eq!(
+            result,
+            Some(vec![
+                "--config".to_string(),
+                "key=\"value with spaces\"".to_string(),
+                "--verbose".to_string()
+            ])
+        );
+        std::env::remove_var("TEST_PARSE_ENV_ARGS_COMPLEX");
+    }
+
+    #[test]
+    fn test_parse_env_args_whitespace_only() {
+        std::env::set_var("TEST_PARSE_ENV_ARGS_WHITESPACE", "   ");
+        let result = parse_env_args("TEST_PARSE_ENV_ARGS_WHITESPACE");
+        assert!(result.is_none());
+        std::env::remove_var("TEST_PARSE_ENV_ARGS_WHITESPACE");
     }
 }

@@ -181,9 +181,9 @@ pub async fn download_and_extract(
 
 /// Download and extract a tar.gz archive
 async fn download_and_extract_tar_gz(url: &str, dest: &Path) -> Result<()> {
-    use async_compression::futures::bufread::GzipDecoder;
-    use async_tar::Archive;
-    use futures_util::io::BufReader;
+    use async_compression::tokio::bufread::GzipDecoder;
+    use tokio::io::BufReader;
+    use tokio_tar::Archive;
 
     let client = create_http_client()?;
     let response = client.get(url).send().await?;
@@ -212,14 +212,11 @@ async fn download_and_extract_tar_gz(url: &str, dest: &Path) -> Result<()> {
         stream.map(|result| result.map_err(std::io::Error::other)),
     );
     let reader = ProgressReader::new(reader, download_pb.clone());
-
-    // Convert tokio AsyncRead to futures AsyncRead
-    let reader = tokio_util::compat::TokioAsyncReadCompatExt::compat(reader);
     let buf_reader = BufReader::new(reader);
 
     // Decompress and extract
     let decoder = GzipDecoder::new(buf_reader);
-    let archive = Archive::new(decoder);
+    let mut archive = Archive::new(decoder);
 
     let mut entries = archive
         .entries()
