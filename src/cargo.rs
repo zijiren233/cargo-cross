@@ -58,15 +58,7 @@ fn build_cargo_env(
     // Handle host config for same-target builds (only when --target is explicitly passed)
     // When no_cargo_target is true, we don't pass --target to cargo, so these aren't needed
     if !args.no_cargo_target && target == host.triple {
-        env.insert("CARGO_UNSTABLE_HOST_CONFIG".to_string(), "true".to_string());
-        env.insert(
-            "CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST".to_string(),
-            "true".to_string(),
-        );
-        env.insert(
-            "CARGO_TARGET_APPLIES_TO_HOST".to_string(),
-            "false".to_string(),
-        );
+        add_host_config_env(&mut env);
     }
 
     // Build RUSTFLAGS
@@ -141,6 +133,20 @@ fn build_rustflags(args: &Args, cross_env: &CrossEnv) -> String {
     }
 
     rustflags
+}
+
+/// Add host config environment variables for same-target builds
+/// These are needed when explicitly passing --target that matches the host
+fn add_host_config_env(env: &mut HashMap<String, String>) {
+    env.insert("CARGO_UNSTABLE_HOST_CONFIG".to_string(), "true".to_string());
+    env.insert(
+        "CARGO_UNSTABLE_TARGET_APPLIES_TO_HOST".to_string(),
+        "true".to_string(),
+    );
+    env.insert(
+        "CARGO_TARGET_APPLIES_TO_HOST".to_string(),
+        "false".to_string(),
+    );
 }
 
 /// Add wrapper environment (sccache or rustc_wrapper)
