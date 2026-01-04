@@ -197,9 +197,14 @@ async fn download_and_extract_tar_gz(url: &str, dest: &Path) -> Result<()> {
     }
 
     // Create multi-progress for simultaneous progress bars
-    let mp = MultiProgress::new();
-    let download_pb = mp.add(create_download_progress_bar(response.content_length()));
-    let extract_pb = mp.add(create_extract_spinner());
+    // Create progress bars without steady tick first, add to MultiProgress, then enable tick
+    // This prevents rendering race conditions when bars are added
+    let mp = MultiProgress::with_draw_target(indicatif::ProgressDrawTarget::stderr_with_hz(10));
+    let download_pb = mp.insert(0, create_download_progress_bar_no_tick(response.content_length()));
+    let extract_pb = mp.insert(1, create_extract_spinner_no_tick());
+    // Enable steady tick after both bars are registered with MultiProgress
+    download_pb.enable_steady_tick(TICK_INTERVAL);
+    extract_pb.enable_steady_tick(TICK_INTERVAL);
 
     // Stream download with progress tracking
     let stream = response.bytes_stream();
@@ -414,9 +419,9 @@ fn make_writable_dir_all(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Create a progress bar for download
-fn create_download_progress_bar(total_size: Option<u64>) -> ProgressBar {
-    let pb = total_size.map_or_else(
+/// Create a progress bar for download (without steady tick - caller should enable after adding to MultiProgress)
+fn create_download_progress_bar_no_tick(total_size: Option<u64>) -> ProgressBar {
+    total_size.map_or_else(
         || {
             let pb = ProgressBar::new_spinner();
             pb.set_style(DOWNLOAD_SPINNER_STYLE.clone());
@@ -427,17 +432,20 @@ fn create_download_progress_bar(total_size: Option<u64>) -> ProgressBar {
             pb.set_style(DOWNLOAD_BAR_STYLE.clone());
             pb
         },
-    );
-    // Enable steady tick so elapsed time updates even when network IO stalls
+    )
+}
+
+/// Create a progress bar for download with steady tick enabled
+fn create_download_progress_bar(total_size: Option<u64>) -> ProgressBar {
+    let pb = create_download_progress_bar_no_tick(total_size);
     pb.enable_steady_tick(TICK_INTERVAL);
     pb
 }
 
-/// Create a spinner for extraction progress (file count shown in message)
-fn create_extract_spinner() -> ProgressBar {
+/// Create a spinner for extraction progress (without steady tick)
+fn create_extract_spinner_no_tick() -> ProgressBar {
     let pb = ProgressBar::new_spinner();
     pb.set_style(EXTRACT_SPINNER_STYLE.clone());
-    pb.enable_steady_tick(TICK_INTERVAL);
     pb
 }
 
