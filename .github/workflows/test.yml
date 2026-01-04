@@ -131,6 +131,13 @@ jobs:
             x86_64-unknown-linux-gnu
             aarch64-unknown-linux-gnu
             armv7-unknown-linux-gnueabihf
+          - |
+            i686-linux-android
+            x86_64-linux-android
+            armv7-linux-androideabi
+            arm-linux-androideabi
+            aarch64-linux-android
+            riscv64-linux-android
 
     steps:
       - name: Checkout repository
@@ -153,7 +160,11 @@ jobs:
         run: |
           while IFS= read -r target; do
             [[ -z "$target" ]] && continue
-            file="target/$target/release/cargo-cross.exe"
+            if [[ "$target" == *"windows"* ]]; then
+              file="target/$target/release/cargo-cross.exe"
+            else
+              file="target/$target/release/cargo-cross"
+            fi
             if [[ -f "$file" ]]; then
               echo "✓ $file exists ($(du -h "$file" | cut -f1))"
             else
