@@ -1525,6 +1525,13 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_crt_static_not_provided() {
+        // When --crt-static is not provided at all, value should be None
+        let args = parse(&["cargo-cross", "build"]).unwrap();
+        assert_eq!(args.crt_static, None);
+    }
+
+    #[test]
     fn test_parse_build_std() {
         let args = parse(&["cargo-cross", "build", "--build-std", "true"]).unwrap();
         assert_eq!(args.build_std, Some("true".to_string()));
