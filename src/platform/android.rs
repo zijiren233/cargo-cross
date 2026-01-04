@@ -121,11 +121,8 @@ include("{}")
         to_cmake_path(&wrapper_toolchain_file),
     );
 
-    // On Windows, CMake defaults to Visual Studio which doesn't work well with Android NDK
-    // Force Ninja generator for proper cross-compilation
-    if host.is_windows() {
-        env.set_env("CMAKE_GENERATOR", "Ninja");
-    }
+    // Setup CMake generator (auto-detect on Windows, use specified on any platform)
+    crate::platform::setup_cmake(&mut env, args.cmake_generator.as_deref(), host.is_windows());
 
     // Set LIBCLANG_PATH for bindgen
     let ndk_llvm_base = clang_base_dir.parent().unwrap_or(&clang_base_dir);

@@ -543,6 +543,20 @@ Specify the C++ standard library to use (libc++, libstdc++, etc)."
     )]
     pub cxxstdlib: Option<String>,
 
+    /// CMake generator to use (like cmake -G)
+    #[arg(
+        long,
+        short = 'G',
+        env = "CMAKE_GENERATOR",
+        value_name = "GENERATOR",
+        help_heading = "Compiler Options",
+        long_help = "\
+Specify the CMake generator to use. On Windows, this overrides the auto-detection.
+Common generators: Ninja, 'MinGW Makefiles', 'Unix Makefiles', 'NMake Makefiles'.
+If not specified, auto-detects: Ninja > MinGW Makefiles > Unix Makefiles."
+    )]
+    pub cmake_generator: Option<String>,
+
     /// Additional RUSTFLAGS (can be repeated)
     #[arg(long = "rustflag", visible_alias = "rustflags", value_name = "FLAG",
           env = "ADDITIONAL_RUSTFLAGS", allow_hyphen_values = true,

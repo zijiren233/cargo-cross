@@ -5,7 +5,7 @@ use crate::color;
 use crate::config::{HostPlatform, Libc, TargetConfig, DEFAULT_GLIBC_VERSION};
 use crate::env::{set_gcc_lib_paths, setup_sysroot_env, CrossEnv};
 use crate::error::Result;
-use crate::platform::{get_linux_bin_prefix, get_linux_folder_name, setup_cross_compile_prefix, setup_windows_host_cmake};
+use crate::platform::{get_linux_bin_prefix, get_linux_folder_name, setup_cmake, setup_cross_compile_prefix};
 use crate::runner;
 
 /// Setup Linux cross-compilation environment
@@ -77,10 +77,8 @@ pub async fn setup(
     // Set CROSS_COMPILE prefix for cc crate and other build systems
     setup_cross_compile_prefix(&mut env, &bin_prefix);
 
-    // On Windows, CMake defaults to Visual Studio which ignores CC/CXX
-    if host.is_windows() {
-        setup_windows_host_cmake(&mut env);
-    }
+    // Setup CMake generator (auto-detect on Windows, use specified on any platform)
+    setup_cmake(&mut env, args.cmake_generator.as_deref(), host.is_windows());
 
     // Setup runner only if the command needs to execute binaries
     if args.command.needs_runner() {

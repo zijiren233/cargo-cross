@@ -79,17 +79,34 @@ pub fn get_linux_folder_name(
     format!("{arch_str}-linux-{folder_suffix}-cross")
 }
 
-/// Setup cross-compilation environment for Windows host
+/// Setup CMake generator for cross-compilation
 ///
-/// On Windows, CMake defaults to Visual Studio which ignores CC/CXX.
-/// This function sets up Ninja generator which respects CC/CXX env vars.
-/// Note: We rely on CC/CXX environment variables and PATH instead of
-/// CMAKE_C_COMPILER/CMAKE_CXX_COMPILER, following cmake-rs behavior.
-pub fn setup_windows_host_cmake(env: &mut CrossEnv) {
-    // Force Ninja generator instead of Visual Studio
-    // Ninja respects CC/CXX environment variables that we already set
+/// If cmake_generator is specified, uses it directly.
+/// On Windows, auto-detects if not specified (VS ignores CC/CXX).
+/// On other platforms, only sets if explicitly specified.
+pub fn setup_cmake(env: &mut CrossEnv, cmake_generator: Option<&str>, is_windows: bool) {
+    // User specified generator - use it on any platform
+    if let Some(g) = cmake_generator {
+        env.extra_env
+            .insert("CMAKE_GENERATOR".to_string(), g.to_string());
+        return;
+    }
+
+    // On non-Windows, don't override CMake's default
+    if !is_windows {
+        return;
+    }
+
+    // Auto-detect on Windows: Ninja > MinGW Makefiles > Unix Makefiles
+    let generator = if which::which("ninja").is_ok() {
+        "Ninja"
+    } else if which::which("mingw32-make").is_ok() {
+        "MinGW Makefiles"
+    } else {
+        "Unix Makefiles"
+    };
     env.extra_env
-        .insert("CMAKE_GENERATOR".to_string(), "Ninja".to_string());
+        .insert("CMAKE_GENERATOR".to_string(), generator.to_string());
 }
 
 /// Setup CROSS_COMPILE prefix for cc crate and other build systems

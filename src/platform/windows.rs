@@ -5,7 +5,7 @@ use crate::color;
 use crate::config::{Arch, HostPlatform, Libc, TargetConfig};
 use crate::env::{set_gcc_lib_paths, setup_sysroot_env, CrossEnv};
 use crate::error::{CrossError, Result};
-use crate::platform::{setup_cross_compile_prefix, setup_windows_host_cmake};
+use crate::platform::{setup_cmake, setup_cross_compile_prefix};
 use crate::runner;
 
 /// Setup Windows cross-compilation environment
@@ -111,11 +111,8 @@ async fn setup_mingw(
     // Set CROSS_COMPILE prefix for cc crate and other build systems
     setup_cross_compile_prefix(&mut env, &bin_prefix);
 
-    // On Windows, CMake defaults to Visual Studio which ignores CC/CXX
-    // Force Ninja generator which respects CC/CXX env vars
-    if host.is_windows() {
-        setup_windows_host_cmake(&mut env);
-    }
+    // Setup CMake generator (auto-detect on Windows, use specified on any platform)
+    setup_cmake(&mut env, args.cmake_generator.as_deref(), host.is_windows());
 
     // Setup Wine runner for cross-compiled Windows binaries (only on non-Windows hosts)
     if !host.is_windows() && args.command.needs_runner() {
