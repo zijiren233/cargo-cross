@@ -23,7 +23,8 @@ pub async fn setup(
         .cross_compiler_dir
         .join(format!("android-ndk-{}-{}", host.os, args.ndk_version));
 
-    let prebuilt_dir = ndk_dir.join("toolchains/llvm/prebuilt");
+    // Use nested joins to ensure native path separators on Windows
+    let prebuilt_dir = ndk_dir.join("toolchains").join("llvm").join("prebuilt");
 
     // Download NDK if not present
     if !ndk_dir.exists() {
@@ -82,9 +83,13 @@ pub async fn setup(
     env.add_path(&clang_base_dir);
 
     // Create wrapper toolchain file for cmake
-    let wrapper_toolchain_dir = ndk_dir.join("build/cmake/wrappers");
+    // Use nested joins to ensure native path separators on Windows
+    let wrapper_toolchain_dir = ndk_dir.join("build").join("cmake").join("wrappers");
     let wrapper_toolchain_file = wrapper_toolchain_dir.join(format!("android-{android_abi}.cmake"));
-    let ndk_toolchain_file = ndk_dir.join("build/cmake/android.toolchain.cmake");
+    let ndk_toolchain_file = ndk_dir
+        .join("build")
+        .join("cmake")
+        .join("android.toolchain.cmake");
 
     if !wrapper_toolchain_file.exists() {
         fs::create_dir_all(&wrapper_toolchain_dir).await?;
@@ -121,8 +126,13 @@ include("{}")
         "libclang.so"
     };
 
-    for lib_dir in &["lib", "lib64", "musl/lib"] {
-        let libclang_path = ndk_llvm_base.join(lib_dir);
+    // Check common library directories for libclang
+    let lib_candidates = [
+        ndk_llvm_base.join("lib"),
+        ndk_llvm_base.join("lib64"),
+        ndk_llvm_base.join("musl").join("lib"),
+    ];
+    for libclang_path in &lib_candidates {
         if libclang_path.join(libclang_name).exists() {
             env.set_env("LIBCLANG_PATH", libclang_path.display().to_string());
             break;
