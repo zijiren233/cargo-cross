@@ -395,7 +395,7 @@ pub fn expand_targets(pattern: &str) -> Vec<&'static str> {
         TARGETS.keys().copied().collect()
     } else if let Some(regex_pattern) = pattern.strip_prefix('~') {
         // Regex mode: prefix with ~
-        regex::Regex::new(regex_pattern).map_or_else(
+        regex_lite::Regex::new(regex_pattern).map_or_else(
             |_| vec![],
             |re| TARGETS.keys().copied().filter(|t| re.is_match(t)).collect(),
         )

@@ -24,7 +24,7 @@ fn format_duration(duration: Duration) -> String {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
     // Sanitize environment variables that could cause cargo errors
     sanitize_cargo_env();
@@ -296,7 +296,7 @@ fn print_config(args: &cargo_cross::Args, _host: &HostPlatform) {
     println!(
         "{}",
         color::format_config(
-            "Source directory",
+            "Working directory",
             &std::env::current_dir().map_or_else(|_| ".".to_string(), |p| p.display().to_string())
         )
     );

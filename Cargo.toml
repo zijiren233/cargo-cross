@@ -12,24 +12,8 @@ name = "cargo-cross"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4", features = [
-    "derive",
-    "env",
-    "string",
-    "unicode",
-    "wrap_help",
-    "color",
-] }
-reqwest = { version = "0.13", features = ["stream"] }
-tokio = { version = "1", features = [
-    "rt-multi-thread",
-    "macros",
-    "process",
-    "fs",
-    "io-util",
-    "sync",
-    "signal",
-] }
+clap = { version = "4", features = ["derive", "env"] }
+tokio = { version = "1", features = ["rt", "macros", "process", "signal"] }
 tokio-util = { version = "0.7", features = ["io"] }
 futures-util = "0.3"
 tokio-tar = { package = "astral-tokio-tar", version = "0.5", default-features = false }
@@ -39,14 +23,31 @@ async-compression = { version = "0.4", default-features = false, features = [
 ] }
 zip = { version = "7", default-features = false, features = ["deflate"] }
 which = "8"
-serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 colored = "3"
 thiserror = "2"
 indicatif = "0.18"
-regex = "1"
+# Use regex-lite for faster compile (smaller regex engine, same API for basic usage)
+regex-lite = "0.1"
 globset = { version = "0.4", default-features = false }
 shlex = "1"
+
+# Platform-specific TLS for reqwest:
+# - macOS/Windows: native-tls (system TLS, fast compile)
+# - Linux/others: rustls (no OpenSSL dependency needed)
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+reqwest = { version = "0.13", default-features = false, features = [
+    "stream",
+    "native-tls",
+    "system-proxy",
+] }
+
+[target.'cfg(not(any(target_os = "macos", target_os = "windows")))'.dependencies]
+reqwest = { version = "0.13", default-features = false, features = [
+    "stream",
+    "rustls",
+    "system-proxy",
+] }
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.30", features = ["process", "signal"] }

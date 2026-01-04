@@ -72,7 +72,10 @@ impl ArchiveFormat {
 
 /// HTTP client wrapper for consistent configuration
 fn create_http_client() -> reqwest::Result<reqwest::Client> {
-    reqwest::Client::builder().user_agent("cargo-cross").build()
+    reqwest::Client::builder()
+        .user_agent("cargo-cross")
+        .http1_only()
+        .build()
 }
 
 /// Download a file from URL with progress indication

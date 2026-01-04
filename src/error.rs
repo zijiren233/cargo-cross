@@ -98,7 +98,7 @@ pub enum CrossError {
     JsonError(#[from] serde_json::Error),
 
     #[error("Regex error: {0}")]
-    RegexError(#[from] regex::Error),
+    RegexError(#[from] regex_lite::Error),
 
     #[error("{0}")]
     Other(String),
