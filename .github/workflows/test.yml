@@ -138,6 +138,11 @@ jobs:
             arm-linux-androideabi
             aarch64-linux-android
             riscv64-linux-android
+          # FreeBSD
+          - |
+            x86_64-unknown-freebsd
+            aarch64-unknown-freebsd
+            riscv64gc-unknown-freebsd
 
     steps:
       - name: Checkout repository
