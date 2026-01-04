@@ -676,7 +676,8 @@ Enable sccache direct mode. Caches based on source file content directly, bypass
     // ===== Build Options =====
     /// Link the C runtime statically
     #[arg(long, value_parser = parse_optional_bool, env = "CRT_STATIC",
-          value_name = "BOOL", num_args = 1, help_heading = "Build Options",
+          value_name = "BOOL", num_args = 0..=1, default_missing_value = "true",
+          help_heading = "Build Options",
           long_help = "\
 Control whether the C runtime is statically linked. true=static (larger, portable),
 false=dynamic (smaller, requires libc). Musl defaults to static, glibc to dynamic.")]
@@ -704,9 +705,10 @@ Requires nightly and implies --build-std. Stack traces will not be available."
     /// Build the standard library from source
     #[arg(long, value_parser = parse_build_std, env = "BUILD_STD",
           value_name = "CRATES", help_heading = "Build Options",
+          num_args = 0..=1, default_missing_value = "true",
           long_help = "\
-Build the standard library from source (requires nightly). Use 'true' for full std
-or specify crates like 'core,alloc'. Required for unsupported targets or panic=abort.")]
+Build the standard library from source (requires nightly). Without arguments, builds 'std'.
+Use 'true' for full std or specify crates like 'core,alloc'. Required for unsupported targets or panic=abort.")]
     pub build_std: Option<String>,
 
     /// Features to enable when building std
@@ -727,6 +729,8 @@ Space-separated features for std. Common: panic_immediate_abort, optimize_for_si
         visible_alias = "trim-paths",
         env = "CARGO_TRIM_PATHS",
         value_name = "VALUE",
+        num_args = 0..=1,
+        default_missing_value = "true",
         help_heading = "Build Options",
         long_help = "\
 Control how paths are trimmed in compiler output for reproducible builds.
@@ -748,6 +752,8 @@ Valid: true, macro, diagnostics, object, all, none (default: false)"
         long,
         env = "RUSTC_BOOTSTRAP",
         value_name = "VALUE",
+        num_args = 0..=1,
+        default_missing_value = "1",
         hide = true,
         help_heading = "Build Options"
     )]
@@ -1512,6 +1518,13 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_crt_static_no_value() {
+        // --crt-static without value should default to true
+        let args = parse(&["cargo-cross", "build", "--crt-static"]).unwrap();
+        assert_eq!(args.crt_static, Some(true));
+    }
+
+    #[test]
     fn test_parse_build_std() {
         let args = parse(&["cargo-cross", "build", "--build-std", "true"]).unwrap();
         assert_eq!(args.build_std, Some("true".to_string()));
@@ -1527,6 +1540,13 @@ mod tests {
     fn test_parse_build_std_false() {
         let args = parse(&["cargo-cross", "build", "--build-std", "false"]).unwrap();
         assert_eq!(args.build_std, None);
+    }
+
+    #[test]
+    fn test_parse_build_std_no_value() {
+        // --build-std without value should default to "true"
+        let args = parse(&["cargo-cross", "build", "--build-std"]).unwrap();
+        assert_eq!(args.build_std, Some("true".to_string()));
     }
 
     #[test]
@@ -2232,6 +2252,33 @@ mod tests {
     fn test_alias_trim_paths() {
         let args = parse(&["cargo-cross", "build", "--trim-paths", "all"]).unwrap();
         assert_eq!(args.cargo_trim_paths, Some("all".to_string()));
+    }
+
+    #[test]
+    fn test_trim_paths_no_value() {
+        // --trim-paths without value should default to "true"
+        let args = parse(&["cargo-cross", "build", "--trim-paths"]).unwrap();
+        assert_eq!(args.cargo_trim_paths, Some("true".to_string()));
+    }
+
+    #[test]
+    fn test_cargo_trim_paths_no_value() {
+        // --cargo-trim-paths without value should default to "true"
+        let args = parse(&["cargo-cross", "build", "--cargo-trim-paths"]).unwrap();
+        assert_eq!(args.cargo_trim_paths, Some("true".to_string()));
+    }
+
+    #[test]
+    fn test_rustc_bootstrap_no_value() {
+        // --rustc-bootstrap without value should default to "1"
+        let args = parse(&["cargo-cross", "build", "--rustc-bootstrap"]).unwrap();
+        assert_eq!(args.rustc_bootstrap, Some("1".to_string()));
+    }
+
+    #[test]
+    fn test_rustc_bootstrap_with_value() {
+        let args = parse(&["cargo-cross", "build", "--rustc-bootstrap", "mycrate"]).unwrap();
+        assert_eq!(args.rustc_bootstrap, Some("mycrate".to_string()));
     }
 
     // Command alias tests
