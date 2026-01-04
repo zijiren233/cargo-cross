@@ -295,8 +295,24 @@ pub fn setup_sysroot_env(
 }
 
 /// Get standard build-std crates configuration
+///
+/// Crates explicitly listed for user visibility and completeness:
+/// - std: standard library (depends on core, alloc, panic_*, compiler_builtins, etc.)
+/// - core: no_std core library
+/// - alloc: memory allocation (no_std + alloc)
+/// - proc_macro: procedural macros
+/// - test: test framework
+/// - panic_abort: panic=abort strategy
+/// - panic_unwind: panic=unwind strategy (cargo adds this automatically but we keep it explicit)
+///
+/// Note: When "std" is specified, cargo's std_crates() automatically adds:
+/// core, alloc, proc_macro, panic_unwind, compiler_builtins
+///
+/// References:
+/// - Rust standard library: <https://github.com/rust-lang/rust/tree/main/library>
+/// - Cargo build-std: <https://github.com/rust-lang/cargo/blob/master/src/cargo/core/compiler/standard_lib.rs>
 pub const fn get_build_std_config() -> &'static str {
-    "core,std,alloc,proc_macro,test,compiler_builtins,panic_abort,panic_unwind"
+    "std,core,alloc,proc_macro,test,panic_abort,panic_unwind"
 }
 
 /// Sanitize environment variables that could cause cargo errors
