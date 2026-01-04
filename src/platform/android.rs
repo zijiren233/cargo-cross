@@ -74,12 +74,16 @@ pub async fn setup(
 
     let mut env = CrossEnv::new();
 
-    // Set compiler paths (add .exe extension on Windows)
-    let exe_ext = if host.is_windows() { ".exe" } else { "" };
-    env.set_cc(format!("{clang_prefix}-clang{exe_ext}"));
-    env.set_cxx(format!("{clang_prefix}-clang++{exe_ext}"));
-    env.set_ar(format!("llvm-ar{exe_ext}"));
-    env.set_linker(format!("{clang_prefix}-clang{exe_ext}"));
+    // Set compiler paths
+    // Note: Android NDK clang binaries don't have .exe extension on Windows
+    // They provide extensionless executables and .cmd wrappers
+    env.set_cc(format!("{clang_prefix}-clang"));
+    env.set_cxx(format!("{clang_prefix}-clang++"));
+    env.set_ar(format!(
+        "llvm-ar{}",
+        if host.is_windows() { ".exe" } else { "" }
+    ));
+    env.set_linker(format!("{clang_prefix}-clang"));
     env.add_path(&clang_base_dir);
 
     // Create wrapper toolchain file for cmake
@@ -110,7 +114,10 @@ include("{}")
     }
 
     // Set CMAKE_TOOLCHAIN_FILE for CMake-based builds
-    env.set_env("CMAKE_TOOLCHAIN_FILE", to_cmake_path(&wrapper_toolchain_file));
+    env.set_env(
+        "CMAKE_TOOLCHAIN_FILE",
+        to_cmake_path(&wrapper_toolchain_file),
+    );
 
     // On Windows, CMake defaults to Visual Studio which doesn't work well with Android NDK
     // Force Ninja generator for proper cross-compilation
@@ -154,9 +161,9 @@ async fn find_prebuilt_bin_dir(prebuilt_dir: &PathBuf, host: &HostPlatform) -> R
     let candidates = if host.os == "darwin" {
         // macOS: try arch-specific first, then generic
         vec![
-            format!("darwin-{}", host.arch),  // darwin-aarch64 or darwin-x86_64
-            "darwin-x86_64".to_string(),      // Rosetta fallback for ARM Mac
-            "darwin".to_string(),             // Generic (some NDK versions)
+            format!("darwin-{}", host.arch), // darwin-aarch64 or darwin-x86_64
+            "darwin-x86_64".to_string(),     // Rosetta fallback for ARM Mac
+            "darwin".to_string(),            // Generic (some NDK versions)
         ]
     } else {
         // Linux/Windows: typically os-x86_64
