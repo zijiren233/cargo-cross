@@ -154,7 +154,14 @@ fn add_wrapper_env(env: &mut HashMap<String, String>, args: &Args) {
 
 /// Add sccache environment variables
 fn add_sccache_env(env: &mut HashMap<String, String>, args: &Args) {
-    // Args-based sccache settings
+    // First, pass through all SCCACHE_* environment variables from current environment
+    for (key, val) in std::env::vars() {
+        if key.starts_with("SCCACHE_") && !val.is_empty() {
+            env.insert(key, val);
+        }
+    }
+
+    // Then, override with args-based settings (args have higher priority than env vars)
     if let Some(ref dir) = args.sccache_dir {
         env.insert("SCCACHE_DIR".to_string(), dir.display().to_string());
     }
@@ -172,46 +179,6 @@ fn add_sccache_env(env: &mut HashMap<String, String>, args: &Args) {
     }
     if args.sccache_direct {
         env.insert("SCCACHE_DIRECT".to_string(), "true".to_string());
-    }
-
-    // Pass through sccache environment variables from current environment
-    let passthrough_vars = [
-        // Misc sccache settings
-        "SCCACHE_ERROR_LOG",
-        "SCCACHE_RECACHE",
-        "SCCACHE_IGNORE_SERVER_IO_ERROR",
-        // S3 backend
-        "SCCACHE_BUCKET",
-        "SCCACHE_ENDPOINT",
-        "SCCACHE_REGION",
-        "SCCACHE_S3_USE_SSL",
-        "SCCACHE_S3_KEY_PREFIX",
-        // Redis backend
-        "SCCACHE_REDIS_ENDPOINT",
-        "SCCACHE_REDIS_USERNAME",
-        "SCCACHE_REDIS_PASSWORD",
-        "SCCACHE_REDIS_DB",
-        "SCCACHE_REDIS_EXPIRATION",
-        "SCCACHE_REDIS_KEY_PREFIX",
-        // GCS backend
-        "SCCACHE_GCS_BUCKET",
-        "SCCACHE_GCS_KEY_PREFIX",
-        "SCCACHE_GCS_RW_MODE",
-        "SCCACHE_GCS_KEY_PATH",
-        // Azure backend
-        "SCCACHE_AZURE_CONNECTION_STRING",
-        "SCCACHE_AZURE_BLOB_CONTAINER",
-        "SCCACHE_AZURE_KEY_PREFIX",
-        // GitHub Actions backend
-        "SCCACHE_GHA_CACHE_TO",
-        "SCCACHE_GHA_CACHE_FROM",
-    ];
-    for var in passthrough_vars {
-        if let Ok(val) = std::env::var(var) {
-            if !val.is_empty() {
-                env.insert(var.to_string(), val);
-            }
-        }
     }
 }
 
@@ -681,5 +648,4 @@ mod tests {
             "-C opt-level=3 -C target-feature=+crt-static -Z build-std"
         );
     }
-
 }
