@@ -31,6 +31,8 @@ indicatif = "0.18"
 regex-lite = "0.1"
 globset = { version = "0.4", default-features = false }
 shlex = "1"
+# Path slash conversion for CMake compatibility on Windows
+path-slash = "0.2"
 
 # Platform-specific TLS for reqwest:
 # - macOS/Windows: native-tls (system TLS, fast compile)

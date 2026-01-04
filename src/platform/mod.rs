@@ -11,8 +11,21 @@ use crate::cli::Args;
 use crate::config::{Arch, HostPlatform, Libc, Os, TargetConfig};
 use crate::env::CrossEnv;
 use crate::error::Result;
+use path_slash::PathExt as _;
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
+
+/// Convert a path to CMake-compatible format (forward slashes)
+///
+/// CMake interprets backslashes as escape sequences (e.g., `\U` in `\Users`),
+/// so all paths must use forward slashes. Uses the `path-slash` crate which
+/// properly handles:
+/// - Windows drive letters (C:\ -> C:/)
+/// - UNC paths (\\server\share -> //server/share)
+/// - Already forward-slashed paths (no-op)
+pub fn to_cmake_path(path: &Path) -> String {
+    path.to_slash_lossy().into_owned()
+}
 
 /// Setup cross-compilation environment for a target
 pub async fn setup_cross_env(
@@ -249,6 +262,33 @@ fn glob_matches(pattern: &str, filename: &str) -> bool {
 mod tests {
     use super::*;
     use crate::config::Abi;
+
+    // Tests for CMake path conversion (using path-slash crate)
+
+    #[test]
+    fn test_to_cmake_path_unix() {
+        // Unix paths should pass through unchanged
+        let path = Path::new("/home/user/project");
+        assert_eq!(to_cmake_path(path), "/home/user/project");
+    }
+
+    #[test]
+    fn test_to_cmake_path_relative() {
+        // Relative paths should work
+        let path = Path::new("src/main.rs");
+        assert_eq!(to_cmake_path(path), "src/main.rs");
+    }
+
+    #[test]
+    fn test_to_cmake_path_with_dots() {
+        // Paths with . and .. should be preserved
+        let path = Path::new("../project/./src");
+        assert_eq!(to_cmake_path(path), "../project/./src");
+    }
+
+    // Note: Windows-specific path tests (C:\, UNC paths) would only work correctly
+    // when compiled and run on Windows. The path-slash crate handles these cases
+    // properly on Windows by converting backslashes to forward slashes.
 
     #[test]
     fn test_linux_bin_prefix_musl() {

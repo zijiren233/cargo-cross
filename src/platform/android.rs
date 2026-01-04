@@ -6,6 +6,7 @@ use crate::config::{Arch, HostPlatform, TargetConfig};
 use crate::download::download_and_extract;
 use crate::env::CrossEnv;
 use crate::error::{CrossError, Result};
+use crate::platform::to_cmake_path;
 use std::path::PathBuf;
 use tokio::fs;
 
@@ -96,18 +97,21 @@ set(ANDROID_NDK "{}")
 include("{}")
 "#,
             android_abi,
-            ndk_dir.display(),
-            ndk_toolchain_file.display()
+            to_cmake_path(&ndk_dir),
+            to_cmake_path(&ndk_toolchain_file)
         );
 
         fs::write(&wrapper_toolchain_file, toolchain_content).await?;
     }
 
     // Set CMAKE_TOOLCHAIN_FILE for CMake-based builds
-    env.set_env(
-        "CMAKE_TOOLCHAIN_FILE",
-        wrapper_toolchain_file.display().to_string(),
-    );
+    env.set_env("CMAKE_TOOLCHAIN_FILE", to_cmake_path(&wrapper_toolchain_file));
+
+    // On Windows, CMake defaults to Visual Studio which doesn't work well with Android NDK
+    // Force Ninja generator for proper cross-compilation
+    if host.is_windows() {
+        env.set_env("CMAKE_GENERATOR", "Ninja");
+    }
 
     // Set LIBCLANG_PATH for bindgen
     let ndk_llvm_base = clang_base_dir.parent().unwrap_or(&clang_base_dir);
