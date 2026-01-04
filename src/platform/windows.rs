@@ -112,9 +112,9 @@ async fn setup_mingw(
     setup_cross_compile_prefix(&mut env, &bin_prefix);
 
     // On Windows, CMake defaults to Visual Studio which ignores CC/CXX
-    // Force Ninja and explicit MinGW compilers to ensure consistency
+    // Force Ninja generator which respects CC/CXX env vars
     if host.is_windows() {
-        setup_windows_host_cmake(&mut env, &bin_prefix, exe_ext);
+        setup_windows_host_cmake(&mut env);
     }
 
     // Setup Wine runner for cross-compiled Windows binaries (only on non-Windows hosts)

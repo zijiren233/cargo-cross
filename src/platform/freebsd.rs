@@ -84,7 +84,7 @@ pub async fn setup(
 
     // On Windows, CMake defaults to Visual Studio which ignores CC/CXX
     if host.is_windows() {
-        setup_windows_host_cmake(&mut env, &bin_prefix, exe_ext);
+        setup_windows_host_cmake(&mut env);
     }
 
     color::log_success(&format!(

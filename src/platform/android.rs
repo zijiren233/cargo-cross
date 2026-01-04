@@ -75,15 +75,17 @@ pub async fn setup(
     let mut env = CrossEnv::new();
 
     // Set compiler paths
-    // Note: Android NDK clang binaries don't have .exe extension on Windows
-    // They provide extensionless executables and .cmd wrappers
-    env.set_cc(format!("{clang_prefix}-clang"));
-    env.set_cxx(format!("{clang_prefix}-clang++"));
+    // On Windows, Android NDK provides .cmd wrappers (not .exe) for clang
+    // These .cmd scripts set up the environment and call the real clang
+    // We must use .cmd extension because Windows won't execute extensionless files
+    let clang_ext = if host.is_windows() { ".cmd" } else { "" };
+    env.set_cc(format!("{clang_prefix}-clang{clang_ext}"));
+    env.set_cxx(format!("{clang_prefix}-clang++{clang_ext}"));
     env.set_ar(format!(
         "llvm-ar{}",
         if host.is_windows() { ".exe" } else { "" }
     ));
-    env.set_linker(format!("{clang_prefix}-clang"));
+    env.set_linker(format!("{clang_prefix}-clang{clang_ext}"));
     env.add_path(&clang_base_dir);
 
     // Create wrapper toolchain file for cmake

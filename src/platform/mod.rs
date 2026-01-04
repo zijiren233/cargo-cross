@@ -82,22 +82,14 @@ pub fn get_linux_folder_name(
 /// Setup cross-compilation environment for Windows host
 ///
 /// On Windows, CMake defaults to Visual Studio which ignores CC/CXX.
-/// This function sets up Ninja generator and explicit compiler paths.
-/// Note: bin_dir should already be in PATH, so we use binary names directly.
-pub fn setup_windows_host_cmake(env: &mut CrossEnv, bin_prefix: &str, exe_ext: &str) {
+/// This function sets up Ninja generator which respects CC/CXX env vars.
+/// Note: We rely on CC/CXX environment variables and PATH instead of
+/// CMAKE_C_COMPILER/CMAKE_CXX_COMPILER, following cmake-rs behavior.
+pub fn setup_windows_host_cmake(env: &mut CrossEnv) {
     // Force Ninja generator instead of Visual Studio
+    // Ninja respects CC/CXX environment variables that we already set
     env.extra_env
         .insert("CMAKE_GENERATOR".to_string(), "Ninja".to_string());
-
-    // Set CMAKE compiler names (bin_dir is already in PATH)
-    env.extra_env.insert(
-        "CMAKE_C_COMPILER".to_string(),
-        format!("{bin_prefix}-gcc{exe_ext}"),
-    );
-    env.extra_env.insert(
-        "CMAKE_CXX_COMPILER".to_string(),
-        format!("{bin_prefix}-g++{exe_ext}"),
-    );
 }
 
 /// Setup CROSS_COMPILE prefix for cc crate and other build systems
