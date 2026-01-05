@@ -10,17 +10,19 @@ use std::process::ExitStatus;
 use tokio::process::Command as TokioCommand;
 
 /// Build and execute cargo command for a target
+/// If `skip_target_arg` is true, don't pass --target to cargo (for host builds)
 pub async fn execute_cargo(
     target: &str,
     args: &Args,
     cross_env: &CrossEnv,
     host: &HostPlatform,
+    skip_target_arg: bool,
 ) -> Result<ExitStatus> {
     // Build environment variables
-    let build_env = build_cargo_env(target, args, cross_env, host);
+    let build_env = build_cargo_env(target, args, cross_env, host, skip_target_arg);
 
     // Build cargo command
-    let mut cmd = build_cargo_command(target, args, cross_env);
+    let mut cmd = build_cargo_command(target, args, cross_env, skip_target_arg);
 
     // Set environment variables
     cmd.envs(&build_env);
@@ -51,13 +53,14 @@ fn build_cargo_env(
     args: &Args,
     cross_env: &CrossEnv,
     host: &HostPlatform,
+    skip_target_arg: bool,
 ) -> HashMap<String, String> {
     let target_lower = target.replace('-', "_");
     let mut env = cross_env.build_env(target, host);
 
     // Handle host config for same-target builds (only when --target is explicitly passed)
-    // When no_cargo_target is true, we don't pass --target to cargo, so these aren't needed
-    if !args.no_cargo_target && target == host.triple {
+    // When skip_target_arg is true, we don't pass --target to cargo, so these aren't needed
+    if !skip_target_arg && !args.no_cargo_target && target == host.triple {
         add_host_config_env(&mut env);
     }
 
@@ -262,7 +265,12 @@ fn add_compiler_flags_env(env: &mut HashMap<String, String>, args: &Args, target
 }
 
 /// Build the cargo command with all arguments
-fn build_cargo_command(target: &str, args: &Args, cross_env: &CrossEnv) -> TokioCommand {
+fn build_cargo_command(
+    target: &str,
+    args: &Args,
+    cross_env: &CrossEnv,
+    skip_target_arg: bool,
+) -> TokioCommand {
     let mut cmd = TokioCommand::new("cargo");
 
     // Toolchain
@@ -288,8 +296,8 @@ fn build_cargo_command(target: &str, args: &Args, cross_env: &CrossEnv) -> Tokio
         cmd.arg("--config").arg(config);
     }
 
-    // Target
-    if !args.no_cargo_target {
+    // Target (skip for host-tuple builds)
+    if !skip_target_arg && !args.no_cargo_target {
         cmd.arg("--target").arg(target);
     }
 

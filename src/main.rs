@@ -137,11 +137,15 @@ async fn run() -> Result<ExitCode> {
 }
 
 async fn execute_target(target: &str, args: &cargo_cross::Args, host: &HostPlatform) -> Result<()> {
+    // Check if this is a host-tuple build (don't pass --target, skip toolchain setup)
+    let is_host_build = target == "host-tuple";
+    let actual_target = if is_host_build { &host.triple } else { target };
+
     color::print_separator();
     color::log_info(&format!(
         "Executing {} for {}...",
         color::magenta(args.command.as_str()),
-        color::magenta(target)
+        color::magenta(actual_target)
     ));
 
     // Clean cache if requested
@@ -154,17 +158,25 @@ async fn execute_target(target: &str, args: &cargo_cross::Args, host: &HostPlatf
     }
 
     // Get target configuration
-    let target_config = get_target_config(target);
+    let target_config = get_target_config(actual_target);
 
     // Ensure target is installed and check if build-std is required
-    let auto_build_std = ensure_target_installed(target, args.toolchain.as_deref()).await?;
+    let auto_build_std =
+        ensure_target_installed(actual_target, args.toolchain.as_deref()).await?;
 
     // Check for pre-configured compiler environment variables first
     // This allows users to skip toolchain download if they have their own compiler setup
-    let mut cross_env = if let Some(env) = check_preconfigured_env(target, args) {
+    let mut cross_env = if is_host_build {
+        // Host build: skip toolchain setup, use system compiler
+        color::log_info(&format!(
+            "Building for host ({}), skipping toolchain setup",
+            color::cyan(actual_target)
+        ));
+        cargo_cross::env::CrossEnv::new()
+    } else if let Some(env) = check_preconfigured_env(actual_target, args) {
         color::log_success(&format!(
             "Using pre-configured compiler from environment variables for {}",
-            color::yellow(target)
+            color::yellow(actual_target)
         ));
         env
     } else if let Some(config) = target_config {
@@ -173,7 +185,7 @@ async fn execute_target(target: &str, args: &cargo_cross::Args, host: &HostPlatf
         // Unknown target, use default environment
         color::log_warning(&format!(
             "No specific toolchain configuration for {}, using default",
-            color::cyan(target)
+            color::cyan(actual_target)
         ));
         cargo_cross::env::CrossEnv::new()
     };
@@ -192,11 +204,11 @@ async fn execute_target(target: &str, args: &cargo_cross::Args, host: &HostPlatf
         args.build_std.is_some() || args.panic_immediate_abort || cross_env.build_std.is_some();
 
     if needs_build_std {
-        ensure_rust_src(target, args.toolchain.as_deref()).await?;
+        ensure_rust_src(actual_target, args.toolchain.as_deref()).await?;
     }
 
-    // Execute cargo
-    let status = execute_cargo(target, args, &cross_env, host).await?;
+    // Execute cargo (skip --target for host-tuple builds)
+    let status = execute_cargo(actual_target, args, &cross_env, host, is_host_build).await?;
 
     if !status.success() {
         return Err(cargo_cross::CrossError::CargoFailed {
@@ -212,7 +224,7 @@ async fn execute_target(target: &str, args: &cargo_cross::Args, host: &HostPlatf
     );
     color::log_success(&format!(
         "{command_cap} successful: {}",
-        color::yellow(target)
+        color::yellow(actual_target)
     ));
 
     Ok(())

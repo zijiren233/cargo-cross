@@ -1391,6 +1391,7 @@ fn finalize_args(
         args.no_toolchain_setup = true;
         args.no_cargo_target = true;
     }
+    // Note: "host-tuple" is handled dynamically in execute_target
 
     Ok(args)
 }
