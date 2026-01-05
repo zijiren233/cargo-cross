@@ -33,8 +33,8 @@ pub async fn setup_cross_env(
     args: &Args,
     host: &HostPlatform,
 ) -> Result<CrossEnv> {
-    // Skip toolchain setup if using default linker
-    if args.use_default_linker {
+    // Skip toolchain setup if user wants to skip it
+    if args.no_toolchain_setup {
         return Ok(CrossEnv::new());
     }
 

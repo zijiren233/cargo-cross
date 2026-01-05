@@ -91,7 +91,11 @@ inputs:
     required: false
     default: "v10.2.0-rc1"
   use-default-linker:
-    description: "Use system default linker (no cross-compiler download)"
+    deprecationMessage: "use no-toolchain-setup to skip toolchain setup entirely"
+    description: "Use the default system linker for cross-compilation (deprecated, use no-toolchain-setup instead)"
+    required: false
+  no-toolchain-setup:
+    description: "Skip downloading and configuring cross-compilation toolchain"
     required: false
     default: "false"
   cc:
@@ -438,7 +442,7 @@ runs:
         MACOS_SDK_PATH: ${{ inputs.macos-sdk-path }}
         FREEBSD_VERSION: ${{ inputs.freebsd-version }}
         QEMU_VERSION: ${{ inputs.qemu-version }}
-        USE_DEFAULT_LINKER: ${{ inputs.use-default-linker == 'true' && 'true' || '' }}
+        NO_TOOLCHAIN_SETUP: ${{ inputs.no-toolchain-setup == 'true' && 'true' || '' }}
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
         AR: ${{ inputs.ar }}

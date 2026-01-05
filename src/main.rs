@@ -178,6 +178,10 @@ async fn execute_target(target: &str, args: &cargo_cross::Args, host: &HostPlatf
         cargo_cross::env::CrossEnv::new()
     };
 
+    // Apply user-provided compiler overrides from CLI arguments
+    // CLI args have highest priority: CLI > env vars > auto-config
+    apply_user_overrides(&mut cross_env, args);
+
     // Enable build-std if auto-detected (target exists in rustc but not in rustup)
     if auto_build_std && args.build_std.is_none() && cross_env.build_std.is_none() {
         cross_env.build_std = Some("true".to_string());
@@ -220,8 +224,8 @@ fn check_preconfigured_env(
     target: &str,
     args: &cargo_cross::Args,
 ) -> Option<cargo_cross::env::CrossEnv> {
-    // Skip if user explicitly wants default linker
-    if args.use_default_linker {
+    // Skip if user explicitly wants to skip toolchain setup
+    if args.no_toolchain_setup {
         return None;
     }
 
@@ -288,6 +292,35 @@ fn check_preconfigured_env(
     }
 
     None
+}
+
+/// Apply user-provided compiler overrides from CLI arguments
+/// CLI arguments have the highest priority and override both env vars and auto-config
+fn apply_user_overrides(env: &mut cargo_cross::env::CrossEnv, args: &cargo_cross::Args) {
+    if let Some(ref cc) = args.cc {
+        let cc_str = cc.display().to_string();
+        if !cc_str.is_empty() {
+            env.set_cc(cc_str);
+        }
+    }
+    if let Some(ref cxx) = args.cxx {
+        let cxx_str = cxx.display().to_string();
+        if !cxx_str.is_empty() {
+            env.set_cxx(cxx_str);
+        }
+    }
+    if let Some(ref ar) = args.ar {
+        let ar_str = ar.display().to_string();
+        if !ar_str.is_empty() {
+            env.set_ar(ar_str);
+        }
+    }
+    if let Some(ref linker) = args.linker {
+        let linker_str = linker.display().to_string();
+        if !linker_str.is_empty() {
+            env.set_linker(linker_str);
+        }
+    }
 }
 
 fn print_config(args: &cargo_cross::Args, _host: &HostPlatform) {

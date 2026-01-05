@@ -487,10 +487,10 @@ Override the archiver (ar) path. By default, the appropriate archiver is auto-co
 
     /// Override linker path
     #[arg(long, env = "LINKER", value_name = "PATH",
-          value_hint = ValueHint::ExecutablePath,
-          conflicts_with = "use_default_linker", help_heading = "Compiler Options",
+          value_hint = ValueHint::ExecutablePath, help_heading = "Compiler Options",
           long_help = "\
-Override the linker path. By default, the cross-compiler is used as linker.")]
+Override the linker path. By default, the cross-compiler is used as linker.
+This option takes precedence over auto-configured linker.")]
     pub linker: Option<PathBuf>,
 
     /// Additional flags for C compilation
@@ -574,17 +574,17 @@ Example: --rustflag '-C target-cpu=native' --rustflag '-C lto=thin'")]
 Specify a rustc wrapper program (sccache, cachepot, etc) for compilation caching.")]
     pub rustc_wrapper: Option<PathBuf>,
 
-    /// Use the default system linker instead of cross-compiler
+    /// Skip cross-compilation toolchain setup
     #[arg(
         long,
-        env = "USE_DEFAULT_LINKER",
-        conflicts_with = "linker",
+        env = "NO_TOOLCHAIN_SETUP",
         help_heading = "Compiler Options",
         long_help = "\
-Use the default system linker instead of the cross-compiler linker.
-Useful when building for host target or with custom linker setup."
+Skip downloading and configuring cross-compilation toolchain.
+Use this when you have pre-configured system compilers or want to use
+only CLI-provided compiler options (--cc, --cxx, --ar, --linker)."
     )]
-    pub use_default_linker: bool,
+    pub no_toolchain_setup: bool,
 
     // ===== Sccache Options =====
     /// Enable sccache for compilation caching
@@ -1388,7 +1388,7 @@ fn finalize_args(
     if args.targets.is_empty() {
         let host = config::HostPlatform::detect();
         args.targets.push(host.triple);
-        args.use_default_linker = true;
+        args.no_toolchain_setup = true;
         args.no_cargo_target = true;
     }
 
@@ -2425,15 +2425,24 @@ mod tests {
     }
 
     #[test]
-    fn test_conflicts_linker_use_default_linker() {
-        let result = parse(&[
+    fn test_no_toolchain_setup() {
+        let args = parse(&["cargo-cross", "build", "--no-toolchain-setup"]).unwrap();
+        assert!(args.no_toolchain_setup);
+    }
+
+    #[test]
+    fn test_linker_with_no_toolchain_setup() {
+        // --linker and --no-toolchain-setup can be used together
+        let args = parse(&[
             "cargo-cross",
             "build",
             "--linker",
             "/usr/bin/ld",
-            "--use-default-linker",
-        ]);
-        assert!(result.is_err());
+            "--no-toolchain-setup",
+        ])
+        .unwrap();
+        assert!(args.no_toolchain_setup);
+        assert_eq!(args.linker, Some(PathBuf::from("/usr/bin/ld")));
     }
 
     // Complex real-world scenario tests
