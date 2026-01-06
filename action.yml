@@ -362,7 +362,7 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
-        ls -a
+        ls -a .github
         # Use Cargo.lock hash for precise cache invalidation
         if command -v sha256sum &>/dev/null; then
           HASH=$(sha256sum "${{ github.action_path }}/Cargo.lock" | cut -d' ' -f1)
