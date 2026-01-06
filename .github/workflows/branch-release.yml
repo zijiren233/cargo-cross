@@ -1,0 +1,28 @@
+name: Branch Release
+
+on:
+  push:
+    branches:
+      - "*"
+
+jobs:
+  release:
+    name: Release ${{ github.ref_name }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Release create
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create \
+            "${{ github.ref_name }}" \
+            --repo ${{ github.repository }} \
+            --target "${{ github.sha }}" \
+            --title "${{ github.ref_name }}" \
+            --notes "Branch release for ${{ github.ref_name }}" \
+            --latest=false || \
+          gh release edit "${{ github.ref_name }}" \
+            --repo ${{ github.repository }} \
+            --target "${{ github.sha }}"
