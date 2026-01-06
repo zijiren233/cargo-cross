@@ -360,15 +360,21 @@ runs:
     - name: Get cargo-cross cache key
       id: cargo-cross-cache-key
       shell: bash
+      working-directory: ${{ github.action_path }}
       run: |
-        # Use git commit hash for precise cache invalidation
-        HASH=$(git -C "${{ github.action_path }}" rev-parse HEAD 2>/dev/null || echo "unknown")
-        echo "hash=$HASH" >> $GITHUB_OUTPUT
+        ls -a
+        # Use Cargo.lock hash for precise cache invalidation
+        if command -v sha256sum &>/dev/null; then
+          HASH=$(sha256sum "${{ github.action_path }}/Cargo.lock" | cut -d' ' -f1)
+        else
+          HASH=$(shasum -a 256 "${{ github.action_path }}/Cargo.lock" | cut -d' ' -f1)
+        fi
+        echo "hash=${HASH:0:16}" >> $GITHUB_OUTPUT
 
     - name: Restore cargo-cross cache
       if: inputs.skip-cache != 'true'
       id: cargo-cross-cache
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
       with:
         path: |
           ~/.cargo/bin/cargo-cross
@@ -383,6 +389,15 @@ runs:
         echo "::group::Install cargo-cross"
         command -v cargo-cross || cargo install --quiet --debug --path .
         echo "::endgroup::"
+
+    - name: Save cargo-cross cache
+      if: inputs.skip-cache != 'true' && steps.cargo-cross-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ~/.cargo/bin/cargo-cross
+          ~/.cargo/bin/cargo-cross.exe
+        key: cargo-cross-${{ runner.os }}-${{ runner.arch }}-${{ steps.cargo-cross-cache-key.outputs.hash }}
 
     - name: Show all targets
       id: show-targets
