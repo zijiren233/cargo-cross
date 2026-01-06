@@ -362,12 +362,14 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
-        ls -a .github
-        # Use Cargo.lock hash for precise cache invalidation
+        # Hash all files for precise cache invalidation (ignore hidden files and target/)
         if command -v sha256sum &>/dev/null; then
-          HASH=$(sha256sum "${{ github.action_path }}/Cargo.lock" | cut -d' ' -f1)
+          HASH=$(find . -path '*/.*' -prune -o -path './target' -prune -o -type f -print | sort | xargs cat | sha256sum | cut -d' ' -f1)
+        elif command -v shasum &>/dev/null; then
+          HASH=$(find . -path '*/.*' -prune -o -path './target' -prune -o -type f -print | sort | xargs cat | shasum -a 256 | cut -d' ' -f1)
         else
-          HASH=$(shasum -a 256 "${{ github.action_path }}/Cargo.lock" | cut -d' ' -f1)
+          echo "hash=${{ github.action_repository }}-${{ github.action_ref }}" >> $GITHUB_OUTPUT
+          exit 0
         fi
         echo "hash=${HASH:0:16}" >> $GITHUB_OUTPUT
 
