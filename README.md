@@ -5,14 +5,13 @@ A powerful GitHub Action for building, testing, and checking Rust projects with 
 ## Features
 
 - 🚀 **Cross-compilation support** for Linux (GNU/musl), Windows, macOS, FreeBSD, Android, and iOS
-- 🖥️ **Multi-platform hosts** - runs on Linux (x86_64/aarch64/armv7) and macOS (x86_64/aarch64)
+- 🖥️ **Multi-platform hosts** - runs on Linux (x86_64/aarch64/armv7/riscv64/s390x/powerpc64/powerpc64le/mips64/mips64el/loongarch64), macOS (x86_64/aarch64), and Windows (x86_64)
 - 📦 **Automatic toolchain setup** - downloads and configures cross-compilers as needed
 - 🎯 **Multiple target support** - build for 63+ target platforms in a single run
 - 🏗️ **Workspace support** - work with entire workspaces or specific packages
-- ⚡ **Flexible linking** - most musl targets default to static (varies by target), GNU targets default to dynamic, both configurable via `crt-static` parameter
+- ⚡ **Flexible linking** - some musl targets default to static (varies by target), GNU targets default to dynamic, both configurable via `crt-static` parameter
 - 🔧 **Flexible configuration** - extensive customization options
-- 📁 **Organized output** - all artifacts collected in a single directory
-- 🛠️ **Multiple commands** - supports build, test, and check operations
+- 🛠️ **Multiple commands** - supports build, bench, test, and check operations
 
 ## Local Usage
 
@@ -147,9 +146,17 @@ This action can run on the following GitHub Actions runners or local platforms:
 |----------|--------------|---------------|---------------|
 | **Linux** | x86_64 (amd64) | `ubuntu-latest`, `ubuntu-24.04`, `ubuntu-22.04`, `ubuntu-20.04` | ✅ Yes |
 | **Linux** | aarch64 (arm64) | `ubuntu-24.04-arm` | ✅ Yes |
-| **Linux** | armv7 | Self-hosted ARMv7 runners | ✅ Yes |
+| **Linux** | armv7 | Self-hosted runners | ✅ Yes |
+| **Linux** | riscv64 | Self-hosted runners | ✅ Yes |
+| **Linux** | s390x | Self-hosted runners | ✅ Yes |
+| **Linux** | powerpc64 | Self-hosted runners | ✅ Yes |
+| **Linux** | powerpc64le | Self-hosted runners | ✅ Yes |
+| **Linux** | mips64 | Self-hosted runners | ✅ Yes |
+| **Linux** | mips64el | Self-hosted runners | ✅ Yes |
+| **Linux** | loongarch64 | Self-hosted runners | ✅ Yes |
 | **macOS** | x86_64 (Intel) | `macos-15-intel` | ✅ Yes |
 | **macOS** | aarch64 (Apple Silicon) | `macos-15` | ✅ Yes |
+| **Windows** | x86_64 | `windows-latest` | ✅ Yes |
 
 ### Recommended Usage
 
@@ -292,14 +299,14 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `crt-st
 | `source-dir` | Directory containing the Rust project | `${{ github.workspace }}` |
 | `github-proxy-mirror` | GitHub proxy mirror URL | |
 | `cross-compiler-dir` | Directory to store cross compilers | |
-| `ndk-version` | Android NDK version | `r27` |
+| `ndk-version` | Android NDK version (e.g., r27d, r29) | `r27d` (LTS) |
 | `glibc-version` | Glibc version for GNU targets (e.g., 2.31, 2.42) | (default) |
 | `iphone-sdk-version` | iPhone SDK version for iOS targets (non-macOS: bundled SDKs, macOS: installed Xcode SDK) | (default 26.2) |
 | `iphone-sdk-path` | Override iPhoneOS SDK path for device targets (skips version lookup, native macOS only) | |
 | `iphone-simulator-sdk-path` | Override iPhoneSimulator SDK path for simulator targets (skips version lookup, native macOS only) | |
 | `macos-sdk-version` | macOS SDK version for Darwin targets (non-macOS: bundled SDKs, macOS: installed Xcode SDK) | (default 26.2) |
 | `macos-sdk-path` | Override macOS SDK path directly (skips version lookup, native macOS only) | |
-| `freebsd-version` | FreeBSD version for FreeBSD targets (13 or 14) | `13` |
+| `freebsd-version` | FreeBSD version for FreeBSD targets (13, 14, or 15) | `13` |
 | `use-default-linker` | Use system default linker | `false` |
 | `cc` | Force set the C compiler | |
 | `cxx` | Force set the C++ compiler | |
@@ -357,7 +364,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `crt-st
     targets: |
       aarch64-linux-android
       armv7-linux-androideabi
-    ndk-version: r27
+    # ndk-version: r29  # Optional: specify NDK version (default: r27d LTS)
 ```
 
 ### Custom Compiler
@@ -524,16 +531,16 @@ On macOS, any SDK version installed via Xcode can be used.
 
 ### Custom FreeBSD Version
 
-You can specify a specific FreeBSD version using the `freebsd-version` parameter. Available versions are 13 and 14:
+You can specify a specific FreeBSD version using the `freebsd-version` parameter. Available versions are 13, 14, and 15:
 
 ```yaml
-# Use FreeBSD 14 (latest)
-- name: Build with FreeBSD 14
+# Use FreeBSD 15 (latest)
+- name: Build with FreeBSD 15
   uses: zijiren233/cargo-cross@v1
   with:
     command: build
     targets: x86_64-unknown-freebsd
-    freebsd-version: "14"
+    freebsd-version: "15"
 
 # Use FreeBSD 13 (default)
 - name: Build with FreeBSD 13
@@ -554,7 +561,7 @@ You can specify a specific FreeBSD version using the `freebsd-version` parameter
     # freebsd-version not specified - uses default 13
 ```
 
-Supported FreeBSD versions: 13 (default), 14
+Supported FreeBSD versions: 13 (default), 14, 15
 
 ### Custom Rustflags
 
@@ -714,12 +721,13 @@ This action uses the following toolchain versions from [cross-make](https://gith
 
 | Component | Version |
 |-----------|---------|
-| GCC | 14.3.0 |
+| GCC | 15.2.0 |
 | Binutils | 2.45.1 |
 | GMP | 6.3.0 |
 | MPC | 1.3.1 |
 | MPFR | 4.2.2 |
 | ISL | 0.27 |
+| Zstd | 1.5.7 |
 
 ### Platform-Specific
 
@@ -731,9 +739,10 @@ This action uses the following toolchain versions from [cross-make](https://gith
 | Windows | MinGW-w64 | v13.0.0 |
 | FreeBSD 13 | FreeBSD | 13.5 |
 | FreeBSD 14 | FreeBSD | 14.3 |
+| FreeBSD 15 | FreeBSD | 15.0 |
 | macOS | macOS SDK | 26.2 (default), 14.0-26.2 available |
 | iOS | iPhone SDK | 26.2 (default), 17.0-26.2 available |
-| Android | NDK | r27 (default) |
+| Android | NDK | r27d LTS (default), r29 stable available |
 
 ### Supported Glibc Versions
 
@@ -799,6 +808,7 @@ For FreeBSD targets, use `freebsd-version` parameter to select the FreeBSD versi
 |---------|-------|
 | 13 | FreeBSD 13.5 (default) |
 | 14 | FreeBSD 14.3 |
+| 15 | FreeBSD 15.0 |
 
 ## How It Works
 

@@ -52,7 +52,10 @@ inputs:
   source-dir:
     description: "The directory containing the Rust project to build"
     required: false
-    default: ${{ github.workspace }}
+    deprecationMessage: "Use working-directory instead of source-dir"
+  working-directory:
+    description: "The directory containing the Rust project to build, default is github.workspace"
+    required: false
   github-proxy-mirror:
     description: "GitHub proxy mirror URL for downloading cross compilers"
     required: false
@@ -60,9 +63,8 @@ inputs:
     description: "Directory to store cross compilers"
     required: false
   ndk-version:
-    description: "Android NDK version for Android builds"
+    description: "Android NDK version for Android builds (e.g., r27d, r29). Leave empty for default version (r27d LTS)"
     required: false
-    default: "r27"
   glibc-version:
     description: "Glibc version for GNU targets (e.g., 2.31, 2.42). Leave empty for default version"
     required: false
@@ -89,7 +91,11 @@ inputs:
     required: false
     default: "v10.2.0-rc1"
   use-default-linker:
-    description: "Use system default linker (no cross-compiler download)"
+    deprecationMessage: "use no-toolchain-setup to skip toolchain setup entirely"
+    description: "Use the default system linker for cross-compilation (deprecated, use no-toolchain-setup instead)"
+    required: false
+  no-toolchain-setup:
+    description: "Skip downloading and configuring cross-compilation toolchain"
     required: false
     default: "false"
   cc:
@@ -215,6 +221,10 @@ inputs:
     default: "false"
   args:
     description: "Additional arguments to pass to cargo build"
+    deprecationMessage: "Use cargo-args instead of args"
+    required: false
+  cargo-args:
+    description: "Additional arguments to pass to cargo build"
     required: false
   passthrough-args:
     description: "Arguments to pass after -- (e.g., for cargo test: --show-output)"
@@ -331,62 +341,110 @@ inputs:
   cargo-cwd:
     description: "Change current working directory before executing"
     required: false
+  skip-cache:
+    description: "Skip cache for cargo-cross binary (always build from source)"
+    required: false
+    default: "false"
 
 outputs:
   targets:
     description: "Targets that were processed"
     value: ${{ steps.execute.outputs.targets }}
+  all-targets:
+    description: "All supported targets (only when show-all-targets is true)"
+    value: ${{ steps.show-targets.outputs.all-targets }}
 
 runs:
   using: "composite"
   steps:
-    - name: Setup Rustup
-      uses: actions-rust-lang/setup-rust-toolchain@v1
+    - name: Get cargo-cross cache key
+      id: cargo-cross-cache-key
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        # Hash all files for precise cache invalidation (ignore hidden files and target/)
+        if command -v sha256sum &>/dev/null; then
+          HASH=$(find . -path '*/.*' -prune -o -path './target' -prune -o -type f -print | sort | xargs cat | sha256sum | cut -d' ' -f1)
+        elif command -v shasum &>/dev/null; then
+          HASH=$(find . -path '*/.*' -prune -o -path './target' -prune -o -type f -print | sort | xargs cat | shasum -a 256 | cut -d' ' -f1)
+        else
+          echo "hash=${{ github.action_repository }}-${{ github.action_ref }}" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        echo "hash=${HASH:0:16}" >> $GITHUB_OUTPUT
+
+    - name: Restore cargo-cross cache
+      if: inputs.skip-cache != 'true'
+      id: cargo-cross-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ~/.cargo/bin/cargo-cross
+          ~/.cargo/bin/cargo-cross.exe
+        key: cargo-cross-${{ runner.os }}-${{ runner.arch }}-${{ steps.cargo-cross-cache-key.outputs.hash }}
+
+    - name: Install cargo-cross
+      if: steps.cargo-cross-cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        echo "::group::Install cargo-cross"
+        command -v cargo-cross || cargo install --quiet --debug --path .
+        echo "::endgroup::"
+
+    - name: Save cargo-cross cache
+      if: inputs.skip-cache != 'true' && steps.cargo-cross-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ~/.cargo/bin/cargo-cross
+          ~/.cargo/bin/cargo-cross.exe
+        key: cargo-cross-${{ runner.os }}-${{ runner.arch }}-${{ steps.cargo-cross-cache-key.outputs.hash }}
 
     - name: Show all targets
+      id: show-targets
       if: ${{ inputs.show-all-targets == 'true' }}
       shell: bash
-      working-directory: ${{ inputs.source-dir }}
-      run: |
-        "${{ github.action_path }}/cross.sh" --show-all-targets
+      working-directory: ${{ github.action_path }}
+      run: cargo-cross targets --format json
 
     - name: Execute
       id: execute
       if: ${{ inputs.show-all-targets == 'false' }}
       shell: bash
-      working-directory: ${{ inputs.source-dir }}
+      working-directory: ${{ inputs.working-directory || inputs.source-dir || github.workspace }}
       env:
-        COMMAND: ${{ inputs.command }}
+        CLICOLOR_FORCE: "1"
         TARGETS: ${{ inputs.target || inputs.targets }}
-        PROFILE: ${{ inputs.profile }}
+        PROFILE: ${{ inputs.release == 'true' && 'release' || inputs.profile }}
         FEATURES: ${{ inputs.features }}
-        NO_DEFAULT_FEATURES: ${{ inputs.no-default-features }}
-        ALL_FEATURES: ${{ inputs.all-features }}
+        NO_DEFAULT_FEATURES: ${{ inputs.no-default-features == 'true' && 'true' || '' }}
+        ALL_FEATURES: ${{ inputs.all-features == 'true' && 'true' || '' }}
         PACKAGE: ${{ inputs.package }}
         EXCLUDE: ${{ inputs.exclude }}
         BIN_TARGET: ${{ inputs.bin }}
-        BUILD_BINS: ${{ inputs.bins }}
-        BUILD_LIB: ${{ inputs.lib }}
+        BUILD_BINS: ${{ inputs.bins == 'true' && 'true' || '' }}
+        BUILD_LIB: ${{ inputs.lib == 'true' && 'true' || '' }}
         EXAMPLE_TARGET: ${{ inputs.example }}
-        BUILD_EXAMPLES: ${{ inputs.examples }}
+        BUILD_EXAMPLES: ${{ inputs.examples == 'true' && 'true' || '' }}
         TEST_TARGET: ${{ inputs.test }}
-        BUILD_TESTS: ${{ inputs.tests }}
+        BUILD_TESTS: ${{ inputs.tests == 'true' && 'true' || '' }}
         BENCH_TARGET: ${{ inputs.bench }}
-        BUILD_BENCHES: ${{ inputs.benches }}
-        BUILD_ALL_TARGETS: ${{ inputs.all-targets }}
-        BUILD_WORKSPACE: ${{ inputs.workspace }}
+        BUILD_BENCHES: ${{ inputs.benches == 'true' && 'true' || '' }}
+        BUILD_ALL_TARGETS: ${{ inputs.all-targets == 'true' && 'true' || '' }}
+        BUILD_WORKSPACE: ${{ inputs.workspace == 'true' && 'true' || '' }}
         MESSAGE_FORMAT: ${{ inputs.message-format }}
-        IGNORE_RUST_VERSION: ${{ inputs.ignore-rust-version }}
-        LOCKED: ${{ inputs.locked }}
-        OFFLINE: ${{ inputs.offline }}
-        FROZEN: ${{ inputs.frozen }}
+        IGNORE_RUST_VERSION: ${{ inputs.ignore-rust-version == 'true' && 'true' || '' }}
+        LOCKED: ${{ inputs.locked == 'true' && 'true' || '' }}
+        OFFLINE: ${{ inputs.offline == 'true' && 'true' || '' }}
+        FROZEN: ${{ inputs.frozen == 'true' && 'true' || '' }}
         LOCKFILE_PATH: ${{ inputs.lockfile-path }}
         JOBS: ${{ inputs.jobs }}
-        KEEP_GOING: ${{ inputs.keep-going }}
-        FUTURE_INCOMPAT_REPORT: ${{ inputs.future-incompat-report }}
+        KEEP_GOING: ${{ inputs.keep-going == 'true' && 'true' || '' }}
+        FUTURE_INCOMPAT_REPORT: ${{ inputs.future-incompat-report == 'true' && 'true' || '' }}
         ARTIFACT_DIR: ${{ inputs.artifact-dir }}
         COLOR: ${{ inputs.color }}
-        BUILD_PLAN: ${{ inputs.build-plan }}
+        BUILD_PLAN: ${{ inputs.build-plan == 'true' && 'true' || '' }}
         TIMINGS: ${{ inputs.timings }}
         CARGO_CWD: ${{ inputs.cargo-cwd }}
         MANIFEST_PATH: ${{ inputs.manifest-path }}
@@ -401,7 +459,7 @@ runs:
         MACOS_SDK_PATH: ${{ inputs.macos-sdk-path }}
         FREEBSD_VERSION: ${{ inputs.freebsd-version }}
         QEMU_VERSION: ${{ inputs.qemu-version }}
-        USE_DEFAULT_LINKER: ${{ inputs.use-default-linker }}
+        NO_TOOLCHAIN_SETUP: ${{ inputs.no-toolchain-setup == 'true' && 'true' || '' }}
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
         AR: ${{ inputs.ar }}
@@ -410,7 +468,7 @@ runs:
         CXXFLAGS: ${{ inputs.cxxflags }}
         CXXSTDLIB: ${{ inputs.cxxstdlib }}
         RUSTC_WRAPPER: ${{ inputs.rustc-wrapper }}
-        ENABLE_SCCACHE: ${{ inputs.enable-sccache }}
+        ENABLE_SCCACHE: ${{ inputs.enable-sccache == 'true' && 'true' || '' }}
         SCCACHE_DIR: ${{ inputs.sccache-dir }}
         SCCACHE_CACHE_SIZE: ${{ inputs.sccache-cache-size }}
         SCCACHE_IDLE_TIMEOUT: ${{ inputs.sccache-idle-timeout }}
@@ -430,20 +488,18 @@ runs:
         CC_ENABLE_DEBUG_OUTPUT: ${{ inputs.cc-enable-debug == 'true' && '1' || '' }}
         ADDITIONAL_RUSTFLAGS: ${{ inputs.rustflags }}
         CRT_STATIC: ${{ inputs.crt-static != '' && inputs.crt-static || inputs.static-crt }}
-        PANIC_IMMEDIATE_ABORT: ${{ inputs.panic-immediate-abort }}
+        PANIC_IMMEDIATE_ABORT: ${{ inputs.panic-immediate-abort == 'true' && 'true' || '' }}
         BUILD_STD: ${{ inputs.build-std }}
         BUILD_STD_FEATURES: ${{ inputs.build-std-features }}
-        CLEAN_CACHE: ${{ inputs.clean-cache }}
-        NO_STRIP: ${{ inputs.no-strip }}
+        CLEAN_CACHE: ${{ inputs.clean-cache == 'true' && 'true' || '' }}
+        NO_STRIP: ${{ inputs.no-strip == 'true' && 'true' || '' }}
         VERBOSE_LEVEL: ${{ inputs.verbose == 'true' && '1' || inputs.verbose }}
-        CARGO_ARGS: ${{ inputs.args }}
+        CARGO_ARGS: ${{ inputs.cargo-args || inputs.args }}
         CARGO_PASSTHROUGH_ARGS: ${{ inputs.passthrough-args && format('-- {0}', inputs.passthrough-args) || '' }}
         TOOLCHAIN: ${{ inputs.toolchain }}
         CARGO_TRIM_PATHS: ${{ inputs.cargo-trim-paths || inputs.trim-paths }}
-        NO_EMBED_METADATA: ${{ inputs.no-embed-metadata }}
+        NO_EMBED_METADATA: ${{ inputs.no-embed-metadata == 'true' && 'true' || '' }}
         RUSTC_BOOTSTRAP: ${{ inputs.rustc-bootstrap }}
         CARGO_TARGET_DIR: ${{ inputs.target-dir }}
-        QUIET: ${{ inputs.quiet }}
-        RELEASE: ${{ inputs.release }}
-      run: |
-        "${{ github.action_path }}/cross.sh" ${{ inputs.cross-args }}
+        QUIET: ${{ inputs.quiet == 'true' && 'true' || '' }}
+      run: cargo-cross ${{ inputs.command }} ${{ inputs.cross-args }}
