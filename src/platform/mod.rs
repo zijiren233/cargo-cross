@@ -251,7 +251,7 @@ pub async fn find_file_by_pattern(dir: &Path, pattern: &str) -> Option<PathBuf> 
     let mut entries = tokio::fs::read_dir(dir).await.ok()?;
     while let Ok(Some(entry)) = entries.next_entry().await {
         let name = entry.file_name();
-        if matcher.is_match(name.to_string_lossy().as_ref()) {
+        if matcher.is_match(&*name.to_string_lossy()) {
             return Some(entry.path());
         }
     }
