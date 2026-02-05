@@ -211,6 +211,7 @@ Most musl targets produce **statically linked binaries by default**, but this va
 - `armv7-unknown-linux-musleabi` - ARMv7 Linux
 - `armv7-unknown-linux-musleabihf` - ARMv7 Linux hard-float
 - `aarch64-unknown-linux-musl` - ARM64 Linux
+- `aarch64_be-unknown-linux-musl` - ARM64 big-endian Linux
 - `loongarch64-unknown-linux-musl` - LoongArch64 Linux
 - `mips-unknown-linux-musl` - MIPS Linux
 - `mipsel-unknown-linux-musl` - MIPS little-endian Linux
@@ -219,6 +220,7 @@ Most musl targets produce **statically linked binaries by default**, but this va
 - `mips64el-unknown-linux-muslabi64` - MIPS64 little-endian Linux
 - `powerpc64-unknown-linux-musl` - PowerPC64 Linux
 - `powerpc64le-unknown-linux-musl` - PowerPC64 little-endian Linux
+- `riscv32gc-unknown-linux-musl` - RISC-V 32-bit Linux
 - `riscv64gc-unknown-linux-musl` - RISC-V 64-bit Linux
 - `s390x-unknown-linux-musl` - S390x Linux
 
@@ -226,24 +228,34 @@ Most musl targets produce **statically linked binaries by default**, but this va
 
 GNU libc targets produce **dynamically linked binaries by default**. Use `crt-static: true` to enable static linking.
 
-**Glibc version**: By default, glibc 2.28 is used. You can specify a different version (2.28-2.42) using the `glibc-version` parameter for better compatibility with specific Linux distributions.
+**Glibc version**: By default, the latest stable version is used (no version suffix). You can specify a different version (2.17-2.43) using the `glibc-version` parameter for better compatibility with specific Linux distributions.
 
 - `i586-unknown-linux-gnu` - Linux i586
 - `i686-unknown-linux-gnu` - Linux i686
 - `x86_64-unknown-linux-gnu` - Linux x86_64
+- `x86_64-unknown-linux-gnux32` - Linux x86_64 x32 ABI
 - `arm-unknown-linux-gnueabi` - ARM Linux
 - `arm-unknown-linux-gnueabihf` - ARM Linux hard-float
 - `armv5te-unknown-linux-gnueabi` - ARMv5TE Linux
 - `armv7-unknown-linux-gnueabi` - ARMv7 Linux
 - `armv7-unknown-linux-gnueabihf` - ARMv7 Linux hard-float
 - `aarch64-unknown-linux-gnu` - ARM64 Linux
+- `aarch64_be-unknown-linux-gnu` - ARM64 big-endian Linux
+- `csky-unknown-linux-gnuabiv2` - CSKY ABI v2 Linux
+- `csky-unknown-linux-gnuabiv2hf` - CSKY ABI v2 hard-float Linux
 - `loongarch64-unknown-linux-gnu` - LoongArch64 Linux
+- `m68k-unknown-linux-gnu` - Motorola 68000 Linux
 - `mips-unknown-linux-gnu` - MIPS Linux
 - `mipsel-unknown-linux-gnu` - MIPS little-endian Linux
+- `mipsisa32r6-unknown-linux-gnu` - MIPS32 R6 Linux
+- `mipsisa32r6el-unknown-linux-gnu` - MIPS32 R6 little-endian Linux
 - `mips64-unknown-linux-gnuabi64` - MIPS64 Linux
 - `mips64el-unknown-linux-gnuabi64` - MIPS64 little-endian Linux
+- `mipsisa64r6-unknown-linux-gnuabi64` - MIPS64 R6 Linux
+- `mipsisa64r6el-unknown-linux-gnuabi64` - MIPS64 R6 little-endian Linux
 - `powerpc64-unknown-linux-gnu` - PowerPC64 Linux
 - `powerpc64le-unknown-linux-gnu` - PowerPC64 little-endian Linux
+- `riscv32gc-unknown-linux-gnu` - RISC-V 32-bit Linux
 - `riscv64gc-unknown-linux-gnu` - RISC-V 64-bit Linux
 - `s390x-unknown-linux-gnu` - S390x Linux
 

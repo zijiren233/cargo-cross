@@ -37,7 +37,7 @@ pub async fn execute_cargo(
     Ok(status)
 }
 
-/// Format command string from TokioCommand
+/// Format command string from `TokioCommand`
 fn format_command_from_cmd(cmd: &TokioCommand) -> String {
     let std_cmd = cmd.as_std();
     let mut parts = vec![std_cmd.get_program().to_string_lossy().into_owned()];
@@ -152,7 +152,7 @@ fn add_host_config_env(env: &mut HashMap<String, String>) {
     );
 }
 
-/// Add wrapper environment (sccache or rustc_wrapper)
+/// Add wrapper environment (sccache or `rustc_wrapper`)
 fn add_wrapper_env(env: &mut HashMap<String, String>, args: &Args) {
     if args.enable_sccache {
         env.insert("RUSTC_WRAPPER".to_string(), "sccache".to_string());

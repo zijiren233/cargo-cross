@@ -17,12 +17,13 @@ use tokio::process::Command;
 
 /// Convert a path to CMake-compatible format (forward slashes)
 ///
-/// CMake interprets backslashes as escape sequences (e.g., `\U` in `\Users`),
+/// `CMake` interprets backslashes as escape sequences (e.g., `\U` in `\Users`),
 /// so all paths must use forward slashes. Uses the `path-slash` crate which
 /// properly handles:
 /// - Windows drive letters (C:\ -> C:/)
 /// - UNC paths (\\server\share -> //server/share)
 /// - Already forward-slashed paths (no-op)
+#[must_use] 
 pub fn to_cmake_path(path: &Path) -> String {
     path.to_slash_lossy().into_owned()
 }
@@ -49,8 +50,18 @@ pub async fn setup_cross_env(
 }
 
 /// Get the binary prefix for a Linux target
+#[must_use] 
 pub fn get_linux_bin_prefix(arch: Arch, libc: Libc, abi: Option<crate::config::Abi>) -> String {
     let arch_str = arch.as_str();
+
+    // Special handling for gnu abi variants (gnusf, gnuspe, gnuabiv2, gnuabiv2hf)
+    // These use combined libc+abi strings instead of separate libc and abi
+    if let Some(abi_val) = abi {
+        if abi_val.is_gnu_abi_variant() && libc == crate::config::Libc::Gnu {
+            return format!("{arch_str}-linux-gnu{}", abi_val.as_str());
+        }
+    }
+
     let libc_str = libc.as_str();
     let abi_str = abi.map_or("", |a| a.as_str());
 
@@ -58,6 +69,7 @@ pub fn get_linux_bin_prefix(arch: Arch, libc: Libc, abi: Option<crate::config::A
 }
 
 /// Get the cross-compiler folder name for a Linux target
+#[must_use] 
 pub fn get_linux_folder_name(
     arch: Arch,
     libc: Libc,
@@ -66,6 +78,21 @@ pub fn get_linux_folder_name(
     default_glibc_version: &str,
 ) -> String {
     let arch_str = arch.as_str();
+
+    // Special handling for gnu abi variants (gnusf, gnuspe, gnuabiv2, gnuabiv2hf)
+    if let Some(abi_val) = abi {
+        if abi_val.is_gnu_abi_variant() && libc == crate::config::Libc::Gnu {
+            let abi_suffix = abi_val.as_str();
+            // For gnu libc, folder name includes glibc version suffix (except for default version)
+            let folder_suffix = if glibc_version == default_glibc_version {
+                format!("gnu{abi_suffix}")
+            } else {
+                format!("gnu{abi_suffix}-{glibc_version}")
+            };
+            return format!("{arch_str}-linux-{folder_suffix}-cross");
+        }
+    }
+
     let libc_str = libc.as_str();
     let abi_str = abi.map_or("", |a| a.as_str());
 
@@ -79,9 +106,10 @@ pub fn get_linux_folder_name(
     format!("{arch_str}-linux-{folder_suffix}-cross")
 }
 
-/// Setup CMake generator for cross-compilation
+
+/// Setup `CMake` generator for cross-compilation
 ///
-/// If cmake_generator is specified, uses it directly.
+/// If `cmake_generator` is specified, uses it directly.
 /// On Windows, auto-detects if not specified (VS ignores CC/CXX).
 /// On other platforms, only sets if explicitly specified.
 pub fn setup_cmake(env: &mut CrossEnv, cmake_generator: Option<&str>, is_windows: bool) {
@@ -109,13 +137,13 @@ pub fn setup_cmake(env: &mut CrossEnv, cmake_generator: Option<&str>, is_windows
         .insert("CMAKE_GENERATOR".to_string(), generator.to_string());
 }
 
-/// Setup CROSS_COMPILE prefix for cc crate and other build systems
+/// Setup `CROSS_COMPILE` prefix for cc crate and other build systems
 ///
-/// CROSS_COMPILE is a common convention used by:
+/// `CROSS_COMPILE` is a common convention used by:
 /// - Linux kernel builds
 /// - cc crate (Rust)
 /// - Many autoconf/automake projects
-///   Note: bin_dir should already be in PATH, so we use prefix directly.
+///   Note: `bin_dir` should already be in PATH, so we use prefix directly.
 pub fn setup_cross_compile_prefix(env: &mut CrossEnv, bin_prefix: &str) {
     // CROSS_COMPILE should be the prefix including trailing dash
     // e.g., "armv7-linux-gnueabihf-" so tools become "${CROSS_COMPILE}gcc"
@@ -127,7 +155,7 @@ pub fn setup_cross_compile_prefix(env: &mut CrossEnv, bin_prefix: &str) {
 ///
 /// The Darwin/iOS linker binaries from cross-compilation toolchains need to find their
 /// shared libraries at runtime. This function adds the compiler's lib directory to
-/// the library path (LD_LIBRARY_PATH on Linux, DYLD_LIBRARY_PATH on macOS).
+/// the library path (`LD_LIBRARY_PATH` on Linux, `DYLD_LIBRARY_PATH` on macOS).
 pub fn setup_darwin_linker_library_path(env: &mut CrossEnv, compiler_dir: &Path) {
     let lib_dir = compiler_dir.join("lib");
     if lib_dir.exists() {
@@ -135,7 +163,7 @@ pub fn setup_darwin_linker_library_path(env: &mut CrossEnv, compiler_dir: &Path)
     }
 }
 
-/// Get Ubuntu version from lsb_release (used for Linux cross-compilation downloads)
+/// Get Ubuntu version from `lsb_release` (used for Linux cross-compilation downloads)
 pub async fn get_ubuntu_version() -> Option<String> {
     let output = Command::new("lsb_release").arg("-rs").output().await.ok()?;
 
@@ -425,5 +453,102 @@ mod tests {
             "arm64-apple-darwin*-clang",
             "arm64-apple-darwin11-clang++"
         ));
+    }
+
+    #[test]
+    fn test_x32_folder_names() {
+        use crate::config::{Abi, Arch, Libc};
+
+        // Test x32 gnu with glibc version
+        let folder = get_linux_folder_name(
+            Arch::X86_64,
+            Libc::Gnu,
+            Some(Abi::X32),
+            "2.17",
+            "",
+        );
+        assert_eq!(folder, "x86_64-linux-gnux32-2.17-cross");
+
+        // Test x32 gnu with default (empty) version
+        let folder = get_linux_folder_name(
+            Arch::X86_64,
+            Libc::Gnu,
+            Some(Abi::X32),
+            "",
+            "",
+        );
+        assert_eq!(folder, "x86_64-linux-gnux32-cross");
+    }
+
+    #[test]
+    fn test_x32_bin_prefix() {
+        use crate::config::{Abi, Arch, Libc};
+
+        // Test x32 gnu bin prefix
+        let bin_prefix = get_linux_bin_prefix(Arch::X86_64, Libc::Gnu, Some(Abi::X32));
+        assert_eq!(bin_prefix, "x86_64-linux-gnux32");
+    }
+
+    #[test]
+    fn test_aarch64_be_targets() {
+        use crate::config::{Arch, Libc};
+
+        // Test aarch64_be musl
+        let bin_prefix = get_linux_bin_prefix(Arch::Aarch64Be, Libc::Musl, None);
+        assert_eq!(bin_prefix, "aarch64_be-linux-musl");
+
+        let folder = get_linux_folder_name(Arch::Aarch64Be, Libc::Musl, None, "", "");
+        assert_eq!(folder, "aarch64_be-linux-musl-cross");
+
+        // Test aarch64_be gnu with version
+        let bin_prefix = get_linux_bin_prefix(Arch::Aarch64Be, Libc::Gnu, None);
+        assert_eq!(bin_prefix, "aarch64_be-linux-gnu");
+
+        let folder = get_linux_folder_name(Arch::Aarch64Be, Libc::Gnu, None, "2.17", "");
+        assert_eq!(folder, "aarch64_be-linux-gnu-2.17-cross");
+    }
+
+    #[test]
+    fn test_m68k_targets() {
+        use crate::config::{Arch, Libc};
+
+        // Test m68k musl
+        let bin_prefix = get_linux_bin_prefix(Arch::M68k, Libc::Musl, None);
+        assert_eq!(bin_prefix, "m68k-linux-musl");
+
+        let folder = get_linux_folder_name(Arch::M68k, Libc::Musl, None, "", "");
+        assert_eq!(folder, "m68k-linux-musl-cross");
+
+        // Test m68k gnu with version
+        let bin_prefix = get_linux_bin_prefix(Arch::M68k, Libc::Gnu, None);
+        assert_eq!(bin_prefix, "m68k-linux-gnu");
+
+        let folder = get_linux_folder_name(Arch::M68k, Libc::Gnu, None, "2.17", "");
+        assert_eq!(folder, "m68k-linux-gnu-2.17-cross");
+    }
+
+    #[test]
+    fn test_csky_targets() {
+        use crate::config::{Abi, Arch, Libc};
+
+        // Test csky gnuabiv2
+        let bin_prefix = get_linux_bin_prefix(Arch::Csky, Libc::Gnu, Some(Abi::GnuAbiv2));
+        assert_eq!(bin_prefix, "csky-linux-gnuabiv2");
+
+        let folder = get_linux_folder_name(Arch::Csky, Libc::Gnu, Some(Abi::GnuAbiv2), "", "");
+        assert_eq!(folder, "csky-linux-gnuabiv2-cross");
+
+        let folder = get_linux_folder_name(Arch::Csky, Libc::Gnu, Some(Abi::GnuAbiv2), "2.17", "");
+        assert_eq!(folder, "csky-linux-gnuabiv2-2.17-cross");
+
+        // Test csky gnuabiv2hf
+        let bin_prefix = get_linux_bin_prefix(Arch::Csky, Libc::Gnu, Some(Abi::GnuAbiv2Hf));
+        assert_eq!(bin_prefix, "csky-linux-gnuabiv2hf");
+
+        let folder = get_linux_folder_name(Arch::Csky, Libc::Gnu, Some(Abi::GnuAbiv2Hf), "", "");
+        assert_eq!(folder, "csky-linux-gnuabiv2hf-cross");
+
+        let folder = get_linux_folder_name(Arch::Csky, Libc::Gnu, Some(Abi::GnuAbiv2Hf), "2.17", "");
+        assert_eq!(folder, "csky-linux-gnuabiv2hf-2.17-cross");
     }
 }

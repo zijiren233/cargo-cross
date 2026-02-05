@@ -208,7 +208,7 @@ pub fn setup_wine_runner(env: &mut CrossEnv, rust_target: &str) {
     }
 }
 
-/// Setup Rosetta runner for x86_64 Darwin binaries on ARM Darwin hosts
+/// Setup Rosetta runner for `x86_64` Darwin binaries on ARM Darwin hosts
 pub fn setup_rosetta_runner(
     env: &mut CrossEnv,
     arch: Arch,

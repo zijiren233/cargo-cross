@@ -41,6 +41,7 @@ static PROGRAM_NAME: LazyLock<&'static str> = LazyLock::new(|| {
 });
 
 /// Get the program name for display
+#[must_use] 
 pub fn program_name() -> &'static str {
     *PROGRAM_NAME
 }
@@ -543,7 +544,7 @@ Specify the C++ standard library to use (libc++, libstdc++, etc)."
     )]
     pub cxxstdlib: Option<String>,
 
-    /// CMake generator to use (like cmake -G)
+    /// `CMake` generator to use (like cmake -G)
     #[arg(
         long,
         short = 'G',
@@ -761,7 +762,7 @@ Valid: true, macro, diagnostics, object, all, none (default: false)"
     )]
     pub no_embed_metadata: bool,
 
-    /// Set RUSTC_BOOTSTRAP for using nightly features on stable
+    /// Set `RUSTC_BOOTSTRAP` for using nightly features on stable
     #[arg(
         long,
         env = "RUSTC_BOOTSTRAP",
@@ -913,7 +914,7 @@ execution of this command. See 'cargo report' for more information."
 
     // ===== Additional Cargo Arguments =====
     /// Additional arguments to pass to cargo
-    /// Note: CARGO_ARGS env var is handled manually in cargo.rs to support shell-style parsing
+    /// Note: `CARGO_ARGS` env var is handled manually in cargo.rs to support shell-style parsing
     #[arg(
         long,
         visible_alias = "args",
@@ -984,7 +985,7 @@ Clean the target directory before building. Equivalent to running 'cargo clean' 
     pub clean_cache: bool,
 
     /// Arguments passed through to cargo (after --)
-    /// Note: CARGO_PASSTHROUGH_ARGS env var is handled manually in cargo.rs to support shell-style parsing
+    /// Note: `CARGO_PASSTHROUGH_ARGS` env var is handled manually in cargo.rs to support shell-style parsing
     #[arg(
         last = true,
         allow_hyphen_values = true,
@@ -999,7 +1000,8 @@ Examples: test -- --nocapture --test-threads=1, run -- --arg1 --arg2"
 }
 
 impl BuildArgs {
-    /// Create default BuildArgs with proper version defaults
+    /// Create default `BuildArgs` with proper version defaults
+    #[must_use] 
     pub fn default_for_host() -> Self {
         Self {
             profile: "release".to_string(),
@@ -1044,6 +1046,7 @@ pub enum Command {
 }
 
 impl Command {
+    #[must_use] 
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Build => "build",
@@ -1054,6 +1057,7 @@ impl Command {
         }
     }
 
+    #[must_use] 
     pub const fn needs_runner(&self) -> bool {
         matches!(self, Self::Run | Self::Test | Self::Bench)
     }
@@ -1093,7 +1097,7 @@ impl std::ops::DerefMut for Args {
 }
 
 impl Args {
-    /// Create Args from BuildArgs and Command
+    /// Create Args from `BuildArgs` and Command
     fn from_build_args(b: BuildArgs, command: Command, toolchain: Option<String>) -> Result<Self> {
         let cross_compiler_dir = b
             .cross_compiler_dir
@@ -1125,7 +1129,7 @@ pub enum ParseResult {
 
 /// Remove empty environment variables that clap would incorrectly treat as having values.
 /// Clap's `env = "VAR"` attribute treats empty strings as valid values, which causes
-/// parsing errors for PathBuf and other types that don't accept empty strings.
+/// parsing errors for `PathBuf` and other types that don't accept empty strings.
 fn sanitize_clap_env() {
     let empty_vars: Vec<_> = std::env::vars()
         .filter(|(_, v)| v.is_empty())
@@ -1416,7 +1420,11 @@ fn parse_env_args(env_name: &str) -> Option<Vec<String>> {
 
 /// Validate version options
 fn validate_versions(args: &Args) -> Result<()> {
-    if !SUPPORTED_GLIBC_VERSIONS.contains(&args.glibc_version.as_str()) {
+    // Only validate glibc version if it's specified (non-empty)
+    // Empty string means use default version, which is valid for both gnu and musl targets
+    if !args.glibc_version.is_empty()
+        && !SUPPORTED_GLIBC_VERSIONS.contains(&args.glibc_version.as_str())
+    {
         return Err(CrossError::UnsupportedGlibcVersion {
             version: args.glibc_version.clone(),
             supported: SUPPORTED_GLIBC_VERSIONS.join(", "),
@@ -3125,5 +3133,23 @@ mod tests {
         let result = parse_env_args("TEST_PARSE_ENV_ARGS_WHITESPACE");
         assert!(result.is_none());
         std::env::remove_var("TEST_PARSE_ENV_ARGS_WHITESPACE");
+    }
+
+    #[test]
+    fn test_musl_target_with_default_glibc() {
+        // musl targets should work with default (empty) glibc version
+        let args =
+            parse(&["cargo-cross", "build", "-t", "aarch64_be-unknown-linux-musl"]).unwrap();
+        assert_eq!(args.targets, vec!["aarch64_be-unknown-linux-musl"]);
+        assert_eq!(args.glibc_version, ""); // default is empty string
+    }
+
+    #[test]
+    fn test_musl_target_with_invalid_glibc() {
+        // musl targets should accept empty glibc version even if invalid version is set
+        // This is tested indirectly - empty version should pass validation
+        let args = parse(&["cargo-cross", "build", "-t", "m68k-unknown-linux-musl"]).unwrap();
+        assert_eq!(args.targets, vec!["m68k-unknown-linux-musl"]);
+        assert_eq!(args.glibc_version, "");
     }
 }

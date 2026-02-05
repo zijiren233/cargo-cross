@@ -58,6 +58,7 @@ pub enum ArchiveFormat {
 
 impl ArchiveFormat {
     /// Detect format from URL or filename
+    #[must_use] 
     pub fn from_url(url: &str) -> Option<Self> {
         let lower = url.to_lowercase();
         if lower.ends_with(".tar.gz") || lower.ends_with(".tgz") {
@@ -293,7 +294,7 @@ async fn download_and_extract_zip(url: &str, dest: &Path) -> Result<()> {
 }
 
 /// Extract ZIP archive from file with progress reporting
-/// Based on zip crate's extract_internal implementation
+/// Based on zip crate's `extract_internal` implementation
 fn extract_zip_archive(zip_path: &Path, dest: &Path) -> Result<()> {
     use std::fs;
     use std::io::Read;
@@ -424,7 +425,7 @@ fn make_writable_dir_all(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Create a progress bar for download (without steady tick - caller should enable after adding to MultiProgress)
+/// Create a progress bar for download (without steady tick - caller should enable after adding to `MultiProgress`)
 fn create_download_progress_bar_no_tick(total_size: Option<u64>) -> ProgressBar {
     total_size.map_or_else(
         || {

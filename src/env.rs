@@ -24,7 +24,7 @@ pub struct CrossEnv {
     pub rustflags: Vec<String>,
     /// SDKROOT for Apple platforms
     pub sdkroot: Option<PathBuf>,
-    /// LD_LIBRARY_PATH / DYLD_LIBRARY_PATH additions
+    /// `LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH` additions
     pub library_path: Vec<PathBuf>,
     /// CFLAGS additions
     pub cflags: Vec<String>,
@@ -39,6 +39,7 @@ pub struct CrossEnv {
 }
 
 impl CrossEnv {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -114,6 +115,7 @@ impl CrossEnv {
     }
 
     /// Build environment variables for a target
+    #[must_use] 
     pub fn build_env(&self, target: &str, host: &HostPlatform) -> HashMap<String, String> {
         let mut env = HashMap::new();
 
@@ -220,6 +222,7 @@ impl CrossEnv {
     }
 
     /// Get RUSTFLAGS string
+    #[must_use] 
     pub fn rustflags_string(&self) -> Option<String> {
         if self.rustflags.is_empty() {
             None
@@ -249,7 +252,7 @@ pub fn set_gcc_lib_paths(env: &mut CrossEnv, compiler_dir: &Path, target_prefix:
     }
 }
 
-/// Setup BINDGEN_EXTRA_CLANG_ARGS and related environment variables for cross-compilation sysroot
+/// Setup `BINDGEN_EXTRA_CLANG_ARGS` and related environment variables for cross-compilation sysroot
 pub fn setup_sysroot_env(
     env: &mut CrossEnv,
     compiler_dir: &Path,
@@ -297,20 +300,21 @@ pub fn setup_sysroot_env(
 /// Get standard build-std crates configuration
 ///
 /// Crates explicitly listed for user visibility and completeness:
-/// - std: standard library (depends on core, alloc, panic_*, compiler_builtins, etc.)
-/// - core: no_std core library
-/// - alloc: memory allocation (no_std + alloc)
-/// - proc_macro: procedural macros
+/// - std: standard library (depends on core, alloc, panic_*, `compiler_builtins`, etc.)
+/// - core: `no_std` core library
+/// - alloc: memory allocation (`no_std` + alloc)
+/// - `proc_macro`: procedural macros
 /// - test: test framework
-/// - panic_abort: panic=abort strategy
-/// - panic_unwind: panic=unwind strategy (cargo adds this automatically but we keep it explicit)
+/// - `panic_abort`: panic=abort strategy
+/// - `panic_unwind`: panic=unwind strategy (cargo adds this automatically but we keep it explicit)
 ///
-/// Note: When "std" is specified, cargo's std_crates() automatically adds:
-/// core, alloc, proc_macro, panic_unwind, compiler_builtins
+/// Note: When "std" is specified, cargo's `std_crates()` automatically adds:
+/// core, alloc, `proc_macro`, `panic_unwind`, `compiler_builtins`
 ///
 /// References:
 /// - Rust standard library: <https://github.com/rust-lang/rust/tree/main/library>
 /// - Cargo build-std: <https://github.com/rust-lang/cargo/blob/master/src/cargo/core/compiler/standard_lib.rs>
+#[must_use] 
 pub const fn get_build_std_config() -> &'static str {
     "std,core,alloc,proc_macro,test,panic_abort,panic_unwind"
 }

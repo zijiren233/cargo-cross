@@ -4,12 +4,12 @@ use std::collections::HashMap;
 
 /// Supported glibc versions
 pub const SUPPORTED_GLIBC_VERSIONS: &[&str] = &[
-    "2.28", "2.31", "2.32", "2.33", "2.34", "2.35", "2.36", "2.37", "2.38", "2.39", "2.40", "2.41",
-    "2.42",
+    "2.17", "2.27", "2.28", "2.29", "2.30", "2.31", "2.32", "2.33", "2.34", "2.35", "2.36", "2.37",
+    "2.38", "2.39", "2.40", "2.41", "2.42", "2.43",
 ];
 
-/// Default glibc version
-pub const DEFAULT_GLIBC_VERSION: &str = "2.28";
+/// Default glibc version (empty means no version suffix)
+pub const DEFAULT_GLIBC_VERSION: &str = "";
 
 /// Supported iPhone SDK versions (for Linux cross-compilation)
 pub const SUPPORTED_IPHONE_SDK_VERSIONS: &[&str] = &[
@@ -34,7 +34,7 @@ pub const SUPPORTED_FREEBSD_VERSIONS: &[&str] = &["13", "14", "15"];
 pub const DEFAULT_FREEBSD_VERSION: &str = "13";
 
 /// Default cross-compiler dependencies version
-pub const DEFAULT_CROSS_DEPS_VERSION: &str = "v0.7.4";
+pub const DEFAULT_CROSS_DEPS_VERSION: &str = "v0.7.7";
 
 /// Default Android NDK version (LTS)
 pub const DEFAULT_NDK_VERSION: &str = "r27d";
@@ -43,21 +43,25 @@ pub const DEFAULT_NDK_VERSION: &str = "r27d";
 pub const DEFAULT_QEMU_VERSION: &str = "v10.2.0";
 
 /// Format supported versions as comma-separated string
+#[must_use] 
 pub fn supported_glibc_versions_str() -> String {
     SUPPORTED_GLIBC_VERSIONS.join(", ")
 }
 
 /// Format supported FreeBSD versions as comma-separated string
+#[must_use] 
 pub fn supported_freebsd_versions_str() -> String {
     SUPPORTED_FREEBSD_VERSIONS.join(", ")
 }
 
 /// Format supported iPhone SDK versions as comma-separated string
+#[must_use] 
 pub fn supported_iphone_sdk_versions_str() -> String {
     SUPPORTED_IPHONE_SDK_VERSIONS.join(", ")
 }
 
 /// Format supported macOS SDK versions as comma-separated string
+#[must_use] 
 pub fn supported_macos_sdk_versions_str() -> String {
     SUPPORTED_MACOS_SDK_VERSIONS.join(", ")
 }
@@ -75,6 +79,7 @@ pub enum Os {
 }
 
 impl Os {
+    #[must_use] 
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Linux => "linux",
@@ -92,19 +97,27 @@ impl Os {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Arch {
     Aarch64,
+    Aarch64Be,
     Arm64e,
     Armv5,
     Armv6,
     Armv7,
+    Csky,
     I586,
     I686,
     Loongarch64,
+    M68k,
     Mips,
     Mipsel,
+    Mipsisa32r6,
+    Mipsisa32r6el,
+    Mipsisa64r6,
+    Mipsisa64r6el,
     Mips64,
     Mips64el,
     Powerpc64,
     Powerpc64le,
+    Riscv32,
     Riscv64,
     S390x,
     X86_64,
@@ -112,22 +125,31 @@ pub enum Arch {
 }
 
 impl Arch {
+    #[must_use] 
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Aarch64 => "aarch64",
+            Self::Aarch64Be => "aarch64_be",
             Self::Arm64e => "arm64e",
             Self::Armv5 => "armv5",
             Self::Armv6 => "armv6",
             Self::Armv7 => "armv7",
+            Self::Csky => "csky",
             Self::I586 => "i586",
             Self::I686 => "i686",
             Self::Loongarch64 => "loongarch64",
+            Self::M68k => "m68k",
             Self::Mips => "mips",
             Self::Mipsel => "mipsel",
+            Self::Mipsisa32r6 => "mipsisa32r6",
+            Self::Mipsisa32r6el => "mipsisa32r6el",
+            Self::Mipsisa64r6 => "mipsisa64r6",
+            Self::Mipsisa64r6el => "mipsisa64r6el",
             Self::Mips64 => "mips64",
             Self::Mips64el => "mips64el",
             Self::Powerpc64 => "powerpc64",
             Self::Powerpc64le => "powerpc64le",
+            Self::Riscv32 => "riscv32",
             Self::Riscv64 => "riscv64",
             Self::S390x => "s390x",
             Self::X86_64 => "x86_64",
@@ -136,18 +158,21 @@ impl Arch {
     }
 
     /// Get the QEMU binary name for this architecture
+    #[must_use] 
     pub const fn qemu_binary_name(&self) -> Option<&'static str> {
         match self {
-            Self::Aarch64 => Some("qemu-aarch64"),
+            Self::Aarch64 | Self::Aarch64Be => Some("qemu-aarch64"),
             Self::Armv5 | Self::Armv6 | Self::Armv7 => Some("qemu-arm"),
             Self::I586 | Self::I686 => Some("qemu-i386"),
             Self::Loongarch64 => Some("qemu-loongarch64"),
-            Self::Mips => Some("qemu-mips"),
-            Self::Mipsel => Some("qemu-mipsel"),
-            Self::Mips64 => Some("qemu-mips64"),
-            Self::Mips64el => Some("qemu-mips64el"),
+            Self::M68k => Some("qemu-m68k"),
+            Self::Mips | Self::Mipsisa32r6 => Some("qemu-mips"),
+            Self::Mipsel | Self::Mipsisa32r6el => Some("qemu-mipsel"),
+            Self::Mips64 | Self::Mipsisa64r6 => Some("qemu-mips64"),
+            Self::Mips64el | Self::Mipsisa64r6el => Some("qemu-mips64el"),
             Self::Powerpc64 => Some("qemu-ppc64"),
             Self::Powerpc64le => Some("qemu-ppc64le"),
+            Self::Riscv32 => Some("qemu-riscv32"),
             Self::Riscv64 => Some("qemu-riscv64"),
             Self::S390x => Some("qemu-s390x"),
             Self::X86_64 => Some("qemu-x86_64"),
@@ -165,6 +190,7 @@ pub enum Libc {
 }
 
 impl Libc {
+    #[must_use] 
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Musl => "musl",
@@ -179,14 +205,34 @@ impl Libc {
 pub enum Abi {
     Eabi,
     Eabihf,
+    X32,
+    Gnusf,
+    Gnuspe,
+    GnuAbiv2,
+    GnuAbiv2Hf,
 }
 
 impl Abi {
+    #[must_use] 
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Eabi => "eabi",
             Self::Eabihf => "eabihf",
+            Self::X32 => "x32",
+            Self::Gnusf => "gnusf",
+            Self::Gnuspe => "gnuspe",
+            Self::GnuAbiv2 => "abiv2",
+            Self::GnuAbiv2Hf => "abiv2hf",
         }
+    }
+
+    /// Check if this ABI should be used with gnu libc
+    #[must_use] 
+    pub const fn is_gnu_abi_variant(&self) -> bool {
+        matches!(
+            self,
+            Self::Gnusf | Self::Gnuspe | Self::GnuAbiv2 | Self::GnuAbiv2Hf
+        )
     }
 }
 
@@ -282,6 +328,11 @@ pub static TARGETS: std::sync::LazyLock<HashMap<&'static str, TargetConfig>> =
                 .with_libc(Libc::Musl),
             TargetConfig::new("x86_64-unknown-linux-musl", Os::Linux, Arch::X86_64)
                 .with_libc(Libc::Musl),
+            // Additional Linux musl targets supported by v0.7.7
+            TargetConfig::new("aarch64_be-unknown-linux-musl", Os::Linux, Arch::Aarch64Be)
+                .with_libc(Libc::Musl),
+            TargetConfig::new("riscv32gc-unknown-linux-musl", Os::Linux, Arch::Riscv32)
+                .with_libc(Libc::Musl),
             // Linux gnu targets
             TargetConfig::new("aarch64-unknown-linux-gnu", Os::Linux, Arch::Aarch64)
                 .with_libc(Libc::Gnu),
@@ -328,6 +379,46 @@ pub static TARGETS: std::sync::LazyLock<HashMap<&'static str, TargetConfig>> =
             TargetConfig::new("s390x-unknown-linux-gnu", Os::Linux, Arch::S390x)
                 .with_libc(Libc::Gnu),
             TargetConfig::new("x86_64-unknown-linux-gnu", Os::Linux, Arch::X86_64)
+                .with_libc(Libc::Gnu),
+            TargetConfig::new("x86_64-unknown-linux-gnux32", Os::Linux, Arch::X86_64)
+                .with_libc(Libc::Gnu)
+                .with_abi(Abi::X32),
+            // Additional Linux gnu targets supported by v0.7.7
+            TargetConfig::new("aarch64_be-unknown-linux-gnu", Os::Linux, Arch::Aarch64Be)
+                .with_libc(Libc::Gnu),
+            TargetConfig::new("m68k-unknown-linux-gnu", Os::Linux, Arch::M68k)
+                .with_libc(Libc::Gnu),
+            TargetConfig::new("csky-unknown-linux-gnuabiv2", Os::Linux, Arch::Csky)
+                .with_libc(Libc::Gnu)
+                .with_abi(Abi::GnuAbiv2),
+            TargetConfig::new("csky-unknown-linux-gnuabiv2hf", Os::Linux, Arch::Csky)
+                .with_libc(Libc::Gnu)
+                .with_abi(Abi::GnuAbiv2Hf),
+            TargetConfig::new(
+                "mipsisa32r6-unknown-linux-gnu",
+                Os::Linux,
+                Arch::Mipsisa32r6,
+            )
+            .with_libc(Libc::Gnu),
+            TargetConfig::new(
+                "mipsisa32r6el-unknown-linux-gnu",
+                Os::Linux,
+                Arch::Mipsisa32r6el,
+            )
+            .with_libc(Libc::Gnu),
+            TargetConfig::new(
+                "mipsisa64r6-unknown-linux-gnuabi64",
+                Os::Linux,
+                Arch::Mipsisa64r6,
+            )
+            .with_libc(Libc::Gnu),
+            TargetConfig::new(
+                "mipsisa64r6el-unknown-linux-gnuabi64",
+                Os::Linux,
+                Arch::Mipsisa64r6el,
+            )
+            .with_libc(Libc::Gnu),
+            TargetConfig::new("riscv32gc-unknown-linux-gnu", Os::Linux, Arch::Riscv32)
                 .with_libc(Libc::Gnu),
             // Windows GNU targets
             TargetConfig::new("i686-pc-windows-gnu", Os::Windows, Arch::I686).with_libc(Libc::Gnu),
@@ -438,6 +529,7 @@ pub struct HostPlatform {
 
 impl HostPlatform {
     /// Detect current host platform
+    #[must_use] 
     pub fn detect() -> Self {
         let os = if cfg!(target_os = "linux") {
             "linux"
@@ -495,11 +587,13 @@ impl HostPlatform {
     }
 
     /// Get platform string for downloads (e.g., "linux-x86_64")
+    #[must_use] 
     pub fn download_platform(&self) -> String {
         format!("{}-{}", self.os, self.arch)
     }
 
     /// Check if host can natively run the target architecture
+    #[must_use] 
     pub fn can_run_natively(&self, target_arch: Arch) -> bool {
         match self.arch {
             "x86_64" => matches!(target_arch, Arch::X86_64 | Arch::I686 | Arch::I586),
@@ -513,21 +607,25 @@ impl HostPlatform {
     }
 
     /// Check if running on Windows
+    #[must_use] 
     pub fn is_windows(&self) -> bool {
         self.os == "windows"
     }
 
     /// Check if running on macOS/Darwin
+    #[must_use] 
     pub fn is_darwin(&self) -> bool {
         self.os == "darwin"
     }
 
     /// Check if running on Linux
+    #[must_use] 
     pub fn is_linux(&self) -> bool {
         self.os == "linux"
     }
 
     /// Get PATH separator for this platform
+    #[must_use] 
     pub fn path_separator(&self) -> &'static str {
         if self.is_windows() {
             ";"
@@ -611,6 +709,11 @@ mod tests {
     fn test_abi_as_str() {
         assert_eq!(Abi::Eabi.as_str(), "eabi");
         assert_eq!(Abi::Eabihf.as_str(), "eabihf");
+        assert_eq!(Abi::X32.as_str(), "x32");
+        assert_eq!(Abi::Gnusf.as_str(), "gnusf");
+        assert_eq!(Abi::Gnuspe.as_str(), "gnuspe");
+        assert_eq!(Abi::GnuAbiv2.as_str(), "abiv2");
+        assert_eq!(Abi::GnuAbiv2Hf.as_str(), "abiv2hf");
     }
 
     #[test]
@@ -729,5 +832,19 @@ mod tests {
         let config = get_target_config("aarch64-linux-android").unwrap();
         assert_eq!(config.os, Os::Android);
         assert_eq!(config.arch, Arch::Aarch64);
+    }
+
+    #[test]
+    fn test_x32_targets() {
+        // Test x32 gnu target
+        let config = get_target_config("x86_64-unknown-linux-gnux32").unwrap();
+        assert_eq!(config.os, Os::Linux);
+        assert_eq!(config.arch, Arch::X86_64);
+        assert_eq!(config.libc, Some(Libc::Gnu));
+        assert_eq!(config.abi, Some(Abi::X32));
+
+        // x32 musl is not supported
+        let config = get_target_config("x86_64-unknown-linux-muslx32");
+        assert!(config.is_none());
     }
 }
