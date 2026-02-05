@@ -3,7 +3,7 @@
 use crate::color;
 use crate::error::{CrossError, Result};
 use futures_util::StreamExt;
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 use std::path::Path;
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -12,6 +12,12 @@ use tokio::io::AsyncWriteExt;
 
 /// Shared tick interval for progress bars (100ms)
 const TICK_INTERVAL: Duration = Duration::from_millis(100);
+
+/// Maximum number of retry attempts for downloads
+const MAX_RETRIES: u32 = 3;
+
+/// Initial retry delay (doubles with each retry)
+const INITIAL_RETRY_DELAY: Duration = Duration::from_secs(1);
 
 /// Cached progress styles to avoid repeated template parsing
 static DOWNLOAD_SPINNER_STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
@@ -76,23 +82,146 @@ fn create_http_client() -> reqwest::Result<reqwest::Client> {
     reqwest::Client::builder()
         .user_agent("cargo-cross")
         .http1_only()
+        .timeout(Duration::from_mins(5)) // 5 minutes timeout
         .build()
 }
 
-/// Download a file from URL with progress indication
-pub async fn download_file(url: &str, dest: &Path) -> Result<()> {
-    let client = create_http_client()?;
-    let response = client.get(url).send().await?;
+/// Check if an error is retryable (network errors, timeouts, etc.)
+fn is_retryable_error(err: &reqwest::Error) -> bool {
+    err.is_timeout()
+        || err.is_connect()
+        || err.is_request()
+        || (err.is_status() && err.status().is_some_and(|s| s.is_server_error()))
+}
 
-    if !response.status().is_success() {
-        return Err(CrossError::DownloadFailed(format!(
-            "HTTP {} for {}",
-            response.status(),
-            url
-        )));
+/// Send HTTP GET request with automatic retry on transient failures
+async fn send_request_with_retry(
+    client: &reqwest::Client,
+    url: &str,
+) -> Result<reqwest::Response> {
+    send_request_with_retry_range(client, url, None).await
+}
+
+/// Send HTTP GET request with Range header support and automatic retry
+async fn send_request_with_retry_range(
+    client: &reqwest::Client,
+    url: &str,
+    start_pos: Option<u64>,
+) -> Result<reqwest::Response> {
+    let mut last_error = None;
+
+    for attempt in 0..=MAX_RETRIES {
+        if attempt > 0 {
+            let delay = INITIAL_RETRY_DELAY * 2_u32.pow(attempt - 1);
+            tokio::time::sleep(delay).await;
+        }
+
+        let mut request = client.get(url);
+
+        // Add Range header if resuming
+        if let Some(pos) = start_pos {
+            if pos > 0 {
+                request = request.header("Range", format!("bytes={pos}-"));
+            }
+        }
+
+        match request.send().await {
+            Ok(response) => {
+                let status = response.status();
+
+                // Accept both 200 (full content) and 206 (partial content)
+                if status.is_success() || status == reqwest::StatusCode::PARTIAL_CONTENT {
+                    return Ok(response);
+                }
+
+                return Err(CrossError::DownloadFailed(format!(
+                    "HTTP {status} for {url}"
+                )));
+            }
+            Err(err) => {
+                if !is_retryable_error(&err) || attempt == MAX_RETRIES {
+                    // Non-retryable error or max retries reached
+                    return Err(err.into());
+                }
+                last_error = Some(err);
+            }
+        }
     }
 
-    let pb = create_download_progress_bar(response.content_length());
+    // This should never be reached, but just in case
+    Err(last_error.map_or_else(
+        || CrossError::DownloadFailed("Unknown error".to_string()),
+        Into::into,
+    ))
+}
+
+/// Download to file with resume support and automatic retry
+async fn download_with_resume(
+    client: &reqwest::Client,
+    url: &str,
+    file_path: &Path,
+    pb: &ProgressBar,
+    already_downloaded: u64,
+) -> Result<()> {
+    // Set initial position if resuming
+    if already_downloaded > 0 {
+        pb.set_position(already_downloaded);
+    }
+
+    let mut downloaded = already_downloaded;
+    let mut attempt = 0;
+    'retry: loop {
+        let response = send_request_with_retry_range(client, url, Some(downloaded)).await?;
+
+        // Open file in append mode or create if doesn't exist
+        let mut file = if downloaded > 0 {
+            File::options()
+                .append(true)
+                .create(true)
+                .open(file_path)
+                .await?
+        } else {
+            File::create(file_path).await?
+        };
+
+        let mut stream = response.bytes_stream();
+
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(chunk) => {
+                    file.write_all(&chunk).await?;
+                    downloaded += chunk.len() as u64;
+                    pb.inc(chunk.len() as u64);
+                }
+                Err(err) => {
+                    // Network error during streaming - need to retry
+                    file.flush().await?;
+
+                    if attempt >= MAX_RETRIES {
+                        return Err(CrossError::DownloadFailed(format!(
+                            "Max retries reached: {err}"
+                        )));
+                    }
+
+                    attempt += 1;
+                    let delay = INITIAL_RETRY_DELAY * 2_u32.pow(attempt - 1);
+                    tokio::time::sleep(delay).await;
+                    continue 'retry;
+                }
+            }
+        }
+
+        // Download completed successfully
+        file.flush().await?;
+        break;
+    }
+
+    Ok(())
+}
+
+/// Download a file from URL with progress indication, resume support and automatic retry
+pub async fn download_file(url: &str, dest: &Path) -> Result<()> {
+    let client = create_http_client()?;
 
     // Ensure parent directory exists
     if let Some(parent) = dest.parent() {
@@ -100,18 +229,29 @@ pub async fn download_file(url: &str, dest: &Path) -> Result<()> {
     }
 
     // Download to temporary file
-    let temp_path = dest.with_extension("tmp");
-    let mut file = File::create(&temp_path).await?;
-    let mut stream = response.bytes_stream();
+    // Note: Can't use with_extension() because dest may contain dots (e.g., v0.7.7)
+    let temp_path = dest
+        .parent().map_or_else(|| {
+            std::path::PathBuf::from(format!("{}.tmp", dest.file_name().unwrap().to_string_lossy()))
+        }, |p| p.join(format!("{}.tmp", dest.file_name().unwrap().to_string_lossy())));
 
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk?;
-        file.write_all(&chunk).await?;
-        pb.inc(chunk.len() as u64);
-    }
+    // Check if partial file exists
+    let already_downloaded = if temp_path.exists() {
+        fs::metadata(&temp_path).await?.len()
+    } else {
+        0
+    };
 
-    file.flush().await?;
-    drop(file);
+    // Get total size (try without Range first to get accurate size)
+    let response = send_request_with_retry(&client, url).await?;
+    let total_size = response.content_length();
+    drop(response); // Close the connection
+
+    // Create progress bar
+    let pb = create_download_progress_bar(total_size);
+
+    // Download with resume support
+    download_with_resume(&client, url, &temp_path, &pb, already_downloaded).await?;
 
     pb.finish_with_message("Download complete");
 
@@ -148,7 +288,11 @@ pub async fn download_and_extract(
     }
 
     // Use temporary directory for extraction
-    let temp_dir = dest.with_extension("tmp");
+    // Note: Can't use with_extension() because dest may contain dots (e.g., v0.7.7)
+    let temp_dir = dest
+        .parent()
+        .unwrap()
+        .join(format!("{}.tmp", dest.file_name().unwrap().to_string_lossy()));
     cleanup_and_create_dir(&temp_dir).await?;
 
     color::log_info(&format!(
@@ -183,43 +327,52 @@ pub async fn download_and_extract(
     Ok(())
 }
 
-/// Download and extract a tar.gz archive
+/// Download archive file with resume support and progress tracking
+async fn download_archive(url: &str, file_path: &Path) -> Result<()> {
+    let client = create_http_client()?;
+
+    // Check if partial file exists
+    let already_downloaded = if file_path.exists() {
+        fs::metadata(file_path).await?.len()
+    } else {
+        0
+    };
+
+    // Get total size for progress bar
+    let response = send_request_with_retry(&client, url).await?;
+    let total_size = response.content_length();
+    drop(response); // Close the connection
+
+    // Create download progress bar
+    let download_pb = create_download_progress_bar(total_size);
+
+    // Download with resume support
+    download_with_resume(&client, url, file_path, &download_pb, already_downloaded).await?;
+
+    download_pb.finish_with_message("Download complete");
+
+    Ok(())
+}
+
+/// Download and extract a tar.gz archive with resume support and automatic retry
 async fn download_and_extract_tar_gz(url: &str, dest: &Path) -> Result<()> {
     use async_compression::tokio::bufread::GzipDecoder;
     use tokio::io::BufReader;
     use tokio_tar::ArchiveBuilder;
 
-    let client = create_http_client()?;
-    let response = client.get(url).send().await?;
+    // Download to {dest}.tar.gz file first (with resume support)
+    // Note: Can't use with_extension() because dest may contain dots (e.g., v0.7.7)
+    let archive_path = dest
+        .parent()
+        .unwrap()
+        .join(format!("{}.tar.gz", dest.file_name().unwrap().to_string_lossy()));
+    download_archive(url, &archive_path).await?;
 
-    if !response.status().is_success() {
-        return Err(CrossError::DownloadFailed(format!(
-            "HTTP {} for {}",
-            response.status(),
-            url
-        )));
-    }
+    // Now extract the downloaded archive
+    let extract_pb = create_extract_spinner();
 
-    // Create multi-progress for simultaneous progress bars
-    // Create progress bars without steady tick first, add to MultiProgress, then enable tick
-    // This prevents rendering race conditions when bars are added
-    let mp = MultiProgress::with_draw_target(indicatif::ProgressDrawTarget::stderr_with_hz(10));
-    let download_pb = mp.insert(
-        0,
-        create_download_progress_bar_no_tick(response.content_length()),
-    );
-    let extract_pb = mp.insert(1, create_extract_spinner_no_tick());
-    // Enable steady tick after both bars are registered with MultiProgress
-    download_pb.enable_steady_tick(TICK_INTERVAL);
-    extract_pb.enable_steady_tick(TICK_INTERVAL);
-
-    // Stream download with progress tracking
-    let stream = response.bytes_stream();
-    let reader = tokio_util::io::StreamReader::new(
-        stream.map(|result| result.map_err(std::io::Error::other)),
-    );
-    let reader = ProgressReader::new(reader, download_pb.clone());
-    let buf_reader = BufReader::new(reader);
+    let file = File::open(&archive_path).await?;
+    let buf_reader = BufReader::new(file);
 
     // Decompress and extract with permission preservation for executable files
     let decoder = GzipDecoder::new(buf_reader);
@@ -240,49 +393,23 @@ async fn download_and_extract_tar_gz(url: &str, dest: &Path) -> Result<()> {
         extract_pb.inc(1);
     }
 
-    download_pb.finish_with_message("Download complete");
     extract_pb.finish_with_message(format!("{} files extracted", extract_pb.position()));
+
+    // Clean up archive file after extraction
+    fs::remove_file(&archive_path).await.ok();
 
     Ok(())
 }
 
-/// Download and extract a ZIP archive
+/// Download and extract a ZIP archive with resume support and automatic retry
 async fn download_and_extract_zip(url: &str, dest: &Path) -> Result<()> {
-    let client = create_http_client()?;
-    let response = client.get(url).send().await?;
-
-    if !response.status().is_success() {
-        return Err(CrossError::DownloadFailed(format!(
-            "HTTP {} for {}",
-            response.status(),
-            url
-        )));
-    }
-
-    // Create progress bar for download
-    let download_pb = create_download_progress_bar(response.content_length());
-
     // Download to {dest}.zip file
-    let zip_path = dest.with_extension("zip");
-
-    // Clean up existing zip file
-    if zip_path.exists() {
-        fs::remove_file(&zip_path).await.ok();
-    }
-
-    let mut file = File::create(&zip_path).await?;
-    let mut stream = response.bytes_stream();
-
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk?;
-        download_pb.inc(chunk.len() as u64);
-        file.write_all(&chunk).await?;
-    }
-
-    file.flush().await?;
-    drop(file);
-
-    download_pb.finish_with_message("Download complete");
+    // Note: Can't use with_extension() because dest may contain dots (e.g., v0.7.7)
+    let zip_path = dest
+        .parent()
+        .unwrap()
+        .join(format!("{}.zip", dest.file_name().unwrap().to_string_lossy()));
+    download_archive(url, &zip_path).await?;
 
     // Extract ZIP with progress (creates its own progress bar with known total)
     extract_zip_archive(&zip_path, dest)?;
@@ -425,9 +552,9 @@ fn make_writable_dir_all(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Create a progress bar for download (without steady tick - caller should enable after adding to `MultiProgress`)
-fn create_download_progress_bar_no_tick(total_size: Option<u64>) -> ProgressBar {
-    total_size.map_or_else(
+/// Create a progress bar for download with steady tick
+fn create_download_progress_bar(total_size: Option<u64>) -> ProgressBar {
+    let pb = total_size.map_or_else(
         || {
             let pb = ProgressBar::new_spinner();
             pb.set_style(DOWNLOAD_SPINNER_STYLE.clone());
@@ -438,20 +565,16 @@ fn create_download_progress_bar_no_tick(total_size: Option<u64>) -> ProgressBar 
             pb.set_style(DOWNLOAD_BAR_STYLE.clone());
             pb
         },
-    )
-}
-
-/// Create a progress bar for download with steady tick enabled
-fn create_download_progress_bar(total_size: Option<u64>) -> ProgressBar {
-    let pb = create_download_progress_bar_no_tick(total_size);
+    );
     pb.enable_steady_tick(TICK_INTERVAL);
     pb
 }
 
-/// Create a spinner for extraction progress (without steady tick)
-fn create_extract_spinner_no_tick() -> ProgressBar {
+/// Create a spinner for extraction progress with steady tick
+fn create_extract_spinner() -> ProgressBar {
     let pb = ProgressBar::new_spinner();
     pb.set_style(EXTRACT_SPINNER_STYLE.clone());
+    pb.enable_steady_tick(TICK_INTERVAL);
     pb
 }
 
@@ -509,34 +632,6 @@ async fn collect_dir_entries(path: &Path) -> Result<Vec<fs::DirEntry>> {
         entries.push(entry);
     }
     Ok(entries)
-}
-
-/// Wrapper reader that tracks download progress
-struct ProgressReader<R> {
-    inner: R,
-    progress: ProgressBar,
-}
-
-impl<R> ProgressReader<R> {
-    const fn new(inner: R, progress: ProgressBar) -> Self {
-        Self { inner, progress }
-    }
-}
-
-impl<R: tokio::io::AsyncRead + Unpin> tokio::io::AsyncRead for ProgressReader<R> {
-    fn poll_read(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &mut tokio::io::ReadBuf<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
-        let before = buf.filled().len();
-        let result = std::pin::Pin::new(&mut self.inner).poll_read(cx, buf);
-        if matches!(&result, std::task::Poll::Ready(Ok(()))) {
-            let after = buf.filled().len();
-            self.progress.inc((after - before) as u64);
-        }
-        result
-    }
 }
 
 /// Check if a directory exists and has content
