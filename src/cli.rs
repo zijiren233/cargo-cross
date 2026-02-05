@@ -41,7 +41,7 @@ static PROGRAM_NAME: LazyLock<&'static str> = LazyLock::new(|| {
 });
 
 /// Get the program name for display
-#[must_use] 
+#[must_use]
 pub fn program_name() -> &'static str {
     *PROGRAM_NAME
 }
@@ -1001,7 +1001,7 @@ Examples: test -- --nocapture --test-threads=1, run -- --arg1 --arg2"
 
 impl BuildArgs {
     /// Create default `BuildArgs` with proper version defaults
-    #[must_use] 
+    #[must_use]
     pub fn default_for_host() -> Self {
         Self {
             profile: "release".to_string(),
@@ -1046,7 +1046,7 @@ pub enum Command {
 }
 
 impl Command {
-    #[must_use] 
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Build => "build",
@@ -1057,7 +1057,7 @@ impl Command {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn needs_runner(&self) -> bool {
         matches!(self, Self::Run | Self::Test | Self::Bench)
     }
@@ -3138,18 +3138,14 @@ mod tests {
     #[test]
     fn test_musl_target_with_default_glibc() {
         // musl targets should work with default (empty) glibc version
-        let args =
-            parse(&["cargo-cross", "build", "-t", "aarch64_be-unknown-linux-musl"]).unwrap();
+        let args = parse(&[
+            "cargo-cross",
+            "build",
+            "-t",
+            "aarch64_be-unknown-linux-musl",
+        ])
+        .unwrap();
         assert_eq!(args.targets, vec!["aarch64_be-unknown-linux-musl"]);
         assert_eq!(args.glibc_version, ""); // default is empty string
-    }
-
-    #[test]
-    fn test_musl_target_with_invalid_glibc() {
-        // musl targets should accept empty glibc version even if invalid version is set
-        // This is tested indirectly - empty version should pass validation
-        let args = parse(&["cargo-cross", "build", "-t", "m68k-unknown-linux-musl"]).unwrap();
-        assert_eq!(args.targets, vec!["m68k-unknown-linux-musl"]);
-        assert_eq!(args.glibc_version, "");
     }
 }

@@ -507,48 +507,4 @@ mod tests {
         let folder = get_linux_folder_name(Arch::Aarch64Be, Libc::Gnu, None, "2.17", "");
         assert_eq!(folder, "aarch64_be-linux-gnu-2.17-cross");
     }
-
-    #[test]
-    fn test_m68k_targets() {
-        use crate::config::{Arch, Libc};
-
-        // Test m68k musl
-        let bin_prefix = get_linux_bin_prefix(Arch::M68k, Libc::Musl, None);
-        assert_eq!(bin_prefix, "m68k-linux-musl");
-
-        let folder = get_linux_folder_name(Arch::M68k, Libc::Musl, None, "", "");
-        assert_eq!(folder, "m68k-linux-musl-cross");
-
-        // Test m68k gnu with version
-        let bin_prefix = get_linux_bin_prefix(Arch::M68k, Libc::Gnu, None);
-        assert_eq!(bin_prefix, "m68k-linux-gnu");
-
-        let folder = get_linux_folder_name(Arch::M68k, Libc::Gnu, None, "2.17", "");
-        assert_eq!(folder, "m68k-linux-gnu-2.17-cross");
-    }
-
-    #[test]
-    fn test_csky_targets() {
-        use crate::config::{Abi, Arch, Libc};
-
-        // Test csky gnuabiv2
-        let bin_prefix = get_linux_bin_prefix(Arch::Csky, Libc::Gnu, Some(Abi::GnuAbiv2));
-        assert_eq!(bin_prefix, "csky-linux-gnuabiv2");
-
-        let folder = get_linux_folder_name(Arch::Csky, Libc::Gnu, Some(Abi::GnuAbiv2), "", "");
-        assert_eq!(folder, "csky-linux-gnuabiv2-cross");
-
-        let folder = get_linux_folder_name(Arch::Csky, Libc::Gnu, Some(Abi::GnuAbiv2), "2.17", "");
-        assert_eq!(folder, "csky-linux-gnuabiv2-2.17-cross");
-
-        // Test csky gnuabiv2hf
-        let bin_prefix = get_linux_bin_prefix(Arch::Csky, Libc::Gnu, Some(Abi::GnuAbiv2Hf));
-        assert_eq!(bin_prefix, "csky-linux-gnuabiv2hf");
-
-        let folder = get_linux_folder_name(Arch::Csky, Libc::Gnu, Some(Abi::GnuAbiv2Hf), "", "");
-        assert_eq!(folder, "csky-linux-gnuabiv2hf-cross");
-
-        let folder = get_linux_folder_name(Arch::Csky, Libc::Gnu, Some(Abi::GnuAbiv2Hf), "2.17", "");
-        assert_eq!(folder, "csky-linux-gnuabiv2hf-2.17-cross");
-    }
 }

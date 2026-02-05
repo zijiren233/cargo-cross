@@ -102,11 +102,9 @@ pub enum Arch {
     Armv5,
     Armv6,
     Armv7,
-    Csky,
     I586,
     I686,
     Loongarch64,
-    M68k,
     Mips,
     Mipsel,
     Mipsisa32r6,
@@ -134,11 +132,9 @@ impl Arch {
             Self::Armv5 => "armv5",
             Self::Armv6 => "armv6",
             Self::Armv7 => "armv7",
-            Self::Csky => "csky",
             Self::I586 => "i586",
             Self::I686 => "i686",
             Self::Loongarch64 => "loongarch64",
-            Self::M68k => "m68k",
             Self::Mips => "mips",
             Self::Mipsel => "mipsel",
             Self::Mipsisa32r6 => "mipsisa32r6",
@@ -165,7 +161,6 @@ impl Arch {
             Self::Armv5 | Self::Armv6 | Self::Armv7 => Some("qemu-arm"),
             Self::I586 | Self::I686 => Some("qemu-i386"),
             Self::Loongarch64 => Some("qemu-loongarch64"),
-            Self::M68k => Some("qemu-m68k"),
             Self::Mips | Self::Mipsisa32r6 => Some("qemu-mips"),
             Self::Mipsel | Self::Mipsisa32r6el => Some("qemu-mipsel"),
             Self::Mips64 | Self::Mipsisa64r6 => Some("qemu-mips64"),
@@ -208,12 +203,10 @@ pub enum Abi {
     X32,
     Gnusf,
     Gnuspe,
-    GnuAbiv2,
-    GnuAbiv2Hf,
 }
 
 impl Abi {
-    #[must_use] 
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Eabi => "eabi",
@@ -221,18 +214,13 @@ impl Abi {
             Self::X32 => "x32",
             Self::Gnusf => "gnusf",
             Self::Gnuspe => "gnuspe",
-            Self::GnuAbiv2 => "abiv2",
-            Self::GnuAbiv2Hf => "abiv2hf",
         }
     }
 
     /// Check if this ABI should be used with gnu libc
-    #[must_use] 
+    #[must_use]
     pub const fn is_gnu_abi_variant(&self) -> bool {
-        matches!(
-            self,
-            Self::Gnusf | Self::Gnuspe | Self::GnuAbiv2 | Self::GnuAbiv2Hf
-        )
+        matches!(self, Self::Gnusf | Self::Gnuspe)
     }
 }
 
@@ -386,14 +374,6 @@ pub static TARGETS: std::sync::LazyLock<HashMap<&'static str, TargetConfig>> =
             // Additional Linux gnu targets supported by v0.7.7
             TargetConfig::new("aarch64_be-unknown-linux-gnu", Os::Linux, Arch::Aarch64Be)
                 .with_libc(Libc::Gnu),
-            TargetConfig::new("m68k-unknown-linux-gnu", Os::Linux, Arch::M68k)
-                .with_libc(Libc::Gnu),
-            TargetConfig::new("csky-unknown-linux-gnuabiv2", Os::Linux, Arch::Csky)
-                .with_libc(Libc::Gnu)
-                .with_abi(Abi::GnuAbiv2),
-            TargetConfig::new("csky-unknown-linux-gnuabiv2hf", Os::Linux, Arch::Csky)
-                .with_libc(Libc::Gnu)
-                .with_abi(Abi::GnuAbiv2Hf),
             TargetConfig::new(
                 "mipsisa32r6-unknown-linux-gnu",
                 Os::Linux,
@@ -712,8 +692,6 @@ mod tests {
         assert_eq!(Abi::X32.as_str(), "x32");
         assert_eq!(Abi::Gnusf.as_str(), "gnusf");
         assert_eq!(Abi::Gnuspe.as_str(), "gnuspe");
-        assert_eq!(Abi::GnuAbiv2.as_str(), "abiv2");
-        assert_eq!(Abi::GnuAbiv2Hf.as_str(), "abiv2hf");
     }
 
     #[test]
