@@ -72,6 +72,7 @@ pub enum Os {
     Linux,
     Windows,
     FreeBsd,
+    NetBsd,
     Darwin,
     Ios,
     IosSim,
@@ -85,6 +86,7 @@ impl Os {
             Self::Linux => "linux",
             Self::Windows => "windows",
             Self::FreeBsd => "freebsd",
+            Self::NetBsd => "netbsd",
             Self::Darwin => "darwin",
             Self::Ios => "ios",
             Self::IosSim => "ios-sim",
@@ -414,6 +416,8 @@ pub static TARGETS: std::sync::LazyLock<HashMap<&'static str, TargetConfig>> =
                 Arch::Powerpc64le,
             ),
             TargetConfig::new("riscv64gc-unknown-freebsd", Os::FreeBsd, Arch::Riscv64),
+            // NetBSD targets
+            TargetConfig::new("x86_64-unknown-netbsd", Os::NetBsd, Arch::X86_64),
             // Darwin (macOS) targets
             TargetConfig::new("x86_64-apple-darwin", Os::Darwin, Arch::X86_64),
             TargetConfig::new("x86_64h-apple-darwin", Os::Darwin, Arch::X86_64h),
@@ -519,6 +523,8 @@ impl HostPlatform {
             "windows"
         } else if cfg!(target_os = "freebsd") {
             "freebsd"
+        } else if cfg!(target_os = "netbsd") {
+            "netbsd"
         } else {
             "unknown"
         };
@@ -659,6 +665,7 @@ mod tests {
         assert_eq!(Os::Windows.as_str(), "windows");
         assert_eq!(Os::Darwin.as_str(), "darwin");
         assert_eq!(Os::FreeBsd.as_str(), "freebsd");
+        assert_eq!(Os::NetBsd.as_str(), "netbsd");
         assert_eq!(Os::Ios.as_str(), "ios");
         assert_eq!(Os::Android.as_str(), "android");
     }
@@ -706,6 +713,15 @@ mod tests {
         assert!(!targets.is_empty());
         for target in &targets {
             assert!(target.ends_with("-freebsd"));
+        }
+    }
+
+    #[test]
+    fn test_expand_netbsd_pattern() {
+        let targets = expand_targets("*-netbsd");
+        assert!(!targets.is_empty());
+        for target in &targets {
+            assert!(target.ends_with("-netbsd"));
         }
     }
 

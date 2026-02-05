@@ -3,6 +3,7 @@
 pub mod android;
 pub mod darwin;
 pub mod freebsd;
+pub mod netbsd;
 pub mod ios;
 pub mod linux;
 pub mod windows;
@@ -43,6 +44,7 @@ pub async fn setup_cross_env(
         Os::Linux => linux::setup(target_config, args, host).await,
         Os::Windows => windows::setup(target_config, args, host).await,
         Os::FreeBsd => freebsd::setup(target_config, args, host).await,
+        Os::NetBsd => netbsd::setup(target_config, args, host).await,
         Os::Darwin => darwin::setup(target_config, args, host).await,
         Os::Ios | Os::IosSim => ios::setup(target_config, args, host).await,
         Os::Android => android::setup(target_config, args, host).await,

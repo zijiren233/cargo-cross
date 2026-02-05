@@ -4,10 +4,10 @@ A powerful GitHub Action for building, testing, and checking Rust projects with 
 
 ## Features
 
-- 🚀 **Cross-compilation support** for Linux (GNU/musl), Windows, macOS, FreeBSD, Android, and iOS
+- 🚀 **Cross-compilation support** for Linux (GNU/musl), Windows, macOS, FreeBSD, NetBSD, Android, and iOS
 - 🖥️ **Multi-platform hosts** - runs on Linux (x86_64/aarch64/armv7/riscv64/s390x/powerpc64/powerpc64le/mips64/mips64el/loongarch64), macOS (x86_64/aarch64), and Windows (x86_64)
 - 📦 **Automatic toolchain setup** - downloads and configures cross-compilers as needed
-- 🎯 **Multiple target support** - build for 63+ target platforms in a single run
+- 🎯 **Multiple target support** - build for 64+ target platforms in a single run
 - 🏗️ **Workspace support** - work with entire workspaces or specific packages
 - ⚡ **Flexible linking** - some musl targets default to static (varies by target), GNU targets default to dynamic, both configurable via `crt-static` parameter
 - 🔧 **Flexible configuration** - extensive customization options
@@ -68,6 +68,9 @@ cargo cross build --target aarch64-apple-darwin --macos-sdk-version 14.0
 
 # Build FreeBSD targets with specific FreeBSD version
 cargo cross build --target x86_64-unknown-freebsd --freebsd-version 14
+
+# Build NetBSD targets
+cargo cross build --target x86_64-unknown-netbsd
 
 # Build with specific cross-make version
 cargo cross build --target x86_64-unknown-linux-musl --cross-make-version v0.7.7
@@ -271,6 +274,10 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `crt-st
 - `powerpc64-unknown-freebsd` - FreeBSD PowerPC64
 - `powerpc64le-unknown-freebsd` - FreeBSD PowerPC64 little-endian
 - `riscv64gc-unknown-freebsd` - FreeBSD RISC-V 64-bit
+
+### NetBSD
+
+- `x86_64-unknown-netbsd` - NetBSD x86_64
 
 ### macOS
 
@@ -577,6 +584,18 @@ You can specify a specific FreeBSD version using the `freebsd-version` parameter
 
 Supported FreeBSD versions: 13 (default), 14, 15
 
+### NetBSD Build
+
+NetBSD support is provided through pre-built cross-compilation toolchains. Currently only x86_64 is supported:
+
+```yaml
+- name: Build for NetBSD
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: x86_64-unknown-netbsd
+```
+
 ### Custom Rustflags
 
 ```yaml
@@ -786,6 +805,7 @@ This action uses the following toolchain versions from [cross-make](https://gith
 | FreeBSD 13 | FreeBSD | 13.5 |
 | FreeBSD 14 | FreeBSD | 14.3 |
 | FreeBSD 15 | FreeBSD | 15.0 |
+| NetBSD | NetBSD | 10.1 |
 | macOS | macOS SDK | 26.2 (default), 14.0-26.2 available |
 | iOS | iPhone SDK | 26.2 (default), 17.0-26.2 available |
 | Android | NDK | r27d LTS (default), r29 stable available |
@@ -895,7 +915,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 This action uses cross-compilation toolchains from:
 
-- [cross-make](https://github.com/zijiren233/cross-make) for Linux/Windows/Freebsd targets
+- [cross-make](https://github.com/zijiren233/cross-make) for Linux/Windows/FreeBSD/NetBSD targets
 - [osxcross](https://github.com/zijiren233/osxcross) for macOS targets
 - [cctools-port](https://github.com/zijiren233/cctools-port) for ios targets
 - Android NDK for Android targets
