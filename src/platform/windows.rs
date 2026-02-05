@@ -61,7 +61,7 @@ async fn setup_mingw(
     let cross_compiler_name = format!("{bin_prefix}-cross");
     let compiler_dir = args.cross_compiler_dir.join(format!(
         "{}-{}",
-        cross_compiler_name, args.cross_deps_version
+        cross_compiler_name, args.cross_make_version
     ));
 
     // Determine executable extension and gcc name based on host
@@ -82,7 +82,7 @@ async fn setup_mingw(
 
         let download_url = format!(
             "https://github.com/zijiren233/cross-make/releases/download/{}-{}/{}{}",
-            args.cross_deps_version, host_platform, cross_compiler_name, extension
+            args.cross_make_version, host_platform, cross_compiler_name, extension
         );
         crate::download::download_and_extract(
             &download_url,

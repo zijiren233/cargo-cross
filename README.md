@@ -69,6 +69,9 @@ cargo cross build --target aarch64-apple-darwin --macos-sdk-version 14.0
 # Build FreeBSD targets with specific FreeBSD version
 cargo cross build --target x86_64-unknown-freebsd --freebsd-version 14
 
+# Build with specific cross-make version
+cargo cross build --target x86_64-unknown-linux-musl --cross-make-version v0.7.7
+
 # Build with custom SDK path (skips version lookup)
 cargo cross build --target aarch64-apple-darwin --macos-sdk-path /path/to/MacOSX.sdk
 cargo cross build --target aarch64-apple-ios --iphone-sdk-path /path/to/iPhoneOS.sdk
@@ -316,6 +319,8 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `crt-st
 | `macos-sdk-version` | macOS SDK version for Darwin targets (non-macOS: bundled SDKs, macOS: installed Xcode SDK) | (default 26.2) |
 | `macos-sdk-path` | Override macOS SDK path directly (skips version lookup, native macOS only) | |
 | `freebsd-version` | FreeBSD version for FreeBSD targets (13, 14, or 15) | `13` |
+| `qemu-version` | QEMU version for user-mode emulation (e.g., v10.2.0) | `v10.2.0` |
+| `cross-make-version` | Cross-compiler make version (e.g., v0.7.7) | `v0.7.7` |
 | `use-default-linker` | Use system default linker | `false` |
 | `cc` | Force set the C compiler | |
 | `cxx` | Force set the C++ compiler | |
@@ -583,6 +588,38 @@ Supported FreeBSD versions: 13 (default), 14, 15
     rustflags: "-C opt-level=3 -C codegen-units=1"
 ```
 
+### Custom Cross-Make Version
+
+You can specify a different cross-make toolchain version using the `cross-make-version` parameter:
+
+```yaml
+# Use a specific cross-make version
+- name: Build with cross-make v0.7.7
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-musl
+    cross-make-version: "v0.7.7"
+
+# Use latest version
+- name: Build with latest cross-make
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: |
+      x86_64-unknown-linux-musl
+      aarch64-unknown-linux-musl
+    cross-make-version: "v0.7.7"
+
+# Leave empty for default (v0.7.7)
+- name: Build with default cross-make
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: build
+    targets: x86_64-unknown-linux-musl
+    # cross-make-version not specified - uses default v0.7.7
+```
+
 ### Build Standard Library from Source
 
 ```yaml
@@ -724,7 +761,7 @@ The RUSTC_BOOTSTRAP environment variable tells rustc to act as if it is a nightl
 
 ## Toolchain Versions
 
-This action uses the following toolchain versions from [cross-make](https://github.com/zijiren233/cross-make) v0.7.0:
+This action uses the following toolchain versions from [cross-make](https://github.com/zijiren233/cross-make) v0.7.7 by default. You can specify a different version using the `cross-make-version` parameter:
 
 ### Core Components
 

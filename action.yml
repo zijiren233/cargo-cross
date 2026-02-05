@@ -90,6 +90,9 @@ inputs:
     description: "QEMU version for Linux cross-compilation runner"
     required: false
     default: "v10.2.0-rc1"
+  cross-make-version:
+    description: "Cross-compiler make version (e.g., v0.7.7). Leave empty for default version (v0.7.7)"
+    required: false
   use-default-linker:
     deprecationMessage: "use no-toolchain-setup to skip toolchain setup entirely"
     description: "Use the default system linker for cross-compilation (deprecated, use no-toolchain-setup instead)"
@@ -459,6 +462,7 @@ runs:
         MACOS_SDK_PATH: ${{ inputs.macos-sdk-path }}
         FREEBSD_VERSION: ${{ inputs.freebsd-version }}
         QEMU_VERSION: ${{ inputs.qemu-version }}
+        CROSS_MAKE_VERSION: ${{ inputs.cross-make-version }}
         NO_TOOLCHAIN_SETUP: ${{ inputs.no-toolchain-setup == 'true' && 'true' || '' }}
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}

@@ -3,7 +3,7 @@
 use crate::config::{
     self, supported_freebsd_versions_str, supported_glibc_versions_str,
     supported_iphone_sdk_versions_str, supported_macos_sdk_versions_str,
-    DEFAULT_CROSS_DEPS_VERSION, DEFAULT_FREEBSD_VERSION, DEFAULT_GLIBC_VERSION,
+    DEFAULT_CROSS_MAKE_VERSION, DEFAULT_FREEBSD_VERSION, DEFAULT_GLIBC_VERSION,
     DEFAULT_IPHONE_SDK_VERSION, DEFAULT_MACOS_SDK_VERSION, DEFAULT_NDK_VERSION,
     DEFAULT_QEMU_VERSION, SUPPORTED_FREEBSD_VERSIONS, SUPPORTED_GLIBC_VERSIONS,
     SUPPORTED_IPHONE_SDK_VERSIONS, SUPPORTED_MACOS_SDK_VERSIONS,
@@ -440,6 +440,14 @@ Specify Android NDK version for Android targets. Auto-downloaded from Google's o
           long_help = "\
 Specify QEMU version for user-mode emulation. Used to run cross-compiled binaries during test/run/bench.")]
     pub qemu_version: String,
+
+    /// Cross-compiler make version
+    #[arg(long, default_value = DEFAULT_CROSS_MAKE_VERSION, env = "CROSS_MAKE_VERSION",
+          value_name = "VERSION", hide_default_value = true, help_heading = "Toolchain Versions",
+          long_help = "\
+Specify cross-compiler make version. This determines which version of cross-compilation \
+toolchains will be downloaded from the upstream repository.")]
+    pub cross_make_version: String,
 
     // ===== Directories =====
     /// Directory for cross-compiler toolchains
@@ -1011,6 +1019,7 @@ impl BuildArgs {
             freebsd_version: DEFAULT_FREEBSD_VERSION.to_string(),
             ndk_version: DEFAULT_NDK_VERSION.to_string(),
             qemu_version: DEFAULT_QEMU_VERSION.to_string(),
+            cross_make_version: DEFAULT_CROSS_MAKE_VERSION.to_string(),
             ..Default::default()
         }
     }
@@ -1074,8 +1083,8 @@ pub struct Args {
     pub targets: Vec<String>,
     /// Skip passing --target to cargo (for host builds)
     pub no_cargo_target: bool,
-    /// Cross-deps version for toolchain downloads
-    pub cross_deps_version: String,
+    /// Cross-make version for toolchain downloads
+    pub cross_make_version: String,
     /// Directory for cross-compiler toolchains
     pub cross_compiler_dir: PathBuf,
     /// All build arguments from CLI
@@ -1110,7 +1119,7 @@ impl Args {
             command,
             targets,
             no_cargo_target: false,
-            cross_deps_version: DEFAULT_CROSS_DEPS_VERSION.to_string(),
+            cross_make_version: b.cross_make_version.clone(),
             cross_compiler_dir,
             build: b,
         })

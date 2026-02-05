@@ -33,8 +33,8 @@ pub const SUPPORTED_FREEBSD_VERSIONS: &[&str] = &["13", "14", "15"];
 /// Default FreeBSD version
 pub const DEFAULT_FREEBSD_VERSION: &str = "13";
 
-/// Default cross-compiler dependencies version
-pub const DEFAULT_CROSS_DEPS_VERSION: &str = "v0.7.7";
+/// Default cross-compiler make version
+pub const DEFAULT_CROSS_MAKE_VERSION: &str = "v0.7.7";
 
 /// Default Android NDK version (LTS)
 pub const DEFAULT_NDK_VERSION: &str = "r27d";
