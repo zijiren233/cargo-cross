@@ -389,7 +389,7 @@ runs:
       working-directory: ${{ github.action_path }}
       run: |
         echo "::group::Install cargo-cross"
-        command -v cargo-cross || cargo install --quiet --debug --path .
+        command -v cargo-cross || cargo install --path .
         echo "::endgroup::"
 
     - name: Save cargo-cross cache

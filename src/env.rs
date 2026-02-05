@@ -244,7 +244,7 @@ pub fn set_gcc_lib_paths(env: &mut CrossEnv, compiler_dir: &Path, target_prefix:
     let gcc_lib_base = compiler_dir.join("lib").join("gcc").join(target_prefix);
     if let Ok(entries) = std::fs::read_dir(&gcc_lib_base) {
         for entry in entries.filter_map(std::result::Result::ok) {
-            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            if entry.file_type().is_ok_and(|t| t.is_dir()) {
                 env.add_rustflag(format!("-L {}", entry.path().display()));
                 break;
             }
@@ -325,8 +325,7 @@ pub fn sanitize_cargo_env() {
     // Remove empty CARGO_TARGET_DIR to prevent cargo error:
     // "the target directory is set to an empty string in the `CARGO_TARGET_DIR` environment variable"
     if std::env::var("CARGO_TARGET_DIR")
-        .map(|v| v.is_empty())
-        .unwrap_or(false)
+        .is_ok_and(|v| v.is_empty())
     {
         std::env::remove_var("CARGO_TARGET_DIR");
     }

@@ -43,25 +43,25 @@ pub const DEFAULT_NDK_VERSION: &str = "r27d";
 pub const DEFAULT_QEMU_VERSION: &str = "v10.2.0";
 
 /// Format supported versions as comma-separated string
-#[must_use] 
+#[must_use]
 pub fn supported_glibc_versions_str() -> String {
     SUPPORTED_GLIBC_VERSIONS.join(", ")
 }
 
 /// Format supported FreeBSD versions as comma-separated string
-#[must_use] 
+#[must_use]
 pub fn supported_freebsd_versions_str() -> String {
     SUPPORTED_FREEBSD_VERSIONS.join(", ")
 }
 
 /// Format supported iPhone SDK versions as comma-separated string
-#[must_use] 
+#[must_use]
 pub fn supported_iphone_sdk_versions_str() -> String {
     SUPPORTED_IPHONE_SDK_VERSIONS.join(", ")
 }
 
 /// Format supported macOS SDK versions as comma-separated string
-#[must_use] 
+#[must_use]
 pub fn supported_macos_sdk_versions_str() -> String {
     SUPPORTED_MACOS_SDK_VERSIONS.join(", ")
 }
@@ -79,7 +79,7 @@ pub enum Os {
 }
 
 impl Os {
-    #[must_use] 
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Linux => "linux",
@@ -123,7 +123,7 @@ pub enum Arch {
 }
 
 impl Arch {
-    #[must_use] 
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Aarch64 => "aarch64",
@@ -154,7 +154,7 @@ impl Arch {
     }
 
     /// Get the QEMU binary name for this architecture
-    #[must_use] 
+    #[must_use]
     pub const fn qemu_binary_name(&self) -> Option<&'static str> {
         match self {
             Self::Aarch64 | Self::Aarch64Be => Some("qemu-aarch64"),
@@ -185,7 +185,7 @@ pub enum Libc {
 }
 
 impl Libc {
-    #[must_use] 
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Musl => "musl",
@@ -509,7 +509,7 @@ pub struct HostPlatform {
 
 impl HostPlatform {
     /// Detect current host platform
-    #[must_use] 
+    #[must_use]
     pub fn detect() -> Self {
         let os = if cfg!(target_os = "linux") {
             "linux"
@@ -567,13 +567,13 @@ impl HostPlatform {
     }
 
     /// Get platform string for downloads (e.g., "linux-x86_64")
-    #[must_use] 
+    #[must_use]
     pub fn download_platform(&self) -> String {
         format!("{}-{}", self.os, self.arch)
     }
 
     /// Check if host can natively run the target architecture
-    #[must_use] 
+    #[must_use]
     pub fn can_run_natively(&self, target_arch: Arch) -> bool {
         match self.arch {
             "x86_64" => matches!(target_arch, Arch::X86_64 | Arch::I686 | Arch::I586),
@@ -587,25 +587,25 @@ impl HostPlatform {
     }
 
     /// Check if running on Windows
-    #[must_use] 
+    #[must_use]
     pub fn is_windows(&self) -> bool {
         self.os == "windows"
     }
 
     /// Check if running on macOS/Darwin
-    #[must_use] 
+    #[must_use]
     pub fn is_darwin(&self) -> bool {
         self.os == "darwin"
     }
 
     /// Check if running on Linux
-    #[must_use] 
+    #[must_use]
     pub fn is_linux(&self) -> bool {
         self.os == "linux"
     }
 
     /// Get PATH separator for this platform
-    #[must_use] 
+    #[must_use]
     pub fn path_separator(&self) -> &'static str {
         if self.is_windows() {
             ";"
