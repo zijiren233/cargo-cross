@@ -125,15 +125,19 @@ impl CrossEnv {
         let target_upper = target.to_uppercase().replace('-', "_");
 
         // Set target-specific CC/CXX/AR variables for the cc crate.
-        // Avoid generic CC/CXX/AR to prevent leaking cross toolchains into unrelated host builds.
+        // For CMake-based build scripts, expose the selected toolchain via CMAKE_* variables
+        // instead of generic CC/CXX/AR to keep the host environment cleaner.
         if let Some(ref cc) = self.cc {
             env.insert(format!("CC_{target_lower}"), cc.clone());
+            env.insert("CMAKE_C_COMPILER".to_string(), cc.clone());
         }
         if let Some(ref cxx) = self.cxx {
             env.insert(format!("CXX_{target_lower}"), cxx.clone());
+            env.insert("CMAKE_CXX_COMPILER".to_string(), cxx.clone());
         }
         if let Some(ref ar) = self.ar {
             env.insert(format!("AR_{target_lower}"), ar.clone());
+            env.insert("CMAKE_AR".to_string(), ar.clone());
         }
 
         // Set linker (Cargo uses uppercase)
@@ -336,6 +340,7 @@ mod tests {
         let mut env = CrossEnv::new();
         env.set_cc("aarch64-linux-gnu-gcc");
         env.set_cxx("aarch64-linux-gnu-g++");
+        env.set_ar("aarch64-linux-gnu-ar");
         env.set_linker("aarch64-linux-gnu-gcc");
 
         let host = HostPlatform::detect();
@@ -344,6 +349,18 @@ mod tests {
         assert_eq!(
             vars.get("CC_aarch64_unknown_linux_gnu"),
             Some(&"aarch64-linux-gnu-gcc".to_string())
+        );
+        assert_eq!(
+            vars.get("CMAKE_C_COMPILER"),
+            Some(&"aarch64-linux-gnu-gcc".to_string())
+        );
+        assert_eq!(
+            vars.get("CMAKE_CXX_COMPILER"),
+            Some(&"aarch64-linux-gnu-g++".to_string())
+        );
+        assert_eq!(
+            vars.get("CMAKE_AR"),
+            Some(&"aarch64-linux-gnu-ar".to_string())
         );
         assert!(!vars.contains_key("CC"));
         assert!(!vars.contains_key("CXX"));
