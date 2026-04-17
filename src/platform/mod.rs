@@ -3,9 +3,9 @@
 pub mod android;
 pub mod darwin;
 pub mod freebsd;
-pub mod netbsd;
 pub mod ios;
 pub mod linux;
+pub mod netbsd;
 pub mod windows;
 
 use crate::cli::Args;
@@ -24,7 +24,7 @@ use tokio::process::Command;
 /// - Windows drive letters (C:\ -> C:/)
 /// - UNC paths (\\server\share -> //server/share)
 /// - Already forward-slashed paths (no-op)
-#[must_use] 
+#[must_use]
 pub fn to_cmake_path(path: &Path) -> String {
     path.to_slash_lossy().into_owned()
 }
@@ -52,7 +52,7 @@ pub async fn setup_cross_env(
 }
 
 /// Get the binary prefix for a Linux target
-#[must_use] 
+#[must_use]
 pub fn get_linux_bin_prefix(arch: Arch, libc: Libc, abi: Option<crate::config::Abi>) -> String {
     let arch_str = arch.as_str();
 
@@ -71,7 +71,7 @@ pub fn get_linux_bin_prefix(arch: Arch, libc: Libc, abi: Option<crate::config::A
 }
 
 /// Get the cross-compiler folder name for a Linux target
-#[must_use] 
+#[must_use]
 pub fn get_linux_folder_name(
     arch: Arch,
     libc: Libc,
@@ -107,7 +107,6 @@ pub fn get_linux_folder_name(
 
     format!("{arch_str}-linux-{folder_suffix}-cross")
 }
-
 
 /// Setup `CMake` generator for cross-compilation
 ///
@@ -462,23 +461,11 @@ mod tests {
         use crate::config::{Abi, Arch, Libc};
 
         // Test x32 gnu with glibc version
-        let folder = get_linux_folder_name(
-            Arch::X86_64,
-            Libc::Gnu,
-            Some(Abi::X32),
-            "2.17",
-            "",
-        );
+        let folder = get_linux_folder_name(Arch::X86_64, Libc::Gnu, Some(Abi::X32), "2.17", "");
         assert_eq!(folder, "x86_64-linux-gnux32-2.17-cross");
 
         // Test x32 gnu with default (empty) version
-        let folder = get_linux_folder_name(
-            Arch::X86_64,
-            Libc::Gnu,
-            Some(Abi::X32),
-            "",
-            "",
-        );
+        let folder = get_linux_folder_name(Arch::X86_64, Libc::Gnu, Some(Abi::X32), "", "");
         assert_eq!(folder, "x86_64-linux-gnux32-cross");
     }
 

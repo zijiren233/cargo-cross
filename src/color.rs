@@ -6,67 +6,73 @@
 use colored::{ColoredString, Colorize};
 use std::io::{self, Write};
 
-#[must_use] 
+#[must_use]
 pub fn cyan(s: &str) -> ColoredString {
     s.bright_cyan().bold()
 }
 
 /// Format text as bold bright yellow (for values, targets, times)
-#[must_use] 
+#[must_use]
 pub fn yellow(s: &str) -> ColoredString {
     s.bright_yellow().bold()
 }
 
 /// Format text as bold bright green (for URLs, paths, success highlights)
-#[must_use] 
+#[must_use]
 pub fn green(s: &str) -> ColoredString {
     s.bright_green().bold()
 }
 
 /// Format text as bold bright blue (for info text)
-#[must_use] 
+#[must_use]
 pub fn blue(s: &str) -> ColoredString {
     s.bright_blue().bold()
 }
 
 /// Format text as bold bright red (for errors)
-#[must_use] 
+#[must_use]
 pub fn red(s: &str) -> ColoredString {
     s.bright_red().bold()
 }
 
 /// Format text as bold bright magenta (for special highlights)
-#[must_use] 
+#[must_use]
 pub fn magenta(s: &str) -> ColoredString {
     s.bright_magenta().bold()
 }
 
 /// Format text as bold white (for separators, neutral highlights)
-#[must_use] 
+#[must_use]
 pub fn white(s: &str) -> ColoredString {
     s.bright_white().bold()
 }
 
 /// Format text as bold dim/dark gray
-#[must_use] 
+#[must_use]
 pub fn dim(s: &str) -> ColoredString {
     s.dimmed().bold()
 }
 
 /// Example: `log_info(&format!("Downloading` {} to {}", green(url), green(path)))
 pub fn log_info(msg: &str) {
-    println!("{}", msg.bright_blue().bold());
+    if logs_enabled() {
+        println!("{}", msg.bright_blue().bold());
+    }
 }
 
 /// Log a success message (bold green, supports embedded colors)
 /// Example: `log_success(&format!("Completed` in {}s", `yellow(&secs.to_string())`))
 pub fn log_success(msg: &str) {
-    println!("{}", msg.bright_green().bold());
+    if logs_enabled() {
+        println!("{}", msg.bright_green().bold());
+    }
 }
 
 /// Log a warning message (bold yellow, supports embedded colors)
 pub fn log_warning(msg: &str) {
-    println!("{}", msg.bright_yellow().bold());
+    if logs_enabled() {
+        println!("{}", msg.bright_yellow().bold());
+    }
 }
 
 /// Log an error message (bold red, supports embedded colors) to stderr
@@ -76,8 +82,10 @@ pub fn log_error(msg: &str) {
 
 /// Print a separator line
 pub fn print_separator() {
-    let width = terminal_width();
-    println!("{}", "-".repeat(width).dimmed());
+    if logs_enabled() {
+        let width = terminal_width();
+        println!("{}", "-".repeat(width).dimmed());
+    }
 }
 
 /// Get terminal width, defaulting to 80 if unavailable
@@ -93,7 +101,7 @@ fn terminal_width() -> usize {
 }
 
 /// Format a key-value pair for configuration display
-#[must_use] 
+#[must_use]
 pub fn format_config(key: &str, value: &str) -> String {
     format!(
         "  {}: {}",
@@ -103,7 +111,7 @@ pub fn format_config(key: &str, value: &str) -> String {
 }
 
 /// Format environment variable for display
-#[must_use] 
+#[must_use]
 pub fn format_env(key: &str, value: &str) -> String {
     format!(
         "  {}={}",
@@ -113,7 +121,7 @@ pub fn format_env(key: &str, value: &str) -> String {
 }
 
 /// Format a command for display
-#[must_use] 
+#[must_use]
 pub fn format_command(cmd: &str) -> String {
     format!("  {}", cmd.bright_cyan().bold())
 }
@@ -136,4 +144,8 @@ pub fn print_run_header() {
 /// Flush stdout
 pub fn flush() {
     let _ = io::stdout().flush();
+}
+
+fn logs_enabled() -> bool {
+    std::env::var_os("CARGO_CROSS_SILENT").is_none()
 }

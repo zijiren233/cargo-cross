@@ -7,7 +7,7 @@ branding:
 
 inputs:
   command:
-    description: "Command to execute (build, test, check)"
+    description: "Command to execute (for example: build, check, clippy, doc, setup, exec)"
     required: false
     default: "build"
   target:
@@ -223,17 +223,17 @@ inputs:
     required: false
     default: "false"
   args:
-    description: "Additional arguments to pass to cargo build"
+    description: "Additional arguments to pass to the underlying cargo command"
     deprecationMessage: "Use cargo-args instead of args"
     required: false
   cargo-args:
-    description: "Additional arguments to pass to cargo build"
+    description: "Additional arguments to pass to the underlying cargo command"
     required: false
   passthrough-args:
     description: "Arguments to pass after -- (e.g., for cargo test: --show-output)"
     required: false
   cross-args:
-    description: "Additional cross arguments"
+    description: "Additional cargo-cross arguments appended after the command"
     required: false
   toolchain:
     description: "Rust toolchain to use (stable, nightly, etc.)"
@@ -499,7 +499,7 @@ runs:
         NO_STRIP: ${{ inputs.no-strip == 'true' && 'true' || '' }}
         VERBOSE_LEVEL: ${{ inputs.verbose == 'true' && '1' || inputs.verbose }}
         CARGO_ARGS: ${{ inputs.cargo-args || inputs.args }}
-        CARGO_PASSTHROUGH_ARGS: ${{ inputs.passthrough-args && format('-- {0}', inputs.passthrough-args) || '' }}
+        CARGO_PASSTHROUGH_ARGS: ${{ inputs.passthrough-args }}
         TOOLCHAIN: ${{ inputs.toolchain }}
         CARGO_TRIM_PATHS: ${{ inputs.cargo-trim-paths || inputs.trim-paths }}
         NO_EMBED_METADATA: ${{ inputs.no-embed-metadata == 'true' && 'true' || '' }}

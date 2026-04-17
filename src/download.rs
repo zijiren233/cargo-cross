@@ -64,7 +64,7 @@ pub enum ArchiveFormat {
 
 impl ArchiveFormat {
     /// Detect format from URL or filename
-    #[must_use] 
+    #[must_use]
     pub fn from_url(url: &str) -> Option<Self> {
         let lower = url.to_lowercase();
         if lower.ends_with(".tar.gz") || lower.ends_with(".tgz") {
@@ -95,10 +95,7 @@ fn is_retryable_error(err: &reqwest::Error) -> bool {
 }
 
 /// Send HTTP GET request with automatic retry on transient failures
-async fn send_request_with_retry(
-    client: &reqwest::Client,
-    url: &str,
-) -> Result<reqwest::Response> {
+async fn send_request_with_retry(client: &reqwest::Client, url: &str) -> Result<reqwest::Response> {
     send_request_with_retry_range(client, url, None).await
 }
 
@@ -230,10 +227,20 @@ pub async fn download_file(url: &str, dest: &Path) -> Result<()> {
 
     // Download to temporary file
     // Note: Can't use with_extension() because dest may contain dots (e.g., v0.7.7)
-    let temp_path = dest
-        .parent().map_or_else(|| {
-            std::path::PathBuf::from(format!("{}.tmp", dest.file_name().unwrap().to_string_lossy()))
-        }, |p| p.join(format!("{}.tmp", dest.file_name().unwrap().to_string_lossy())));
+    let temp_path = dest.parent().map_or_else(
+        || {
+            std::path::PathBuf::from(format!(
+                "{}.tmp",
+                dest.file_name().unwrap().to_string_lossy()
+            ))
+        },
+        |p| {
+            p.join(format!(
+                "{}.tmp",
+                dest.file_name().unwrap().to_string_lossy()
+            ))
+        },
+    );
 
     // Check if partial file exists
     let already_downloaded = if temp_path.exists() {
@@ -289,10 +296,10 @@ pub async fn download_and_extract(
 
     // Use temporary directory for extraction
     // Note: Can't use with_extension() because dest may contain dots (e.g., v0.7.7)
-    let temp_dir = dest
-        .parent()
-        .unwrap()
-        .join(format!("{}.tmp", dest.file_name().unwrap().to_string_lossy()));
+    let temp_dir = dest.parent().unwrap().join(format!(
+        "{}.tmp",
+        dest.file_name().unwrap().to_string_lossy()
+    ));
     cleanup_and_create_dir(&temp_dir).await?;
 
     color::log_info(&format!(
@@ -362,10 +369,10 @@ async fn download_and_extract_tar_gz(url: &str, dest: &Path) -> Result<()> {
 
     // Download to {dest}.tar.gz file first (with resume support)
     // Note: Can't use with_extension() because dest may contain dots (e.g., v0.7.7)
-    let archive_path = dest
-        .parent()
-        .unwrap()
-        .join(format!("{}.tar.gz", dest.file_name().unwrap().to_string_lossy()));
+    let archive_path = dest.parent().unwrap().join(format!(
+        "{}.tar.gz",
+        dest.file_name().unwrap().to_string_lossy()
+    ));
     download_archive(url, &archive_path).await?;
 
     // Now extract the downloaded archive
@@ -405,10 +412,10 @@ async fn download_and_extract_tar_gz(url: &str, dest: &Path) -> Result<()> {
 async fn download_and_extract_zip(url: &str, dest: &Path) -> Result<()> {
     // Download to {dest}.zip file
     // Note: Can't use with_extension() because dest may contain dots (e.g., v0.7.7)
-    let zip_path = dest
-        .parent()
-        .unwrap()
-        .join(format!("{}.zip", dest.file_name().unwrap().to_string_lossy()));
+    let zip_path = dest.parent().unwrap().join(format!(
+        "{}.zip",
+        dest.file_name().unwrap().to_string_lossy()
+    ));
     download_archive(url, &zip_path).await?;
 
     // Extract ZIP with progress (creates its own progress bar with known total)
@@ -554,6 +561,10 @@ fn make_writable_dir_all(path: &Path) -> Result<()> {
 
 /// Create a progress bar for download with steady tick
 fn create_download_progress_bar(total_size: Option<u64>) -> ProgressBar {
+    if std::env::var_os("CARGO_CROSS_SILENT").is_some() {
+        return ProgressBar::hidden();
+    }
+
     let pb = total_size.map_or_else(
         || {
             let pb = ProgressBar::new_spinner();
@@ -572,6 +583,10 @@ fn create_download_progress_bar(total_size: Option<u64>) -> ProgressBar {
 
 /// Create a spinner for extraction progress with steady tick
 fn create_extract_spinner() -> ProgressBar {
+    if std::env::var_os("CARGO_CROSS_SILENT").is_some() {
+        return ProgressBar::hidden();
+    }
+
     let pb = ProgressBar::new_spinner();
     pb.set_style(EXTRACT_SPINNER_STYLE.clone());
     pb.enable_steady_tick(TICK_INTERVAL);
@@ -580,6 +595,10 @@ fn create_extract_spinner() -> ProgressBar {
 
 /// Create a progress bar for extraction with known total (shows speed and ETA)
 fn create_extract_progress_bar(total: usize) -> ProgressBar {
+    if std::env::var_os("CARGO_CROSS_SILENT").is_some() {
+        return ProgressBar::hidden();
+    }
+
     let pb = ProgressBar::new(total as u64);
     pb.set_style(EXTRACT_BAR_STYLE.clone());
     pb.enable_steady_tick(TICK_INTERVAL);

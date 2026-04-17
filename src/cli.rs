@@ -10,7 +10,9 @@ use crate::config::{
 };
 use crate::error::{CrossError, Result};
 use clap::builder::styling::{AnsiColor, Effects, Styles};
+use clap::ArgAction;
 use clap::{Args as ClapArgs, CommandFactory, FromArgMatches, Parser, Subcommand, ValueHint};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
@@ -133,6 +135,29 @@ Execute all benchmarks of a local package.
 For cross-compilation targets, QEMU user-mode emulation is used to run benchmarks.")]
     Bench(BuildArgs),
 
+    /// Run Clippy lints on the current package
+    #[command(long_about = "\
+Run Clippy on the current package and all of its dependencies.
+
+This forwards to `cargo clippy` with the configured cross-compilation environment.")]
+    Clippy(BuildArgs),
+
+    /// Prepare and print the configured cross-compilation environment
+    #[command(long_about = "\
+Prepare the cross-compilation environment and print environment variables.
+
+This is intended for use with shell evaluation, for example:
+    eval \"$(cargo cross setup -t aarch64-unknown-linux-musl)\"")]
+    Setup(SetupCliArgs),
+
+    /// Execute an arbitrary command inside the configured cross-compilation environment
+    #[command(long_about = "\
+Prepare the cross-compilation environment and execute an arbitrary command.
+
+This is useful for running custom tooling that should inherit the configured
+compiler, linker, PATH, and cargo target environment variables.")]
+    Exec(ExecCliArgs),
+
     /// Display all supported cross-compilation targets
     #[command(long_about = "\
 Display all supported cross-compilation targets.
@@ -155,6 +180,60 @@ pub enum OutputFormat {
     Json,
     /// Plain text, one target per line
     Plain,
+}
+
+/// Output format for setup command
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
+pub enum SetupOutputFormat {
+    /// Detect the current shell from the environment, fallback to bash syntax
+    #[default]
+    Auto,
+    /// Bash-compatible exports
+    Bash,
+    /// Zsh-compatible exports
+    Zsh,
+    /// Fish shell exports
+    Fish,
+    /// PowerShell environment assignments
+    Powershell,
+    /// Windows cmd.exe environment assignments
+    Cmd,
+    /// JSON object
+    Json,
+}
+
+#[derive(ClapArgs, Debug, Clone)]
+pub struct SetupCliArgs {
+    #[command(flatten)]
+    pub build: BuildArgs,
+
+    /// Output format
+    #[arg(
+        short = 'f',
+        long = "format",
+        value_enum,
+        default_value = "auto",
+        help = "Output format (auto, bash, zsh, fish, powershell, cmd, json)"
+    )]
+    pub format: SetupOutputFormat,
+}
+
+#[derive(Debug, Clone)]
+pub struct SetupArgs {
+    pub args: Args,
+    pub format: SetupOutputFormat,
+}
+
+#[derive(ClapArgs, Debug, Clone)]
+pub struct ExecCliArgs {
+    #[command(flatten)]
+    pub build: BuildArgs,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExecArgs {
+    pub args: Args,
+    pub command: Vec<String>,
 }
 
 #[derive(ClapArgs, Debug, Clone, Default)]
@@ -992,6 +1071,18 @@ Clean the target directory before building. Equivalent to running 'cargo clean' 
     )]
     pub clean_cache: bool,
 
+    /// Disable automatic --target appending for `exec` cargo commands
+    #[arg(
+        long,
+        env = "NO_APPEND_TARGET",
+        help_heading = "Additional Options",
+        long_help = "\
+Disable automatic insertion of '--target <triple>' when using the 'exec' command
+with a cargo invocation. By default, 'cargo cross exec --target ... -- cargo ...'
+will add '--target <triple>' to the cargo command unless it is already present."
+    )]
+    pub no_append_target: bool,
+
     /// Arguments passed through to cargo (after --)
     /// Note: `CARGO_PASSTHROUGH_ARGS` env var is handled manually in cargo.rs to support shell-style parsing
     #[arg(
@@ -1043,32 +1134,70 @@ fn parse_build_std(s: &str) -> std::result::Result<String, String> {
     }
 }
 
-/// Cargo command to execute
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Command {
-    #[default]
-    Build,
-    Check,
-    Run,
-    Test,
-    Bench,
+/// Cargo or internal command descriptor
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Command(String);
+
+impl Default for Command {
+    fn default() -> Self {
+        Self::build()
+    }
 }
 
 impl Command {
     #[must_use]
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Build => "build",
-            Self::Check => "check",
-            Self::Run => "run",
-            Self::Test => "test",
-            Self::Bench => "bench",
-        }
+    pub fn new(name: impl Into<String>) -> Self {
+        Self(name.into())
     }
 
     #[must_use]
-    pub const fn needs_runner(&self) -> bool {
-        matches!(self, Self::Run | Self::Test | Self::Bench)
+    pub fn build() -> Self {
+        Self::new("build")
+    }
+
+    #[must_use]
+    pub fn check() -> Self {
+        Self::new("check")
+    }
+
+    #[must_use]
+    pub fn run() -> Self {
+        Self::new("run")
+    }
+
+    #[must_use]
+    pub fn test() -> Self {
+        Self::new("test")
+    }
+
+    #[must_use]
+    pub fn bench() -> Self {
+        Self::new("bench")
+    }
+
+    #[must_use]
+    pub fn clippy() -> Self {
+        Self::new("clippy")
+    }
+
+    #[must_use]
+    pub fn setup() -> Self {
+        Self::new("setup")
+    }
+
+    #[must_use]
+    pub fn exec() -> Self {
+        Self::new("exec")
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    #[must_use]
+    pub fn needs_runner(&self) -> bool {
+        matches!(self.as_str(), "run" | "test" | "bench")
     }
 }
 
@@ -1130,6 +1259,10 @@ impl Args {
 pub enum ParseResult {
     /// Normal build/check/run/test/bench command
     Build(Box<Args>),
+    /// Print configured environment variables
+    Setup(Box<SetupArgs>),
+    /// Execute an arbitrary command after environment setup
+    Exec(Box<ExecArgs>),
     /// Show targets command
     ShowTargets(OutputFormat),
     /// Show version
@@ -1154,6 +1287,14 @@ fn sanitize_clap_env() {
 pub fn parse_args() -> Result<ParseResult> {
     let args: Vec<String> = std::env::args().collect();
     parse_args_from(args)
+}
+
+#[derive(Parser, Debug)]
+#[command(name = "cargo-cross")]
+#[command(styles = cli_styles())]
+struct ExternalCargoCli {
+    #[command(flatten)]
+    build: BuildArgs,
 }
 
 /// Parse arguments from a vector (for testing)
@@ -1183,6 +1324,30 @@ pub fn parse_args_from(args: Vec<String>) -> Result<ParseResult> {
         args.remove(0);
     }
 
+    if let Some(command_name) = args.first().cloned() {
+        let remaining_args: Vec<String> = args.iter().skip(1).cloned().collect();
+        let help_or_version_requested = has_wrapper_help_or_version_request(&remaining_args);
+
+        if let Some(canonical_name) = canonical_cargo_command_name(&command_name) {
+            if !help_or_version_requested {
+                return parse_cargo_command_args(
+                    &command_name,
+                    canonical_name,
+                    remaining_args,
+                    toolchain,
+                );
+            }
+        }
+        if should_parse_as_external_cargo_command(&command_name) {
+            return parse_cargo_command_args(
+                &command_name,
+                &command_name,
+                remaining_args,
+                toolchain,
+            );
+        }
+    }
+
     // Prepend program name for clap (internal name, not displayed)
     args.insert(0, BIN_NAME.to_string());
 
@@ -1210,6 +1375,12 @@ pub fn parse_args_from(args: Vec<String>) -> Result<ParseResult> {
     };
 
     process_cli(cli, toolchain)
+}
+
+fn has_wrapper_help_or_version_request(args: &[String]) -> bool {
+    args.iter()
+        .take_while(|arg| arg.as_str() != "--")
+        .any(|arg| matches!(arg.as_str(), "--help" | "-h" | "--version" | "-V"))
 }
 
 /// Build the clap Command with dynamic help text based on invocation style
@@ -1257,7 +1428,7 @@ EXAMPLES:\n    \
     let mut cmd = Cli::command().override_usage(usage).after_help(after_help);
 
     // Update subcommand usage strings and version help texts
-    for subcmd_name in &["build", "check", "run", "test", "bench"] {
+    for subcmd_name in &["build", "check", "run", "test", "bench", "clippy"] {
         let glibc_help = glibc_help.clone();
         let freebsd_help = freebsd_help.clone();
         let iphone_sdk_help = iphone_sdk_help.clone();
@@ -1277,27 +1448,350 @@ EXAMPLES:\n    \
     cmd
 }
 
+fn should_parse_as_external_cargo_command(command_name: &str) -> bool {
+    if command_name.starts_with('-') {
+        return false;
+    }
+
+    canonical_cargo_command_name(command_name).is_none()
+        && is_supported_external_cargo_command(command_name)
+}
+
+fn canonical_cargo_command_name(command_name: &str) -> Option<&'static str> {
+    match command_name {
+        "build" | "b" => Some("build"),
+        "check" | "c" => Some("check"),
+        "run" | "r" => Some("run"),
+        "test" | "t" => Some("test"),
+        "bench" => Some("bench"),
+        "clippy" => Some("clippy"),
+        _ => None,
+    }
+}
+
+fn is_supported_external_cargo_command(command_name: &str) -> bool {
+    matches!(command_name, "doc" | "fix" | "rustc" | "rustdoc")
+}
+
+fn parse_cargo_command_args(
+    display_name: &str,
+    canonical_name: &str,
+    args: Vec<String>,
+    toolchain: Option<String>,
+) -> Result<ParseResult> {
+    let processed_args = preprocess_cargo_args(args);
+    let mut clap_args = Vec::with_capacity(processed_args.len() + 1);
+    clap_args.push(BIN_NAME.to_string());
+    clap_args.extend(processed_args);
+
+    let cmd = build_external_cargo_command_with_dynamic_help(display_name);
+    let cli = match cmd.try_get_matches_from(&clap_args) {
+        Ok(matches) => ExternalCargoCli::from_arg_matches(&matches)
+            .map_err(|e| CrossError::ClapError(e.to_string()))?,
+        Err(e) => {
+            if matches!(
+                e.kind(),
+                clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
+            ) {
+                e.exit();
+            }
+            return Err(CrossError::ClapError(e.render().to_string()));
+        }
+    };
+
+    let args = finalize_args(cli.build, Command::new(canonical_name), toolchain)?;
+    Ok(ParseResult::Build(Box::new(args)))
+}
+
+#[derive(Clone, Copy, Debug)]
+struct KnownArgSpec {
+    takes_value: bool,
+    min_values: usize,
+    max_values: usize,
+    allow_hyphen_values: bool,
+}
+
+fn preprocess_cargo_args(args: Vec<String>) -> Vec<String> {
+    let parser = ExternalCargoCli::command();
+    let (long_args, short_args) = known_arg_maps(&parser);
+    let mut processed = Vec::with_capacity(args.len());
+    let mut pending_value: Option<KnownArgSpec> = None;
+    let mut passthrough = false;
+    let mut index = 0;
+
+    while index < args.len() {
+        let token = &args[index];
+
+        if passthrough {
+            processed.push(token.clone());
+            index += 1;
+            continue;
+        }
+
+        if token == "--" {
+            pending_value = None;
+            passthrough = true;
+            processed.push(token.clone());
+            index += 1;
+            continue;
+        }
+
+        if matches!(token.as_str(), "--help" | "-h" | "--version" | "-V") {
+            pending_value = None;
+            processed.push(token.clone());
+            index += 1;
+            continue;
+        }
+
+        if let Some(spec) = pending_value {
+            if should_consume_known_value(token, spec) {
+                processed.push(token.clone());
+                pending_value = None;
+                index += 1;
+                continue;
+            }
+            pending_value = None;
+        }
+
+        if let Some(spec) = classify_known_long_arg(token, &long_args) {
+            processed.push(token.clone());
+            pending_value = needs_following_value(token, spec);
+            index += 1;
+            continue;
+        }
+
+        if let Some(spec) = classify_known_short_arg(token, &short_args) {
+            processed.push(token.clone());
+            pending_value = needs_following_value(token, spec);
+            index += 1;
+            continue;
+        }
+
+        push_cargo_arg(&mut processed, token);
+        if should_pair_unknown_value(token, args.get(index + 1).map(String::as_str)) {
+            if let Some(value) = args.get(index + 1) {
+                push_cargo_arg(&mut processed, value);
+                index += 1;
+            }
+        }
+        index += 1;
+    }
+
+    processed
+}
+
+fn known_arg_maps(
+    command: &clap::Command,
+) -> (HashMap<String, KnownArgSpec>, HashMap<char, KnownArgSpec>) {
+    let mut long_args = HashMap::new();
+    let mut short_args = HashMap::new();
+
+    for arg in command.get_arguments() {
+        if arg.is_positional() {
+            continue;
+        }
+
+        let (takes_value, min_values, max_values) = infer_arg_value_shape(arg);
+        let spec = KnownArgSpec {
+            takes_value,
+            min_values,
+            max_values,
+            allow_hyphen_values: arg.is_allow_hyphen_values_set(),
+        };
+
+        if let Some(long) = arg.get_long() {
+            long_args.insert(long.to_string(), spec);
+        }
+        if let Some(aliases) = arg.get_long_and_visible_aliases() {
+            for alias in aliases {
+                long_args.insert(alias.to_string(), spec);
+            }
+        }
+        if let Some(short) = arg.get_short() {
+            short_args.insert(short, spec);
+        }
+        if let Some(aliases) = arg.get_short_and_visible_aliases() {
+            for alias in aliases {
+                short_args.insert(alias, spec);
+            }
+        }
+    }
+
+    (long_args, short_args)
+}
+
+fn infer_arg_value_shape(arg: &clap::Arg) -> (bool, usize, usize) {
+    if let Some(range) = arg.get_num_args() {
+        return (range.takes_values(), range.min_values(), range.max_values());
+    }
+
+    match arg.get_action() {
+        ArgAction::Set | ArgAction::Append => (true, 1, 1),
+        ArgAction::SetTrue
+        | ArgAction::SetFalse
+        | ArgAction::Count
+        | ArgAction::Help
+        | ArgAction::HelpShort
+        | ArgAction::HelpLong
+        | ArgAction::Version => (false, 0, 0),
+        _ => (false, 0, 0),
+    }
+}
+
+fn classify_known_long_arg(
+    token: &str,
+    long_args: &HashMap<String, KnownArgSpec>,
+) -> Option<KnownArgSpec> {
+    if !token.starts_with("--") || token == "--" {
+        return None;
+    }
+
+    let name = token
+        .trim_start_matches("--")
+        .split_once('=')
+        .map_or_else(|| token.trim_start_matches("--"), |(name, _)| name);
+    long_args.get(name).copied()
+}
+
+fn classify_known_short_arg(
+    token: &str,
+    short_args: &HashMap<char, KnownArgSpec>,
+) -> Option<KnownArgSpec> {
+    if !token.starts_with('-') || token.starts_with("--") || token == "-" {
+        return None;
+    }
+
+    let rest = token.strip_prefix('-')?;
+    let mut chars = rest.chars();
+    let first = chars.next()?;
+    let spec = short_args.get(&first).copied()?;
+
+    if spec.takes_value {
+        return Some(spec);
+    }
+
+    if rest
+        .chars()
+        .all(|short| short_args.get(&short).is_some_and(|arg| !arg.takes_value))
+    {
+        return Some(spec);
+    }
+
+    None
+}
+
+fn needs_following_value(token: &str, spec: KnownArgSpec) -> Option<KnownArgSpec> {
+    if !spec.takes_value || spec.max_values == 0 {
+        return None;
+    }
+
+    let has_inline_value = if token.starts_with("--") {
+        token.contains('=')
+    } else {
+        token.len() > 2
+    };
+
+    if has_inline_value {
+        None
+    } else {
+        Some(spec)
+    }
+}
+
+fn should_consume_known_value(token: &str, spec: KnownArgSpec) -> bool {
+    if token == "--" {
+        return false;
+    }
+
+    if spec.min_values == 0 && token.starts_with('-') && !spec.allow_hyphen_values {
+        return false;
+    }
+
+    !token.starts_with('-') || spec.allow_hyphen_values || spec.min_values > 0
+}
+
+fn should_pair_unknown_value(current: &str, next: Option<&str>) -> bool {
+    if current == "-" || current == "--" {
+        return false;
+    }
+
+    if !(current.starts_with("--") || (current.starts_with('-') && current.len() == 2)) {
+        return false;
+    }
+
+    let Some(next) = next else {
+        return false;
+    };
+
+    !next.starts_with('-')
+}
+
+fn push_cargo_arg(processed: &mut Vec<String>, value: &str) {
+    processed.push("--cargo-args".to_string());
+    processed.push(value.to_string());
+}
+
+fn build_external_cargo_command_with_dynamic_help(command_name: &str) -> clap::Command {
+    let prog = program_name();
+    let after_help = format!(
+        "This command forwards to 'cargo {command_name}' after configuring the\n\
+cross-compilation environment.\n\n\
+EXAMPLES:\n    \
+{prog} {command_name} -t x86_64-unknown-linux-musl\n    \
+{prog} {command_name} -t aarch64-unknown-linux-gnu -- --help"
+    );
+
+    ExternalCargoCli::command()
+        .override_usage(format!(
+            "{prog} [+toolchain] {command_name} [OPTIONS] [-- <PASSTHROUGH_ARGS>...]"
+        ))
+        .after_help(after_help)
+}
+
 fn process_cli(cli: Cli, toolchain: Option<String>) -> Result<ParseResult> {
     match cli.command {
         CliCommand::Build(args) => {
-            let args = finalize_args(args, Command::Build, toolchain)?;
+            let args = finalize_args(args, Command::build(), toolchain)?;
             Ok(ParseResult::Build(Box::new(args)))
         }
         CliCommand::Check(args) => {
-            let args = finalize_args(args, Command::Check, toolchain)?;
+            let args = finalize_args(args, Command::check(), toolchain)?;
             Ok(ParseResult::Build(Box::new(args)))
         }
         CliCommand::Run(args) => {
-            let args = finalize_args(args, Command::Run, toolchain)?;
+            let args = finalize_args(args, Command::run(), toolchain)?;
             Ok(ParseResult::Build(Box::new(args)))
         }
         CliCommand::Test(args) => {
-            let args = finalize_args(args, Command::Test, toolchain)?;
+            let args = finalize_args(args, Command::test(), toolchain)?;
             Ok(ParseResult::Build(Box::new(args)))
         }
         CliCommand::Bench(args) => {
-            let args = finalize_args(args, Command::Bench, toolchain)?;
+            let args = finalize_args(args, Command::bench(), toolchain)?;
             Ok(ParseResult::Build(Box::new(args)))
+        }
+        CliCommand::Clippy(args) => {
+            let args = finalize_args(args, Command::clippy(), toolchain)?;
+            Ok(ParseResult::Build(Box::new(args)))
+        }
+        CliCommand::Setup(setup) => {
+            let args = finalize_args(setup.build, Command::setup(), toolchain)?;
+            Ok(ParseResult::Setup(Box::new(SetupArgs {
+                args,
+                format: setup.format,
+            })))
+        }
+        CliCommand::Exec(exec) => {
+            let mut build = exec.build;
+            populate_env_arg_fallbacks(&mut build);
+            let command = std::mem::take(&mut build.passthrough_args);
+            if command.is_empty() {
+                return Err(CrossError::InvalidArgument(
+                    "exec requires a command after `--`".to_string(),
+                ));
+            }
+            let args = finalize_args(build, Command::exec(), toolchain)?;
+            Ok(ParseResult::Exec(Box::new(ExecArgs { args, command })))
         }
         CliCommand::Targets(args) => Ok(ParseResult::ShowTargets(args.format)),
         CliCommand::Version => Ok(ParseResult::ShowVersion),
@@ -1377,17 +1871,7 @@ fn finalize_args(
         build_args.build_std = None;
     }
 
-    // Handle env vars for cargo_args and passthrough_args (command line takes priority)
-    if build_args.cargo_args.is_empty() {
-        if let Some(env_args) = parse_env_args("CARGO_ARGS") {
-            build_args.cargo_args = env_args;
-        }
-    }
-    if build_args.passthrough_args.is_empty() {
-        if let Some(env_args) = parse_env_args("CARGO_PASSTHROUGH_ARGS") {
-            build_args.passthrough_args = env_args;
-        }
-    }
+    populate_env_arg_fallbacks(&mut build_args);
 
     // Merge toolchain: +toolchain syntax takes precedence over --toolchain option
     let final_toolchain = toolchain.or_else(|| build_args.toolchain_option.clone());
@@ -1407,6 +1891,31 @@ fn finalize_args(
     // Note: "host-tuple" is handled dynamically in execute_target
 
     Ok(args)
+}
+
+fn populate_env_arg_fallbacks(build_args: &mut BuildArgs) {
+    if build_args.cargo_args.is_empty() {
+        if let Some(env_args) = parse_env_args("CARGO_ARGS") {
+            build_args.cargo_args = env_args;
+        }
+    }
+    if build_args.passthrough_args.is_empty() {
+        if let Some(env_args) = parse_passthrough_env_args("CARGO_PASSTHROUGH_ARGS") {
+            build_args.passthrough_args = env_args;
+        }
+    }
+}
+
+fn parse_passthrough_env_args(env_name: &str) -> Option<Vec<String>> {
+    let mut args = parse_env_args(env_name)?;
+    if args.first().is_some_and(|arg| arg == "--") {
+        args.remove(0);
+    }
+    if args.is_empty() {
+        None
+    } else {
+        Some(args)
+    }
 }
 
 /// Parse environment variable as shell-style arguments using shlex
@@ -1523,7 +2032,25 @@ mod tests {
         match parse_args_from(args)? {
             ParseResult::Build(args) => Ok(*args),
             ParseResult::ShowTargets(_) => panic!("unexpected ShowTargets"),
+            ParseResult::Setup(_) => panic!("unexpected Setup"),
+            ParseResult::Exec(_) => panic!("unexpected Exec"),
             ParseResult::ShowVersion => panic!("unexpected ShowVersion"),
+        }
+    }
+
+    fn parse_setup(args: &[&str]) -> Result<SetupArgs> {
+        let args: Vec<String> = args.iter().map(std::string::ToString::to_string).collect();
+        match parse_args_from(args)? {
+            ParseResult::Setup(args) => Ok(*args),
+            _ => panic!("unexpected parse result"),
+        }
+    }
+
+    fn parse_exec(args: &[&str]) -> Result<ExecArgs> {
+        let args: Vec<String> = args.iter().map(std::string::ToString::to_string).collect();
+        match parse_args_from(args)? {
+            ParseResult::Exec(args) => Ok(*args),
+            _ => panic!("unexpected parse result"),
         }
     }
 
@@ -1533,13 +2060,134 @@ mod tests {
     #[test]
     fn test_parse_build_command() {
         let args = parse(&["cargo-cross", "build"]).unwrap();
-        assert_eq!(args.command, Command::Build);
+        assert_eq!(args.command, Command::build());
     }
 
     #[test]
     fn test_parse_check_command() {
         let args = parse(&["cargo-cross", "check"]).unwrap();
-        assert_eq!(args.command, Command::Check);
+        assert_eq!(args.command, Command::check());
+    }
+
+    #[test]
+    fn test_parse_clippy_command() {
+        let args = parse(&["cargo-cross", "clippy"]).unwrap();
+        assert_eq!(args.command, Command::clippy());
+    }
+
+    #[test]
+    fn test_parse_clippy_unknown_cargo_flags() {
+        let args = parse(&[
+            "cargo-cross",
+            "clippy",
+            "--workspace",
+            "--all-targets",
+            "--fix",
+            "--allow-dirty",
+            "--target",
+            "x86_64-pc-windows-msvc",
+        ])
+        .unwrap();
+        assert!(args.workspace);
+        assert!(args.build_all_targets);
+        assert_eq!(
+            args.cargo_args,
+            vec!["--fix".to_string(), "--allow-dirty".to_string()]
+        );
+        assert_eq!(args.targets, vec!["x86_64-pc-windows-msvc"]);
+    }
+
+    #[test]
+    fn test_parse_external_cargo_command() {
+        let args = parse(&["cargo-cross", "doc"]).unwrap();
+        assert_eq!(args.command, Command::new("doc"));
+    }
+
+    #[test]
+    fn test_reject_non_build_like_external_cargo_command() {
+        let result = parse(&["cargo-cross", "metadata"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_external_command_unknown_cargo_flags() {
+        let args = parse(&[
+            "cargo-cross",
+            "doc",
+            "--workspace",
+            "--open",
+            "--target",
+            "x86_64-unknown-linux-musl",
+        ])
+        .unwrap();
+        assert_eq!(args.command, Command::new("doc"));
+        assert!(args.workspace);
+        assert_eq!(args.cargo_args, vec!["--open".to_string()]);
+        assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
+    }
+
+    #[test]
+    fn test_parse_setup_command() {
+        let args =
+            parse_setup(&["cargo-cross", "setup", "-t", "x86_64-unknown-linux-musl"]).unwrap();
+        assert_eq!(args.args.command, Command::setup());
+        assert_eq!(args.format, SetupOutputFormat::Auto);
+    }
+
+    #[test]
+    fn test_parse_setup_command_explicit_format() {
+        let args = parse_setup(&[
+            "cargo-cross",
+            "setup",
+            "-t",
+            "x86_64-unknown-linux-musl",
+            "--format",
+            "fish",
+        ])
+        .unwrap();
+        assert_eq!(args.format, SetupOutputFormat::Fish);
+    }
+
+    #[test]
+    fn test_parse_exec_command() {
+        let args = parse_exec(&[
+            "cargo-cross",
+            "exec",
+            "-t",
+            "x86_64-unknown-linux-musl",
+            "--",
+            "env",
+            "FOO=bar",
+        ])
+        .unwrap();
+        assert_eq!(args.args.command, Command::exec());
+        assert_eq!(args.command, vec!["env", "FOO=bar"]);
+    }
+
+    #[test]
+    fn test_parse_exec_command_disable_auto_target() {
+        let args = parse_exec(&[
+            "cargo-cross",
+            "exec",
+            "--no-append-target",
+            "-t",
+            "x86_64-unknown-linux-musl",
+            "--",
+            "cargo",
+            "clippy",
+        ])
+        .unwrap();
+        assert!(args.args.no_append_target);
+        assert_eq!(args.command, vec!["cargo", "clippy"]);
+    }
+
+    #[test]
+    fn test_parse_exec_command_from_env_passthrough() {
+        std::env::set_var("CARGO_PASSTHROUGH_ARGS", "-- env FOO=bar");
+        let args = parse_exec(&["cargo-cross", "exec", "-t", "x86_64-unknown-linux-musl"]).unwrap();
+        assert_eq!(args.args.command, Command::exec());
+        assert_eq!(args.command, vec!["env", "FOO=bar"]);
+        std::env::remove_var("CARGO_PASSTHROUGH_ARGS");
     }
 
     #[test]
@@ -1651,6 +2299,14 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_passthrough_args_from_env_with_legacy_separator() {
+        std::env::set_var("CARGO_PASSTHROUGH_ARGS", "-- --foo --bar");
+        let args = parse(&["cargo-cross", "build"]).unwrap();
+        assert_eq!(args.passthrough_args, vec!["--foo", "--bar"]);
+        std::env::remove_var("CARGO_PASSTHROUGH_ARGS");
+    }
+
+    #[test]
     fn test_parse_z_flag() {
         let args = parse(&["cargo-cross", "build", "-Z", "build-std"]).unwrap();
         assert_eq!(args.cargo_z_flags, vec!["build-std"]);
@@ -1709,7 +2365,7 @@ mod tests {
     fn test_parse_toolchain() {
         let args = parse(&["cargo-cross", "+nightly", "build"]).unwrap();
         assert_eq!(args.toolchain, Some("nightly".to_string()));
-        assert_eq!(args.command, Command::Build);
+        assert_eq!(args.command, Command::build());
     }
 
     #[test]
@@ -2357,25 +3013,25 @@ mod tests {
     #[test]
     fn test_command_alias_b() {
         let args = parse(&["cargo-cross", "b"]).unwrap();
-        assert_eq!(args.command, Command::Build);
+        assert_eq!(args.command, Command::build());
     }
 
     #[test]
     fn test_command_alias_c() {
         let args = parse(&["cargo-cross", "c"]).unwrap();
-        assert_eq!(args.command, Command::Check);
+        assert_eq!(args.command, Command::check());
     }
 
     #[test]
     fn test_command_alias_r() {
         let args = parse(&["cargo-cross", "r"]).unwrap();
-        assert_eq!(args.command, Command::Run);
+        assert_eq!(args.command, Command::run());
     }
 
     #[test]
     fn test_command_alias_t() {
         let args = parse(&["cargo-cross", "t"]).unwrap();
-        assert_eq!(args.command, Command::Test);
+        assert_eq!(args.command, Command::test());
     }
 
     // Requires relationship tests
@@ -2486,7 +3142,7 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(args.toolchain, Some("nightly".to_string()));
-        assert_eq!(args.command, Command::Build);
+        assert_eq!(args.command, Command::build());
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
         assert_eq!(args.profile, "release");
         assert_eq!(args.crt_static, Some(true));
@@ -2533,7 +3189,7 @@ mod tests {
             "--test-threads=1",
         ])
         .unwrap();
-        assert_eq!(args.command, Command::Test);
+        assert_eq!(args.command, Command::test());
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
         assert_eq!(
             args.passthrough_args,
@@ -2730,7 +3386,7 @@ mod tests {
         ];
         match parse_args_from(args).unwrap() {
             ParseResult::Build(args) => {
-                assert_eq!(args.command, Command::Build);
+                assert_eq!(args.command, Command::build());
                 assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
             }
             _ => panic!("expected Build"),
@@ -2748,7 +3404,7 @@ mod tests {
         match parse_args_from(args).unwrap() {
             ParseResult::Build(args) => {
                 assert_eq!(args.toolchain, Some("nightly".to_string()));
-                assert_eq!(args.command, Command::Build);
+                assert_eq!(args.command, Command::build());
             }
             _ => panic!("expected Build"),
         }

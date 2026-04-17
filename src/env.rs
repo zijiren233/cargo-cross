@@ -39,7 +39,7 @@ pub struct CrossEnv {
 }
 
 impl CrossEnv {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -115,7 +115,7 @@ impl CrossEnv {
     }
 
     /// Build environment variables for a target
-    #[must_use] 
+    #[must_use]
     pub fn build_env(&self, target: &str, host: &HostPlatform) -> HashMap<String, String> {
         let mut env = HashMap::new();
 
@@ -222,7 +222,7 @@ impl CrossEnv {
     }
 
     /// Get RUSTFLAGS string
-    #[must_use] 
+    #[must_use]
     pub fn rustflags_string(&self) -> Option<String> {
         if self.rustflags.is_empty() {
             None
@@ -314,7 +314,7 @@ pub fn setup_sysroot_env(
 /// References:
 /// - Rust standard library: <https://github.com/rust-lang/rust/tree/main/library>
 /// - Cargo build-std: <https://github.com/rust-lang/cargo/blob/master/src/cargo/core/compiler/standard_lib.rs>
-#[must_use] 
+#[must_use]
 pub const fn get_build_std_config() -> &'static str {
     "std,core,alloc,proc_macro,test,panic_abort,panic_unwind"
 }
@@ -324,9 +324,7 @@ pub const fn get_build_std_config() -> &'static str {
 pub fn sanitize_cargo_env() {
     // Remove empty CARGO_TARGET_DIR to prevent cargo error:
     // "the target directory is set to an empty string in the `CARGO_TARGET_DIR` environment variable"
-    if std::env::var("CARGO_TARGET_DIR")
-        .is_ok_and(|v| v.is_empty())
-    {
+    if std::env::var("CARGO_TARGET_DIR").is_ok_and(|v| v.is_empty()) {
         std::env::remove_var("CARGO_TARGET_DIR");
     }
 }

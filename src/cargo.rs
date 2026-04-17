@@ -48,7 +48,7 @@ fn format_command_from_cmd(cmd: &TokioCommand) -> String {
 }
 
 /// Build environment variables for cargo execution
-fn build_cargo_env(
+pub fn build_cargo_env(
     target: &str,
     args: &Args,
     cross_env: &CrossEnv,

@@ -5,7 +5,9 @@ use crate::color;
 use crate::config::{HostPlatform, Libc, TargetConfig, DEFAULT_GLIBC_VERSION};
 use crate::env::{set_gcc_lib_paths, setup_sysroot_env, CrossEnv};
 use crate::error::Result;
-use crate::platform::{get_linux_bin_prefix, get_linux_folder_name, setup_cmake, setup_cross_compile_prefix};
+use crate::platform::{
+    get_linux_bin_prefix, get_linux_folder_name, setup_cmake, setup_cross_compile_prefix,
+};
 use crate::runner;
 
 /// Setup Linux cross-compilation environment

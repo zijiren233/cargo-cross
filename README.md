@@ -11,7 +11,8 @@ A powerful GitHub Action for building, testing, and checking Rust projects with 
 - 🏗️ **Workspace support** - work with entire workspaces or specific packages
 - ⚡ **Flexible linking** - some musl targets default to static (varies by target), GNU targets default to dynamic, both configurable via `crt-static` parameter
 - 🔧 **Flexible configuration** - extensive customization options
-- 🛠️ **Multiple commands** - supports build, bench, test, and check operations
+- 🛠️ **Multiple commands** - supports build/check/clippy/run/test/bench plus build-like cargo subcommands such as `doc`, `fix`, `rustc`, and `rustdoc`
+- 🔌 **Environment setup helpers** - use `cargo cross setup` to export environment variables or `cargo cross exec` to run arbitrary commands with the configured environment
 
 ## Local Usage
 
@@ -57,6 +58,29 @@ cargo cross test --target x86_64-unknown-linux-musl
 # Check the project
 cargo cross check --target x86_64-unknown-linux-musl
 
+# Run clippy for a cross target
+cargo cross clippy --target x86_64-unknown-linux-musl -- --deny warnings
+
+# Prepare shell environment variables for a target
+eval "$(cargo cross setup --target aarch64-unknown-linux-musl)"
+
+# Force a specific shell format
+cargo cross setup --target aarch64-unknown-linux-musl --format fish | source
+
+# Run an arbitrary command with the configured environment
+cargo cross exec --target aarch64-unknown-linux-musl -- env
+
+# Run cargo manually inside the configured environment
+cargo cross exec --target x86_64-pc-windows-gnu -- cargo clippy --workspace
+
+# Disable automatic --target appending for exec cargo commands
+cargo cross exec --target x86_64-pc-windows-gnu --no-append-target -- cargo clippy --workspace
+
+# Forward other build-like cargo subcommands
+cargo cross doc --target x86_64-unknown-linux-musl
+cargo cross fix --target x86_64-unknown-linux-musl --workspace
+cargo cross rustdoc --target x86_64-unknown-linux-musl -- --help
+
 # Build with specific glibc version for GNU targets
 cargo cross build --target x86_64-unknown-linux-gnu --glibc-version 2.31
 
@@ -81,6 +105,69 @@ cargo cross build --target aarch64-apple-ios --iphone-sdk-path /path/to/iPhoneOS
 cargo cross build --target aarch64-apple-ios-sim --iphone-simulator-sdk-path /path/to/iPhoneSimulator.sdk
 ```
 
+### `setup` and `exec`
+
+`cargo cross setup` prepares the cross-compilation environment and prints it instead of running Cargo. This is useful when you want to drive another tool manually.
+
+By default it detects the current shell from the environment and emits matching syntax. If the shell cannot be detected, it falls back to bash-compatible exports.
+
+```bash
+# Auto-detect the current shell (bash/zsh example)
+eval "$(cargo cross setup --target aarch64-unknown-linux-musl)"
+
+# Force a specific shell format
+cargo cross setup --target aarch64-unknown-linux-musl --format bash
+cargo cross setup --target aarch64-unknown-linux-musl --format zsh
+cargo cross setup --target aarch64-unknown-linux-musl --format fish | source
+cargo cross setup --target aarch64-unknown-linux-musl --format powershell | Out-String | Invoke-Expression
+cargo cross setup --target aarch64-unknown-linux-musl --format cmd
+
+# JSON output
+cargo cross setup --target aarch64-unknown-linux-musl --format json
+```
+
+When `GITHUB_ENV` is present, `cargo cross setup` also appends the configured environment variables to that file automatically. This makes `command: setup` work directly in GitHub Actions without an extra wrapper script.
+
+`cargo cross exec` prepares the same environment and then runs an arbitrary command.
+
+```bash
+# Run a non-cargo command
+cargo cross exec --target aarch64-unknown-linux-musl -- env
+
+# Run cargo inside the prepared environment
+cargo cross exec --target x86_64-pc-windows-gnu -- cargo clippy --workspace --all-targets
+```
+
+When the command after `exec --` starts with `cargo`, `cargo-cross` automatically appends `--target <triple>` before the first `--` separator unless:
+
+- the cargo command already contains `--target`, `--target=...`, `-t ...`, or `-t...` before its passthrough separator
+- you pass `--no-append-target`
+
+For example:
+
+```bash
+# Automatically becomes:
+# cargo clippy --workspace --target x86_64-pc-windows-gnu
+cargo cross exec --target x86_64-pc-windows-gnu -- cargo clippy --workspace
+
+# Automatically becomes:
+# cargo test --target x86_64-pc-windows-gnu -- --nocapture
+cargo cross exec --target x86_64-pc-windows-gnu -- cargo test -- --nocapture
+```
+
+### External Cargo Subcommands
+
+Besides the built-in commands (`build`, `check`, `clippy`, `run`, `test`, `bench`), `cargo-cross` also supports a small set of build-like Cargo subcommands directly:
+
+- `doc`
+- `fix`
+- `rustc`
+- `rustdoc`
+
+These commands still go through the normal cross-compilation setup, so options such as `--target`, `--features`, `--workspace`, `--profile`, and toolchain-related flags continue to work as expected.
+
+For Cargo subcommands outside this build-like set, use `cargo cross exec -- cargo <subcommand> ...` instead.
+
 ## GitHub Actions Usage
 
 ### Basic Usage
@@ -103,6 +190,19 @@ jobs:
           targets: |
             x86_64-unknown-linux-musl
             aarch64-unknown-linux-musl
+```
+
+### Prepare Environment For Later Steps
+
+```yaml
+- name: Configure cross environment
+  uses: zijiren233/cargo-cross@v1
+  with:
+    command: setup
+    cross-args: --target aarch64-unknown-linux-musl
+
+- name: Use configured environment
+  run: cargo clippy --workspace --all-targets --target aarch64-unknown-linux-musl
 ```
 
 ### Build for Multiple Platforms
@@ -305,7 +405,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `crt-st
 
 | Input | Description | Default |
 |-------|-------------|---------|
-| `command` | Command to execute (`build`, `test`, `check`) | `build` |
+| `command` | Command to execute (`build`, `check`, `clippy`, `run`, `test`, `bench`, `doc`, `fix`, `rustc`, `rustdoc`, `setup`, `exec`) | `build` |
 | `targets` | Newline-separated list of Rust target triples (comma-separated also supported) | Host target |
 | `profile` | Build profile (`debug` or `release`) | `release` |
 | `features` | Comma-separated list of features to activate | |

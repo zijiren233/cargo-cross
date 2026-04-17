@@ -1,6 +1,7 @@
 //! Error types for cargo-cross
 
 use std::path::PathBuf;
+use std::process::Stdio;
 use thiserror::Error;
 use tokio::process::Command;
 
@@ -130,6 +131,10 @@ pub type Result<T> = std::result::Result<T, CrossError>;
 
 /// Execute a command and return its status, with improved error messages
 pub async fn run_command(cmd: &mut Command, program: &str) -> Result<std::process::ExitStatus> {
+    if std::env::var_os("CARGO_CROSS_SILENT").is_some() {
+        cmd.stdout(Stdio::null()).stderr(Stdio::null());
+    }
+
     cmd.status().await.map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => CrossError::ProgramNotFound {
             program: program.to_string(),
