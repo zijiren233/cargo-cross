@@ -2,9 +2,12 @@
 
 use crate::cli::Args;
 use crate::color;
-use crate::config::HostPlatform;
-use crate::env::{get_build_std_config, CrossEnv};
+use crate::config::{get_target_config, HostPlatform, Os};
+use crate::env::{get_build_std_config, CMakeToolchain, CrossEnv};
 use crate::error::{run_command, run_command_output, CrossError, Result};
+use crate::platform::{
+    cmake_toolchain_env_key, has_preconfigured_cmake_toolchain, prepare_cmake_toolchain_file,
+};
 use std::collections::HashMap;
 use std::process::ExitStatus;
 use tokio::process::Command as TokioCommand;
@@ -19,7 +22,7 @@ pub async fn execute_cargo(
     skip_target_arg: bool,
 ) -> Result<ExitStatus> {
     // Build environment variables
-    let build_env = build_cargo_env(target, args, cross_env, host, skip_target_arg);
+    let build_env = build_cargo_env(target, args, cross_env, host, skip_target_arg)?;
 
     // Build cargo command
     let mut cmd = build_cargo_command(target, args, cross_env, skip_target_arg);
@@ -54,9 +57,11 @@ pub fn build_cargo_env(
     cross_env: &CrossEnv,
     host: &HostPlatform,
     skip_target_arg: bool,
-) -> HashMap<String, String> {
+) -> Result<HashMap<String, String>> {
     let target_lower = target.replace('-', "_");
     let mut env = cross_env.build_env(target, host);
+
+    maybe_add_cmake_toolchain_env(&mut env, target, args, cross_env, host, skip_target_arg)?;
 
     // Handle host config for same-target builds (only when --target is explicitly passed)
     // When skip_target_arg is true, we don't pass --target to cargo, so these aren't needed
@@ -90,7 +95,53 @@ pub fn build_cargo_env(
         env.insert("RUSTC_BOOTSTRAP".to_string(), bootstrap.clone());
     }
 
-    env
+    Ok(env)
+}
+
+fn maybe_add_cmake_toolchain_env(
+    env: &mut HashMap<String, String>,
+    target: &str,
+    args: &Args,
+    cross_env: &CrossEnv,
+    host: &HostPlatform,
+    skip_target_arg: bool,
+) -> Result<()> {
+    if skip_target_arg || target == host.triple {
+        return Ok(());
+    }
+
+    let Some(target_config) = get_target_config(target) else {
+        return Ok(());
+    };
+
+    if has_preconfigured_cmake_toolchain(env, target) {
+        return Ok(());
+    }
+
+    let effective_toolchain = cross_env
+        .cmake_toolchain
+        .clone()
+        .or_else(|| infer_generic_cmake_toolchain(target_config.os, cross_env));
+    let mut cmake_env = cross_env.clone();
+    cmake_env.cmake_toolchain = effective_toolchain;
+
+    if let Some(toolchain_path) = prepare_cmake_toolchain_file(args, target_config, &cmake_env)? {
+        env.insert(
+            cmake_toolchain_env_key(target),
+            crate::platform::to_cmake_path(&toolchain_path),
+        );
+    }
+
+    Ok(())
+}
+
+fn infer_generic_cmake_toolchain(os: Os, cross_env: &CrossEnv) -> Option<CMakeToolchain> {
+    if os == Os::Android {
+        return None;
+    }
+
+    let _ = cross_env;
+    Some(CMakeToolchain::Generic)
 }
 
 /// Build RUSTFLAGS string
@@ -636,6 +687,11 @@ pub async fn ensure_rust_src(target: &str, toolchain: Option<&str>) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::{Args, BuildArgs, Command};
+    use crate::config::get_target_config;
+    use crate::env::CrossEnv;
+    use crate::platform::render_cmake_toolchain_file;
+    use std::path::{Path, PathBuf};
 
     #[test]
     fn test_append_flag_empty() {
@@ -661,5 +717,167 @@ mod tests {
             flags,
             "-C opt-level=3 -C target-feature=+crt-static -Z build-std"
         );
+    }
+
+    #[test]
+    fn test_render_cmake_toolchain_file_for_freebsd() {
+        let mut env = CrossEnv::new();
+        env.set_cc("C:/toolchains/freebsd/bin/x86_64-unknown-freebsd13-gcc.exe");
+        env.set_cxx("C:/toolchains/freebsd/bin/x86_64-unknown-freebsd13-g++.exe");
+        env.set_ar("C:/toolchains/freebsd/bin/x86_64-unknown-freebsd13-ar.exe");
+        env.set_linker("C:/toolchains/freebsd/bin/x86_64-unknown-freebsd13-gcc.exe");
+        env.set_sysroot(PathBuf::from(
+            "C:/toolchains/freebsd/x86_64-unknown-freebsd13",
+        ));
+
+        let target_config = get_target_config("x86_64-unknown-freebsd").unwrap();
+        let rendered = render_cmake_toolchain_file(target_config, &env);
+
+        assert!(rendered.contains("set(CMAKE_SYSTEM_NAME \"FreeBSD\")"));
+        assert!(rendered.contains("set(CMAKE_SYSTEM_PROCESSOR \"amd64\")"));
+        assert!(rendered.contains(
+            "set(CMAKE_C_COMPILER \"C:/toolchains/freebsd/bin/x86_64-unknown-freebsd13-gcc.exe\")"
+        ));
+        assert!(rendered
+            .contains("set(CMAKE_SYSROOT \"C:/toolchains/freebsd/x86_64-unknown-freebsd13\")"));
+        assert!(!rendered.contains("CMAKE_FIND_ROOT_PATH"));
+        assert!(!rendered.contains("CMAKE_FIND_ROOT_PATH_MODE_PROGRAM"));
+        assert!(!rendered.contains("CMAKE_TRY_COMPILE_TARGET_TYPE"));
+    }
+
+    #[test]
+    fn test_render_cmake_toolchain_file_for_darwin_sets_osx_values() {
+        let mut env = CrossEnv::new();
+        env.set_sdkroot(PathBuf::from("/opt/MacOSX.sdk"));
+
+        let target_config = get_target_config("aarch64-apple-darwin").unwrap();
+        let rendered = render_cmake_toolchain_file(target_config, &env);
+
+        assert!(rendered.contains("set(CMAKE_SYSTEM_NAME \"Darwin\")"));
+        assert!(rendered.contains("set(CMAKE_SYSTEM_PROCESSOR \"arm64\")"));
+        assert!(rendered.contains("set(CMAKE_OSX_ARCHITECTURES \"arm64\")"));
+        assert!(rendered.contains("set(CMAKE_OSX_SYSROOT \"/opt/MacOSX.sdk\")"));
+    }
+
+    #[test]
+    fn test_render_cmake_toolchain_file_for_netbsd_matches_cmake_rs_mapping() {
+        let target_config = get_target_config("x86_64-unknown-netbsd").unwrap();
+        let rendered = render_cmake_toolchain_file(target_config, &CrossEnv::new());
+
+        assert!(rendered.contains("set(CMAKE_SYSTEM_NAME \"NetBSD\")"));
+        assert!(rendered.contains("set(CMAKE_SYSTEM_PROCESSOR \"x86_64\")"));
+    }
+
+    #[test]
+    fn test_render_cmake_toolchain_file_for_ios_does_not_set_osx_architectures() {
+        let target_config = get_target_config("aarch64-apple-ios").unwrap();
+        let rendered = render_cmake_toolchain_file(target_config, &CrossEnv::new());
+
+        assert!(rendered.contains("set(CMAKE_SYSTEM_NAME \"iOS\")"));
+        assert!(rendered.contains("set(CMAKE_SYSTEM_PROCESSOR \"arm64\")"));
+        assert!(!rendered.contains("CMAKE_OSX_ARCHITECTURES"));
+    }
+
+    #[test]
+    fn test_render_cmake_toolchain_file_for_armv7_matches_rust_cfg_mapping() {
+        let target_config = get_target_config("armv7-unknown-linux-gnueabihf").unwrap();
+        let rendered = render_cmake_toolchain_file(target_config, &CrossEnv::new());
+
+        assert!(rendered.contains("set(CMAKE_SYSTEM_NAME \"Linux\")"));
+        assert!(rendered.contains("set(CMAKE_SYSTEM_PROCESSOR \"arm\")"));
+    }
+
+    #[test]
+    fn test_render_cmake_toolchain_file_for_arm64e_matches_rust_cfg_mapping() {
+        let target_config = get_target_config("arm64e-apple-darwin").unwrap();
+        let rendered = render_cmake_toolchain_file(target_config, &CrossEnv::new());
+
+        assert!(rendered.contains("set(CMAKE_SYSTEM_NAME \"Darwin\")"));
+        assert!(rendered.contains("set(CMAKE_SYSTEM_PROCESSOR \"arm64\")"));
+    }
+
+    #[test]
+    fn test_build_cargo_env_generates_target_specific_cmake_toolchain_file() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "cargo-cross-cmake-toolchain-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+
+        let args = Args {
+            toolchain: None,
+            command: Command::setup(),
+            targets: vec!["x86_64-unknown-freebsd".to_string()],
+            no_cargo_target: false,
+            cross_make_version: "test".to_string(),
+            cross_compiler_dir: temp_dir.join("toolchains"),
+            build: BuildArgs {
+                no_toolchain_setup: true,
+                ..BuildArgs::default()
+            },
+        };
+
+        let mut env = CrossEnv::new();
+        env.set_cc("x86_64-unknown-freebsd13-gcc");
+        env.set_cxx("x86_64-unknown-freebsd13-g++");
+        env.set_ar("x86_64-unknown-freebsd13-ar");
+        env.set_linker("x86_64-unknown-freebsd13-gcc");
+        env.set_sysroot(temp_dir.join("sysroot"));
+
+        let host = HostPlatform::detect();
+        let build_env =
+            build_cargo_env("x86_64-unknown-freebsd", &args, &env, &host, false).unwrap();
+
+        let key = "CMAKE_TOOLCHAIN_FILE_x86_64_unknown_freebsd";
+        let toolchain_path = Path::new(build_env.get(key).unwrap());
+        assert!(toolchain_path.starts_with(temp_dir.join("toolchains").join("cmake")));
+        assert!(toolchain_path.ends_with("x86_64-unknown-freebsd.cmake"));
+        assert!(toolchain_path.exists());
+
+        let content = std::fs::read_to_string(toolchain_path).unwrap();
+        assert!(content.contains("set(CMAKE_SYSTEM_NAME \"FreeBSD\")"));
+        assert!(content.contains("set(CMAKE_C_COMPILER"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_build_cargo_env_uses_custom_cmake_toolchain_with_target_specific_key() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "cargo-cross-custom-cmake-toolchain-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let custom_toolchain = temp_dir.join("android-wrapper.cmake");
+        std::fs::write(&custom_toolchain, "set(ANDROID_ABI \"arm64-v8a\")\n").unwrap();
+
+        let args = Args {
+            toolchain: None,
+            command: Command::setup(),
+            targets: vec!["aarch64-linux-android".to_string()],
+            no_cargo_target: false,
+            cross_make_version: "test".to_string(),
+            cross_compiler_dir: temp_dir.join("toolchains"),
+            build: BuildArgs {
+                no_toolchain_setup: true,
+                ..BuildArgs::default()
+            },
+        };
+
+        let mut env = CrossEnv::new();
+        env.set_custom_cmake_toolchain(&custom_toolchain);
+
+        let host = HostPlatform::detect();
+        let build_env =
+            build_cargo_env("aarch64-linux-android", &args, &env, &host, false).unwrap();
+
+        assert_eq!(
+            build_env.get("CMAKE_TOOLCHAIN_FILE_aarch64_linux_android"),
+            Some(&crate::platform::to_cmake_path(&custom_toolchain))
+        );
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }

@@ -115,11 +115,9 @@ include("{}")
         fs::write(&wrapper_toolchain_file, toolchain_content).await?;
     }
 
-    // Set CMAKE_TOOLCHAIN_FILE for CMake-based builds
-    env.set_env(
-        "CMAKE_TOOLCHAIN_FILE",
-        to_cmake_path(&wrapper_toolchain_file),
-    );
+    // Use the Android wrapper toolchain file for CMake-based builds.
+    // This is exported later as a target-specific CMAKE_TOOLCHAIN_FILE_<target>.
+    env.set_custom_cmake_toolchain(&wrapper_toolchain_file);
 
     // Setup CMake generator (auto-detect on Windows, use specified on any platform)
     setup_cmake(&mut env, args.cmake_generator.as_deref(), host.is_windows());

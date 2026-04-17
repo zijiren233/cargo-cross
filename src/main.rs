@@ -154,7 +154,7 @@ async fn run_setup(setup: cargo_cross::cli::SetupArgs) -> Result<ExitCode> {
         &prepared.cross_env,
         &host,
         prepared.skip_target_arg,
-    );
+    )?;
 
     write_setup_github_env(&env)?;
     print_setup_env(&env, setup.format)?;
@@ -256,7 +256,7 @@ async fn execute_exec_target(
         &prepared.cross_env,
         host,
         prepared.skip_target_arg,
-    );
+    )?;
 
     let actual_command = prepare_exec_command(
         command,

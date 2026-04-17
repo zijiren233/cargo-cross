@@ -6,7 +6,7 @@ use crate::config::{Arch, HostPlatform, TargetConfig};
 use crate::download::download_and_extract;
 use crate::env::CrossEnv;
 use crate::error::{CrossError, Result};
-use crate::platform::setup_cmake;
+use crate::platform::{setup_cmake, setup_generic_cmake_toolchain};
 use crate::runner;
 
 /// Setup Darwin cross-compilation environment
@@ -65,6 +65,7 @@ async fn setup_native(
 
     // Setup CMake generator if specified
     setup_cmake(&mut env, args.cmake_generator.as_deref(), host.is_windows());
+    setup_generic_cmake_toolchain(&mut env);
 
     color::log_success(&format!(
         "Using native macOS toolchain for {}",
@@ -192,6 +193,7 @@ async fn setup_osxcross(
 
     // Setup CMake generator if specified
     setup_cmake(&mut env, args.cmake_generator.as_deref(), host.is_windows());
+    setup_generic_cmake_toolchain(&mut env);
 
     color::log_success(&format!(
         "Configured osxcross toolchain (SDK {}) for {}",

@@ -5,7 +5,7 @@ use crate::color;
 use crate::config::{Arch, HostPlatform, Libc, TargetConfig};
 use crate::env::{set_gcc_lib_paths, setup_sysroot_env, CrossEnv};
 use crate::error::{CrossError, Result};
-use crate::platform::{setup_cmake, setup_cross_compile_prefix};
+use crate::platform::{setup_cmake, setup_cross_compile_prefix, setup_generic_cmake_toolchain};
 use crate::runner;
 
 /// Setup Windows cross-compilation environment
@@ -113,6 +113,7 @@ async fn setup_mingw(
 
     // Setup CMake generator (auto-detect on Windows, use specified on any platform)
     setup_cmake(&mut env, args.cmake_generator.as_deref(), host.is_windows());
+    setup_generic_cmake_toolchain(&mut env);
 
     // Setup Wine runner for cross-compiled Windows binaries (only on non-Windows hosts)
     if !host.is_windows() && args.command.needs_runner() {

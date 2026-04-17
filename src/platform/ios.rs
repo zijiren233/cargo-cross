@@ -6,7 +6,7 @@ use crate::config::{Arch, HostPlatform, Os, TargetConfig};
 use crate::download::download_and_extract;
 use crate::env::CrossEnv;
 use crate::error::{CrossError, Result};
-use crate::platform::setup_cmake;
+use crate::platform::{setup_cmake, setup_generic_cmake_toolchain};
 
 /// Setup iOS cross-compilation environment
 pub async fn setup(
@@ -87,6 +87,7 @@ async fn setup_native(
 
     // Setup CMake generator if specified
     setup_cmake(&mut env, args.cmake_generator.as_deref(), host.is_windows());
+    setup_generic_cmake_toolchain(&mut env);
 
     color::log_success(&format!(
         "Using native macOS toolchain for {}",
@@ -198,6 +199,7 @@ async fn setup_ioscross(
 
     // Setup CMake generator if specified
     setup_cmake(&mut env, args.cmake_generator.as_deref(), host.is_windows());
+    setup_generic_cmake_toolchain(&mut env);
 
     color::log_success(&format!(
         "Configured iOS toolchain for {}",

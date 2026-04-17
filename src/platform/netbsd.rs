@@ -5,7 +5,7 @@ use crate::color;
 use crate::config::{Arch, HostPlatform, TargetConfig};
 use crate::env::{set_gcc_lib_paths, setup_sysroot_env, CrossEnv};
 use crate::error::{CrossError, Result};
-use crate::platform::{setup_cmake, setup_cross_compile_prefix};
+use crate::platform::{setup_cmake, setup_cross_compile_prefix, setup_generic_cmake_toolchain};
 
 /// Setup NetBSD cross-compilation environment
 pub async fn setup(
@@ -80,6 +80,7 @@ pub async fn setup(
 
     // Setup CMake generator (auto-detect on Windows, use specified on any platform)
     setup_cmake(&mut env, args.cmake_generator.as_deref(), host.is_windows());
+    setup_generic_cmake_toolchain(&mut env);
 
     color::log_success(&format!(
         "Configured NetBSD toolchain for {}",

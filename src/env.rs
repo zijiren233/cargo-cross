@@ -5,6 +5,15 @@ use std::path::{Path, PathBuf};
 
 use crate::config::HostPlatform;
 
+/// CMake toolchain configuration strategy
+#[derive(Debug, Clone)]
+pub enum CMakeToolchain {
+    /// Generate a generic toolchain file from the configured cross environment
+    Generic,
+    /// Use a pre-existing toolchain file path
+    Custom(PathBuf),
+}
+
 /// Cross-compilation environment
 #[derive(Debug, Clone, Default)]
 pub struct CrossEnv {
@@ -24,6 +33,8 @@ pub struct CrossEnv {
     pub rustflags: Vec<String>,
     /// SDKROOT for Apple platforms
     pub sdkroot: Option<PathBuf>,
+    /// Sysroot for cross toolchains
+    pub sysroot: Option<PathBuf>,
     /// `LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH` additions
     pub library_path: Vec<PathBuf>,
     /// CFLAGS additions
@@ -34,6 +45,8 @@ pub struct CrossEnv {
     pub ldflags: Vec<String>,
     /// Use build-std (crates to build)
     pub build_std: Option<String>,
+    /// CMake toolchain strategy for CMake-based builds
+    pub cmake_toolchain: Option<CMakeToolchain>,
     /// Additional target-specific environment variables
     pub extra_env: HashMap<String, String>,
 }
@@ -84,6 +97,11 @@ impl CrossEnv {
         self.sdkroot = Some(path.into());
     }
 
+    /// Set sysroot
+    pub fn set_sysroot(&mut self, path: impl Into<PathBuf>) {
+        self.sysroot = Some(path.into());
+    }
+
     /// Add library path
     pub fn add_library_path(&mut self, path: impl Into<PathBuf>) {
         self.library_path.push(path.into());
@@ -109,6 +127,16 @@ impl CrossEnv {
         self.build_std = Some(crates.into());
     }
 
+    /// Use a generated generic CMake toolchain file
+    pub fn set_generic_cmake_toolchain(&mut self) {
+        self.cmake_toolchain = Some(CMakeToolchain::Generic);
+    }
+
+    /// Use a custom CMake toolchain file path
+    pub fn set_custom_cmake_toolchain(&mut self, path: impl Into<PathBuf>) {
+        self.cmake_toolchain = Some(CMakeToolchain::Custom(path.into()));
+    }
+
     /// Set extra environment variable
     pub fn set_env(&mut self, key: impl Into<String>, value: impl Into<String>) {
         self.extra_env.insert(key.into(), value.into());
@@ -125,19 +153,14 @@ impl CrossEnv {
         let target_upper = target.to_uppercase().replace('-', "_");
 
         // Set target-specific CC/CXX/AR variables for the cc crate.
-        // For CMake-based build scripts, expose the selected toolchain via CMAKE_* variables
-        // instead of generic CC/CXX/AR to keep the host environment cleaner.
         if let Some(ref cc) = self.cc {
             env.insert(format!("CC_{target_lower}"), cc.clone());
-            env.insert("CMAKE_C_COMPILER".to_string(), cc.clone());
         }
         if let Some(ref cxx) = self.cxx {
             env.insert(format!("CXX_{target_lower}"), cxx.clone());
-            env.insert("CMAKE_CXX_COMPILER".to_string(), cxx.clone());
         }
         if let Some(ref ar) = self.ar {
             env.insert(format!("AR_{target_lower}"), ar.clone());
-            env.insert("CMAKE_AR".to_string(), ar.clone());
         }
 
         // Set linker (Cargo uses uppercase)
@@ -265,6 +288,7 @@ pub fn setup_sysroot_env(
     if !sysroot.exists() {
         return;
     }
+    env.set_sysroot(&sysroot);
 
     let target_underscores = rust_target.replace('-', "_");
 
@@ -351,20 +375,19 @@ mod tests {
             Some(&"aarch64-linux-gnu-gcc".to_string())
         );
         assert_eq!(
-            vars.get("CMAKE_C_COMPILER"),
-            Some(&"aarch64-linux-gnu-gcc".to_string())
-        );
-        assert_eq!(
-            vars.get("CMAKE_CXX_COMPILER"),
+            vars.get("CXX_aarch64_unknown_linux_gnu"),
             Some(&"aarch64-linux-gnu-g++".to_string())
         );
         assert_eq!(
-            vars.get("CMAKE_AR"),
+            vars.get("AR_aarch64_unknown_linux_gnu"),
             Some(&"aarch64-linux-gnu-ar".to_string())
         );
         assert!(!vars.contains_key("CC"));
         assert!(!vars.contains_key("CXX"));
         assert!(!vars.contains_key("AR"));
+        assert!(!vars.contains_key("CMAKE_C_COMPILER"));
+        assert!(!vars.contains_key("CMAKE_CXX_COMPILER"));
+        assert!(!vars.contains_key("CMAKE_AR"));
         assert!(vars.contains_key("CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER"));
     }
 }
