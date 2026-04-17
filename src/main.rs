@@ -1057,7 +1057,10 @@ mod tests {
         std::env::set_var("GITHUB_ENV", &github_env);
 
         let mut env = HashMap::new();
-        env.insert("CC".to_string(), "x86_64-w64-mingw32-gcc".to_string());
+        env.insert(
+            "CC_x86_64_pc_windows_gnu".to_string(),
+            "x86_64-w64-mingw32-gcc".to_string(),
+        );
         env.insert(
             "PATH".to_string(),
             "/tmp/toolchain/bin:/usr/bin".to_string(),
@@ -1065,7 +1068,7 @@ mod tests {
         write_setup_github_env(&env).unwrap();
 
         let contents = std::fs::read_to_string(&github_env).unwrap();
-        assert!(contents.contains("CC<<__CARGO_CROSS_EOF__"));
+        assert!(contents.contains("CC_x86_64_pc_windows_gnu<<__CARGO_CROSS_EOF__"));
         assert!(contents.contains("x86_64-w64-mingw32-gcc"));
         assert!(contents.contains("PATH<<__CARGO_CROSS_EOF__"));
         assert!(contents.contains("/tmp/toolchain/bin:/usr/bin"));
@@ -1077,14 +1080,17 @@ mod tests {
     #[test]
     fn render_setup_env_supports_bash() {
         let mut env = HashMap::new();
-        env.insert("CC".to_string(), "clang".to_string());
+        env.insert(
+            "CC_x86_64_unknown_linux_gnu".to_string(),
+            "clang".to_string(),
+        );
         env.insert(
             "PATH".to_string(),
             "/tmp/toolchain/bin:/usr/bin".to_string(),
         );
 
         let rendered = render_setup_env(&env, SetupOutputFormat::Bash).unwrap();
-        assert!(rendered.contains("export CC=clang"));
+        assert!(rendered.contains("export CC_x86_64_unknown_linux_gnu=clang"));
         assert!(rendered.contains("export PATH=/tmp/toolchain/bin:/usr/bin"));
     }
 

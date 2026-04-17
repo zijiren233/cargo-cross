@@ -315,14 +315,14 @@ Build artifacts in release mode, with optimizations. Equivalent to --profile=rel
     /// Build artifacts with the specified profile
     #[arg(
         long,
-        default_value = "release",
+        default_value = "dev",
         env = "PROFILE",
         value_name = "PROFILE-NAME",
         conflicts_with = "release",
         help_heading = "Profile",
         long_help = "\
 Build artifacts with the specified profile. Built-in: dev, release, test, bench.
-Custom profiles can be defined in Cargo.toml. Default is 'release' (differs from cargo's 'dev')."
+Custom profiles can be defined in Cargo.toml. Default is 'dev'."
     )]
     pub profile: String,
 
@@ -1103,7 +1103,7 @@ impl BuildArgs {
     #[must_use]
     pub fn default_for_host() -> Self {
         Self {
-            profile: "release".to_string(),
+            profile: "dev".to_string(),
             glibc_version: DEFAULT_GLIBC_VERSION.to_string(),
             iphone_sdk_version: DEFAULT_IPHONE_SDK_VERSION.to_string(),
             macos_sdk_version: DEFAULT_MACOS_SDK_VERSION.to_string(),
@@ -2061,6 +2061,7 @@ mod tests {
     fn test_parse_build_command() {
         let args = parse(&["cargo-cross", "build"]).unwrap();
         assert_eq!(args.command, Command::build());
+        assert_eq!(args.profile, "dev");
     }
 
     #[test]

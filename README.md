@@ -33,6 +33,8 @@ cargo install --path .
 
 After installation, you can use `cargo cross` command:
 
+Local CLI invocations default to the `dev` profile, matching Cargo. The GitHub Action keeps using the `release` profile by default.
+
 ```bash
 # Show help
 cargo cross --help

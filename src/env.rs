@@ -124,18 +124,16 @@ impl CrossEnv {
         let target_lower = target.replace('-', "_");
         let target_upper = target.to_uppercase().replace('-', "_");
 
-        // Set CC/CXX/AR
+        // Set target-specific CC/CXX/AR variables for the cc crate.
+        // Avoid generic CC/CXX/AR to prevent leaking cross toolchains into unrelated host builds.
         if let Some(ref cc) = self.cc {
             env.insert(format!("CC_{target_lower}"), cc.clone());
-            env.insert("CC".to_string(), cc.clone());
         }
         if let Some(ref cxx) = self.cxx {
             env.insert(format!("CXX_{target_lower}"), cxx.clone());
-            env.insert("CXX".to_string(), cxx.clone());
         }
         if let Some(ref ar) = self.ar {
             env.insert(format!("AR_{target_lower}"), ar.clone());
-            env.insert("AR".to_string(), ar.clone());
         }
 
         // Set linker (Cargo uses uppercase)
@@ -347,6 +345,9 @@ mod tests {
             vars.get("CC_aarch64_unknown_linux_gnu"),
             Some(&"aarch64-linux-gnu-gcc".to_string())
         );
+        assert!(!vars.contains_key("CC"));
+        assert!(!vars.contains_key("CXX"));
+        assert!(!vars.contains_key("AR"));
         assert!(vars.contains_key("CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER"));
     }
 }
