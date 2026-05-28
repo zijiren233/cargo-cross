@@ -7,7 +7,7 @@ use crate::env::{set_gcc_lib_paths, setup_sysroot_env, CrossEnv};
 use crate::error::Result;
 use crate::platform::{
     get_linux_bin_prefix, get_linux_folder_name, setup_cmake, setup_cross_compile_prefix,
-    setup_generic_cmake_toolchain,
+    setup_generic_cmake_toolchain, should_setup_runner,
 };
 use crate::runner;
 
@@ -85,7 +85,7 @@ pub async fn setup(
     setup_generic_cmake_toolchain(&mut env);
 
     // Setup runner only if the command needs to execute binaries
-    if args.command.needs_runner() {
+    if should_setup_runner(args) {
         if host.is_darwin() {
             runner::setup_docker_qemu_runner(
                 &mut env,

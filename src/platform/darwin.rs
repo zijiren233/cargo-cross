@@ -6,7 +6,7 @@ use crate::config::{Arch, HostPlatform, TargetConfig};
 use crate::download::download_and_extract;
 use crate::env::CrossEnv;
 use crate::error::{CrossError, Result};
-use crate::platform::{setup_cmake, setup_generic_cmake_toolchain};
+use crate::platform::{setup_cmake, setup_generic_cmake_toolchain, should_setup_runner};
 use crate::runner;
 
 /// Setup Darwin cross-compilation environment
@@ -40,7 +40,7 @@ async fn setup_native(
     let mut env = CrossEnv::new();
 
     // Setup Rosetta runner for x86_64 targets on ARM macOS
-    if args.command.needs_runner() {
+    if should_setup_runner(args) {
         runner::setup_rosetta_runner(&mut env, arch, rust_target, host);
     }
 

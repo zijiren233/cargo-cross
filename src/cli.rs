@@ -207,6 +207,14 @@ pub struct SetupCliArgs {
     #[command(flatten)]
     pub build: BuildArgs,
 
+    /// Initialize target runner variables when preparing the environment
+    #[arg(
+        long,
+        env = "INIT_RUNNER",
+        help = "Initialize target runner variables for the setup environment"
+    )]
+    pub init_runner: bool,
+
     /// Output format
     #[arg(
         short = 'f',
@@ -228,6 +236,14 @@ pub struct SetupArgs {
 pub struct ExecCliArgs {
     #[command(flatten)]
     pub build: BuildArgs,
+
+    /// Initialize target runner variables before executing the command
+    #[arg(
+        long,
+        env = "INIT_RUNNER",
+        help = "Initialize target runner variables for the exec environment"
+    )]
+    pub init_runner: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -1212,6 +1228,8 @@ pub struct Args {
     pub targets: Vec<String>,
     /// Skip passing --target to cargo (for host builds)
     pub no_cargo_target: bool,
+    /// Force runner setup even when the command does not normally execute target binaries
+    pub init_runner: bool,
     /// Cross-make version for toolchain downloads
     pub cross_make_version: String,
     /// Directory for cross-compiler toolchains
@@ -1248,6 +1266,7 @@ impl Args {
             command,
             targets,
             no_cargo_target: false,
+            init_runner: false,
             cross_make_version: b.cross_make_version.clone(),
             cross_compiler_dir,
             build: b,
@@ -1776,6 +1795,8 @@ fn process_cli(cli: Cli, toolchain: Option<String>) -> Result<ParseResult> {
         }
         CliCommand::Setup(setup) => {
             let args = finalize_args(setup.build, Command::setup(), toolchain)?;
+            let mut args = args;
+            args.init_runner = setup.init_runner;
             Ok(ParseResult::Setup(Box::new(SetupArgs {
                 args,
                 format: setup.format,
@@ -1791,6 +1812,8 @@ fn process_cli(cli: Cli, toolchain: Option<String>) -> Result<ParseResult> {
                 ));
             }
             let args = finalize_args(build, Command::exec(), toolchain)?;
+            let mut args = args;
+            args.init_runner = exec.init_runner;
             Ok(ParseResult::Exec(Box::new(ExecArgs { args, command })))
         }
         CliCommand::Targets(args) => Ok(ParseResult::ShowTargets(args.format)),
@@ -2150,6 +2173,19 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_setup_command_init_runner() {
+        let args = parse_setup(&[
+            "cargo-cross",
+            "setup",
+            "--init-runner",
+            "-t",
+            "x86_64-unknown-linux-musl",
+        ])
+        .unwrap();
+        assert!(args.args.init_runner);
+    }
+
+    #[test]
     fn test_parse_exec_command() {
         let args = parse_exec(&[
             "cargo-cross",
@@ -2163,6 +2199,22 @@ mod tests {
         .unwrap();
         assert_eq!(args.args.command, Command::exec());
         assert_eq!(args.command, vec!["env", "FOO=bar"]);
+    }
+
+    #[test]
+    fn test_parse_exec_command_init_runner() {
+        let args = parse_exec(&[
+            "cargo-cross",
+            "exec",
+            "--init-runner",
+            "-t",
+            "x86_64-unknown-linux-musl",
+            "--",
+            "env",
+        ])
+        .unwrap();
+        assert!(args.args.init_runner);
+        assert_eq!(args.command, vec!["env"]);
     }
 
     #[test]

@@ -36,6 +36,12 @@ pub fn setup_generic_cmake_toolchain(env: &mut CrossEnv) {
     env.set_generic_cmake_toolchain();
 }
 
+/// Check whether the target runner should be configured.
+#[must_use]
+pub fn should_setup_runner(args: &Args) -> bool {
+    args.init_runner || args.command.needs_runner()
+}
+
 /// Return the target-specific CMake toolchain environment variable name.
 #[must_use]
 pub fn cmake_toolchain_env_key(target: &str) -> String {
@@ -628,6 +634,29 @@ mod tests {
     fn test_linux_folder_name_with_abi() {
         let name = get_linux_folder_name(Arch::Armv7, Libc::Gnu, Some(Abi::Eabihf), "2.28", "2.28");
         assert_eq!(name, "armv7-linux-gnueabihf-cross");
+    }
+
+    #[test]
+    fn test_should_setup_runner() {
+        let mut args = Args {
+            toolchain: None,
+            command: crate::cli::Command::setup(),
+            targets: vec!["aarch64-unknown-linux-musl".to_string()],
+            no_cargo_target: false,
+            init_runner: false,
+            cross_make_version: "test".to_string(),
+            cross_compiler_dir: PathBuf::from("/tmp/toolchains"),
+            build: crate::cli::BuildArgs::default(),
+        };
+
+        assert!(!should_setup_runner(&args));
+
+        args.init_runner = true;
+        assert!(should_setup_runner(&args));
+
+        args.init_runner = false;
+        args.command = crate::cli::Command::test();
+        assert!(should_setup_runner(&args));
     }
 
     #[test]

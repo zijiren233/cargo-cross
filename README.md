@@ -431,6 +431,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `crt-st
 | `qemu-version` | QEMU version for user-mode emulation (e.g., v10.2.0) | `v10.2.0` |
 | `cross-make-version` | Cross-compiler make version (e.g., v0.7.7) | `v0.7.7` |
 | `use-default-linker` | Use system default linker | `false` |
+| `init-runner` | Initialize target runner variables for `setup`/`exec` commands | `false` |
 | `cc` | Force set the C compiler | |
 | `cxx` | Force set the C++ compiler | |
 | `rustflags` | Additional rustflags | |

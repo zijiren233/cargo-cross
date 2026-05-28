@@ -101,6 +101,10 @@ inputs:
     description: "Skip downloading and configuring cross-compilation toolchain"
     required: false
     default: "false"
+  init-runner:
+    description: "Initialize target runner variables for setup/exec commands"
+    required: false
+    default: "false"
   cc:
     description: "Force set the C compiler"
     required: false
@@ -464,6 +468,7 @@ runs:
         QEMU_VERSION: ${{ inputs.qemu-version }}
         CROSS_MAKE_VERSION: ${{ inputs.cross-make-version }}
         NO_TOOLCHAIN_SETUP: ${{ inputs.no-toolchain-setup == 'true' && 'true' || '' }}
+        INIT_RUNNER: ${{ inputs.init-runner == 'true' && 'true' || '' }}
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
         AR: ${{ inputs.ar }}

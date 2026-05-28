@@ -809,6 +809,7 @@ mod tests {
             command: Command::setup(),
             targets: vec!["x86_64-unknown-freebsd".to_string()],
             no_cargo_target: false,
+            init_runner: false,
             cross_make_version: "test".to_string(),
             cross_compiler_dir: temp_dir.join("toolchains"),
             build: BuildArgs {
@@ -858,6 +859,7 @@ mod tests {
             command: Command::setup(),
             targets: vec!["aarch64-linux-android".to_string()],
             no_cargo_target: false,
+            init_runner: false,
             cross_make_version: "test".to_string(),
             cross_compiler_dir: temp_dir.join("toolchains"),
             build: BuildArgs {
