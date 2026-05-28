@@ -202,6 +202,7 @@ impl Libc {
 pub enum Abi {
     Eabi,
     Eabihf,
+    Sf,
     X32,
     Gnusf,
     Gnuspe,
@@ -213,6 +214,7 @@ impl Abi {
         match self {
             Self::Eabi => "eabi",
             Self::Eabihf => "eabihf",
+            Self::Sf => "sf",
             Self::X32 => "x32",
             Self::Gnusf => "gnusf",
             Self::Gnuspe => "gnuspe",
@@ -291,9 +293,11 @@ pub static TARGETS: std::sync::LazyLock<HashMap<&'static str, TargetConfig>> =
             )
             .with_libc(Libc::Musl),
             TargetConfig::new("mips-unknown-linux-musl", Os::Linux, Arch::Mips)
-                .with_libc(Libc::Musl),
+                .with_libc(Libc::Musl)
+                .with_abi(Abi::Sf),
             TargetConfig::new("mipsel-unknown-linux-musl", Os::Linux, Arch::Mipsel)
-                .with_libc(Libc::Musl),
+                .with_libc(Libc::Musl)
+                .with_abi(Abi::Sf),
             TargetConfig::new("mips64-unknown-linux-muslabi64", Os::Linux, Arch::Mips64)
                 .with_libc(Libc::Musl),
             TargetConfig::new("mips64-openwrt-linux-musl", Os::Linux, Arch::Mips64)
@@ -696,6 +700,7 @@ mod tests {
     fn test_abi_as_str() {
         assert_eq!(Abi::Eabi.as_str(), "eabi");
         assert_eq!(Abi::Eabihf.as_str(), "eabihf");
+        assert_eq!(Abi::Sf.as_str(), "sf");
         assert_eq!(Abi::X32.as_str(), "x32");
         assert_eq!(Abi::Gnusf.as_str(), "gnusf");
         assert_eq!(Abi::Gnuspe.as_str(), "gnuspe");
@@ -805,6 +810,15 @@ mod tests {
         assert_eq!(config.os, Os::Linux);
         assert_eq!(config.arch, Arch::Aarch64);
         assert_eq!(config.libc, Some(Libc::Musl));
+    }
+
+    #[test]
+    fn test_mips_musl_targets_are_soft_float() {
+        let config = get_target_config("mips-unknown-linux-musl").unwrap();
+        assert_eq!(config.abi, Some(Abi::Sf));
+
+        let config = get_target_config("mipsel-unknown-linux-musl").unwrap();
+        assert_eq!(config.abi, Some(Abi::Sf));
     }
 
     #[test]

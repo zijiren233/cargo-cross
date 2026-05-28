@@ -321,8 +321,8 @@ Most musl targets produce **statically linked binaries by default**, but this va
 - `aarch64-unknown-linux-musl` - ARM64 Linux
 - `aarch64_be-unknown-linux-musl` - ARM64 big-endian Linux
 - `loongarch64-unknown-linux-musl` - LoongArch64 Linux
-- `mips-unknown-linux-musl` - MIPS Linux
-- `mipsel-unknown-linux-musl` - MIPS little-endian Linux
+- `mips-unknown-linux-musl` - MIPS Linux soft-float
+- `mipsel-unknown-linux-musl` - MIPS little-endian Linux soft-float
 - `mips64-unknown-linux-muslabi64` - MIPS64 Linux
 - `mips64-openwrt-linux-musl` - MIPS64 OpenWrt Linux
 - `mips64el-unknown-linux-muslabi64` - MIPS64 little-endian Linux

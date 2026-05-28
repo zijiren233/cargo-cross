@@ -630,6 +630,21 @@ mod tests {
         assert_eq!(name, "armv7-linux-gnueabihf-cross");
     }
 
+    #[test]
+    fn test_mips_musl_soft_float_toolchain_names() {
+        let bin_prefix = get_linux_bin_prefix(Arch::Mips, Libc::Musl, Some(Abi::Sf));
+        assert_eq!(bin_prefix, "mips-linux-muslsf");
+
+        let folder = get_linux_folder_name(Arch::Mips, Libc::Musl, Some(Abi::Sf), "", "");
+        assert_eq!(folder, "mips-linux-muslsf-cross");
+
+        let bin_prefix = get_linux_bin_prefix(Arch::Mipsel, Libc::Musl, Some(Abi::Sf));
+        assert_eq!(bin_prefix, "mipsel-linux-muslsf");
+
+        let folder = get_linux_folder_name(Arch::Mipsel, Libc::Musl, Some(Abi::Sf), "", "");
+        assert_eq!(folder, "mipsel-linux-muslsf-cross");
+    }
+
     // Tests for glob pattern matching (verifying the fix for -libc++ suffix issue)
 
     #[test]
