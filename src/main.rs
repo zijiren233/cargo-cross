@@ -475,8 +475,9 @@ fn check_preconfigured_env(
         return None;
     }
 
-    let target_lower = target.replace('-', "_");
-    let target_upper = target.to_uppercase().replace('-', "_");
+    let target_name = cargo_cross::config::target_name_for_env(target);
+    let target_lower = target_name.replace('-', "_");
+    let target_upper = target_name.to_uppercase().replace('-', "_");
 
     // Check target-specific CC_<target> first
     let cc_target_var = format!("CC_{target_lower}");
@@ -580,11 +581,17 @@ fn print_config(args: &cargo_cross::Args, _host: &HostPlatform) {
         )
     );
 
-    if let Some(ref package) = args.package {
-        println!("{}", color::format_config("Package", package));
+    if !args.package.is_empty() {
+        println!(
+            "{}",
+            color::format_config("Packages", &args.package.join(", "))
+        );
     }
-    if let Some(ref bin) = args.bin_target {
-        println!("{}", color::format_config("Binary target", bin));
+    if !args.bin_target.is_empty() {
+        println!(
+            "{}",
+            color::format_config("Binary targets", &args.bin_target.join(", "))
+        );
     }
     if args.build_bins {
         println!("{}", color::format_config("Build all binaries", "true"));
@@ -599,7 +606,9 @@ fn print_config(args: &cargo_cross::Args, _host: &HostPlatform) {
         println!("{}", color::format_config("Building workspace", "true"));
     }
 
-    println!("{}", color::format_config("Profile", &args.profile));
+    if let Some(ref profile) = args.profile {
+        println!("{}", color::format_config("Profile", profile));
+    }
 
     if let Some(ref toolchain) = args.toolchain {
         println!("{}", color::format_config("Toolchain", toolchain));
@@ -615,8 +624,11 @@ fn print_config(args: &cargo_cross::Args, _host: &HostPlatform) {
         );
     }
 
-    if let Some(ref features) = args.features {
-        println!("{}", color::format_config("Features", features));
+    if !args.features.is_empty() {
+        println!(
+            "{}",
+            color::format_config("Features", &args.features.join(", "))
+        );
     }
     if args.no_default_features {
         println!("{}", color::format_config("No default features", "true"));

@@ -13,7 +13,7 @@ use clap::builder::styling::{AnsiColor, Effects, Styles};
 use clap::ArgAction;
 use clap::{Args as ClapArgs, CommandFactory, FromArgMatches, Parser, Subcommand, ValueHint};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 /// Binary name from Cargo.toml (e.g., "cargo-cross")
@@ -73,7 +73,7 @@ It automatically downloads and configures the appropriate cross-compiler toolcha
 #[command(propagate_version = true)]
 #[command(arg_required_else_help = true)]
 #[command(styles = cli_styles())]
-#[command(override_usage = "cargo-cross [+toolchain] <COMMAND> [OPTIONS]")]
+#[command(override_usage = "cargo-cross [+toolchain] [CARGO_OPTIONS] <COMMAND> [OPTIONS]")]
 #[command(after_help = "\
 Use 'cargo-cross <COMMAND> --help' for more information about a command.
 
@@ -82,8 +82,13 @@ TOOLCHAIN:
     name (such as +nightly, +stable, or +1.75.0). This follows the same convention
     as rustup and cargo.
 
+CARGO OPTIONS:
+    Cargo global options can precede supported Cargo commands: -v, -q, --color,
+    -C, --locked, --offline, --frozen, --config, and -Z.
+
 EXAMPLES:
     cargo-cross build -t x86_64-unknown-linux-musl
+    cargo-cross --config build.jobs=4 build
     cargo-cross +nightly build -t aarch64-unknown-linux-gnu --profile release
     cargo-cross build -t '*-linux-musl' --crt-static true
     cargo-cross test -t x86_64-unknown-linux-musl -- --nocapture")]
@@ -301,7 +306,7 @@ Examples: -t x86_64-unknown-linux-musl, -t '*-linux-musl'"
 Space or comma separated list of features to activate. Features of workspace members
 may be enabled with package-name/feature-name syntax. May be specified multiple times."
     )]
-    pub features: Option<String>,
+    pub features: Vec<String>,
 
     /// Do not activate the `default` feature of the selected packages
     #[arg(long, env = "NO_DEFAULT_FEATURES", help_heading = "Feature Selection")]
@@ -331,16 +336,15 @@ Build artifacts in release mode, with optimizations. Equivalent to --profile=rel
     /// Build artifacts with the specified profile
     #[arg(
         long,
-        default_value = "dev",
         env = "PROFILE",
         value_name = "PROFILE-NAME",
         conflicts_with = "release",
         help_heading = "Profile",
         long_help = "\
 Build artifacts with the specified profile. Built-in: dev, release, test, bench.
-Custom profiles can be defined in Cargo.toml. Default is 'dev'."
+Custom profiles can be defined in Cargo.toml. Cargo selects the command-specific default."
     )]
-    pub profile: String,
+    pub profile: Option<String>,
 
     // ===== Package Selection =====
     /// Package to build (see `cargo help pkgid`)
@@ -354,7 +358,7 @@ Custom profiles can be defined in Cargo.toml. Default is 'dev'."
 Build only the specified packages. This flag may be specified multiple times
 and supports common Unix glob patterns like *, ?, and []."
     )]
-    pub package: Option<String>,
+    pub package: Vec<String>,
 
     /// Build all members in the workspace
     #[arg(
@@ -376,7 +380,7 @@ and supports common Unix glob patterns like *, ?, and []."
 Exclude the specified packages. Must be used in conjunction with the --workspace flag.
 This flag may be specified multiple times and supports common Unix glob patterns."
     )]
-    pub exclude: Option<String>,
+    pub exclude: Vec<String>,
 
     /// Build only the specified binary
     #[arg(
@@ -388,7 +392,7 @@ This flag may be specified multiple times and supports common Unix glob patterns
 Build the specified binary. This flag may be specified multiple times
 and supports common Unix glob patterns."
     )]
-    pub bin_target: Option<String>,
+    pub bin_target: Vec<String>,
 
     /// Build all binary targets
     #[arg(long = "bins", env = "BUILD_BINS", help_heading = "Package Selection")]
@@ -408,7 +412,7 @@ and supports common Unix glob patterns."
 Build the specified example. This flag may be specified multiple times
 and supports common Unix glob patterns."
     )]
-    pub example_target: Option<String>,
+    pub example_target: Vec<String>,
 
     /// Build all example targets
     #[arg(
@@ -428,7 +432,7 @@ and supports common Unix glob patterns."
 Build the specified integration test. This flag may be specified multiple times
 and supports common Unix glob patterns."
     )]
-    pub test_target: Option<String>,
+    pub test_target: Vec<String>,
 
     /// Build all test targets (includes unit tests from lib/bins)
     #[arg(
@@ -451,7 +455,7 @@ includes the library and binaries built as unittests, and integration tests."
 Build the specified benchmark. This flag may be specified multiple times
 and supports common Unix glob patterns."
     )]
-    pub bench_target: Option<String>,
+    pub bench_target: Vec<String>,
 
     /// Build all bench targets
     #[arg(
@@ -473,7 +477,7 @@ includes the library and binaries built as benchmarks, and bench targets."
     pub build_all_targets: bool,
 
     /// Path to Cargo.toml
-    #[arg(long, env = "MANIFEST_PATH", value_name = "PATH",
+    #[arg(short = 'm', long, env = "MANIFEST_PATH", value_name = "PATH",
           value_hint = ValueHint::FilePath, help_heading = "Package Selection",
           long_help = "\
 Path to Cargo.toml. By default, Cargo searches for the Cargo.toml file
@@ -670,12 +674,12 @@ Additional flags to pass to rustc via RUSTFLAGS. Can be specified multiple times
 Example: --rustflag '-C target-cpu=native' --rustflag '-C lto=thin'")]
     pub rustflags: Vec<String>,
 
-    /// Rustc wrapper program (e.g., sccache, cachepot)
+    /// Rustc wrapper program
     #[arg(long, env = "RUSTC_WRAPPER", value_name = "PATH",
           value_hint = ValueHint::ExecutablePath,
-          conflicts_with = "enable_sccache", help_heading = "Compiler Options",
+          help_heading = "Compiler Options",
           long_help = "\
-Specify a rustc wrapper program (sccache, cachepot, etc) for compilation caching.")]
+Specify the wrapper executable Cargo invokes for rustc processes.")]
     pub rustc_wrapper: Option<PathBuf>,
 
     /// Skip cross-compilation toolchain setup
@@ -689,79 +693,6 @@ Use this when you have pre-configured system compilers or want to use
 only CLI-provided compiler options (--cc, --cxx, --ar, --linker)."
     )]
     pub no_toolchain_setup: bool,
-
-    // ===== Sccache Options =====
-    /// Enable sccache for compilation caching
-    #[arg(
-        long,
-        env = "ENABLE_SCCACHE",
-        conflicts_with = "rustc_wrapper",
-        help_heading = "Sccache Options",
-        long_help = "\
-Enable sccache as the rustc wrapper for compilation caching.
-Speeds up compilation by caching previous compilations."
-    )]
-    pub enable_sccache: bool,
-
-    /// Directory for sccache local disk cache
-    #[arg(long, env = "SCCACHE_DIR", value_name = "DIR",
-          value_hint = ValueHint::DirPath, help_heading = "Sccache Options",
-          long_help = "\
-Directory for sccache's local disk cache. Defaults to $HOME/.cache/sccache.")]
-    pub sccache_dir: Option<PathBuf>,
-
-    /// Maximum cache size (e.g., '10G', '500M')
-    #[arg(
-        long,
-        env = "SCCACHE_CACHE_SIZE",
-        value_name = "SIZE",
-        help_heading = "Sccache Options",
-        long_help = "\
-Maximum size of the local disk cache (e.g., '10G', '500M'). Default is 10GB."
-    )]
-    pub sccache_cache_size: Option<String>,
-
-    /// Idle timeout in seconds for sccache server
-    #[arg(
-        long,
-        env = "SCCACHE_IDLE_TIMEOUT",
-        value_name = "SECONDS",
-        help_heading = "Sccache Options",
-        long_help = "\
-Idle timeout in seconds for the sccache server. Set to 0 to run indefinitely."
-    )]
-    pub sccache_idle_timeout: Option<String>,
-
-    /// Log level for sccache (error, warn, info, debug, trace)
-    #[arg(
-        long,
-        env = "SCCACHE_LOG",
-        value_name = "LEVEL",
-        help_heading = "Sccache Options",
-        long_help = "\
-Log level for sccache. Valid: error, warn, info, debug, trace"
-    )]
-    pub sccache_log: Option<String>,
-
-    /// Run sccache without the daemon (single process mode)
-    #[arg(
-        long,
-        env = "SCCACHE_NO_DAEMON",
-        help_heading = "Sccache Options",
-        long_help = "\
-Run sccache without daemon (single-process mode). May be slower but avoids daemon startup issues."
-    )]
-    pub sccache_no_daemon: bool,
-
-    /// Enable sccache direct mode (bypass preprocessor)
-    #[arg(
-        long,
-        env = "SCCACHE_DIRECT",
-        help_heading = "Sccache Options",
-        long_help = "\
-Enable sccache direct mode. Caches based on source file content directly, bypassing preprocessor."
-    )]
-    pub sccache_direct: bool,
 
     // ===== CC Crate Options =====
     /// Disable CC crate default compiler flags
@@ -905,7 +836,8 @@ Do not print cargo log messages. Shows only errors and warnings."
         value_name = "FMT",
         help_heading = "Output Options",
         long_help = "\
-Output format for diagnostics. Valid: human (default), short, json"
+Output format for diagnostics. Valid: human, short, json, json-diagnostic-short,
+json-diagnostic-rendered-ansi, json-render-diagnostics"
     )]
     pub message_format: Option<String>,
 
@@ -923,6 +855,10 @@ Control when colored output is used. Valid: auto (default), always, never"
     /// Output the build plan in JSON (requires nightly)
     #[arg(long, env = "BUILD_PLAN", hide = true, help_heading = "Output Options")]
     pub build_plan: bool,
+
+    /// Output the build graph in JSON (requires nightly)
+    #[arg(long, env = "UNIT_GRAPH", help_heading = "Output Options")]
+    pub unit_graph: bool,
 
     /// Timing output formats (html, json)
     #[arg(long, env = "TIMINGS", value_name = "FMTS",
@@ -1015,6 +951,19 @@ execution of this command. See 'cargo report' for more information."
     )]
     pub future_incompat_report: bool,
 
+    // ===== Test and Benchmark Options =====
+    /// Compile tests or benchmarks without running them
+    #[arg(long, help_heading = "Test and Benchmark Options")]
+    pub no_run: bool,
+
+    /// Continue running all tests or benchmarks after a failure
+    #[arg(long, help_heading = "Test and Benchmark Options")]
+    pub no_fail_fast: bool,
+
+    /// Test only this package's library documentation
+    #[arg(long = "doc", help_heading = "Test and Benchmark Options")]
+    pub doc_tests: bool,
+
     // ===== Additional Cargo Arguments =====
     /// Additional arguments to pass to cargo
     /// Note: `CARGO_ARGS` env var is handled manually in cargo.rs to support shell-style parsing
@@ -1037,13 +986,14 @@ Unstable (nightly-only) flags to Cargo. Run 'cargo -Z help' for details on avail
 Common flags: build-std, unstable-options")]
     pub cargo_z_flags: Vec<String>,
 
-    /// Override a Cargo configuration value
-    #[arg(long = "config", value_name = "KEY=VALUE",
+    /// Override a Cargo configuration value or load a configuration file
+    #[arg(long = "config", value_name = "KEY=VALUE|PATH",
           action = clap::ArgAction::Append, help_heading = "Additional Options",
           long_help = "\
-Override a Cargo configuration value. The argument should be in TOML syntax of KEY=VALUE.
+Override a Cargo configuration value or load a Cargo configuration file. Configuration values
+use TOML syntax in KEY=VALUE form; file paths point to extra Cargo configuration files.
 This flag may be specified multiple times.
-Example: --config 'build.jobs=4' --config 'profile.release.lto=true'")]
+Examples: --config 'build.jobs=4' --config path/to/cargo-config.toml")]
     pub cargo_config: Vec<String>,
 
     /// Change to directory before doing anything
@@ -1119,7 +1069,6 @@ impl BuildArgs {
     #[must_use]
     pub fn default_for_host() -> Self {
         Self {
-            profile: "dev".to_string(),
             glibc_version: DEFAULT_GLIBC_VERSION.to_string(),
             iphone_sdk_version: DEFAULT_IPHONE_SDK_VERSION.to_string(),
             macos_sdk_version: DEFAULT_MACOS_SDK_VERSION.to_string(),
@@ -1255,11 +1204,16 @@ impl std::ops::DerefMut for Args {
 impl Args {
     /// Create Args from `BuildArgs` and Command
     fn from_build_args(b: BuildArgs, command: Command, toolchain: Option<String>) -> Result<Self> {
+        let raw_targets = if b.targets.is_empty() {
+            configured_targets(&b)?
+        } else {
+            b.targets.clone()
+        };
         let cross_compiler_dir = b
             .cross_compiler_dir
             .clone()
             .unwrap_or_else(|| std::env::temp_dir().join("rust-cross-compiler"));
-        let targets = expand_target_list(&b.targets)?;
+        let targets = expand_target_list(&raw_targets)?;
 
         Ok(Self {
             toolchain,
@@ -1343,12 +1297,14 @@ pub fn parse_args_from(args: Vec<String>) -> Result<ParseResult> {
         args.remove(0);
     }
 
+    normalize_leading_cargo_options(&mut args);
+
     if let Some(command_name) = args.first().cloned() {
         let remaining_args: Vec<String> = args.iter().skip(1).cloned().collect();
         let help_or_version_requested = has_wrapper_help_or_version_request(&remaining_args);
 
         if let Some(canonical_name) = canonical_cargo_command_name(&command_name) {
-            if !help_or_version_requested {
+            if !help_or_version_requested || is_supported_external_cargo_command(canonical_name) {
                 return parse_cargo_command_args(
                     &command_name,
                     canonical_name,
@@ -1396,6 +1352,82 @@ pub fn parse_args_from(args: Vec<String>) -> Result<ParseResult> {
     process_cli(cli, toolchain)
 }
 
+/// Cargo accepts its global options before the command. Move those options after
+/// supported Cargo commands so they can share the existing `BuildArgs` parser.
+fn normalize_leading_cargo_options(args: &mut Vec<String>) {
+    let mut index = 0;
+
+    while index < args.len() {
+        let token = args[index].as_str();
+
+        if let Some(option) = classify_cargo_global_option(token) {
+            index += match option {
+                CargoGlobalOption::Standalone => 1,
+                CargoGlobalOption::TakesNextValue => 2,
+            };
+            if index <= args.len() {
+                continue;
+            }
+            return;
+        }
+
+        if index > 0
+            && (canonical_cargo_command_name(token).is_some()
+                || is_supported_external_cargo_command(token))
+        {
+            let command = args.remove(index);
+            args.insert(0, command);
+        }
+        return;
+    }
+}
+
+#[derive(Clone, Copy)]
+enum CargoGlobalOption {
+    Standalone,
+    TakesNextValue,
+}
+
+fn classify_cargo_global_option(arg: &str) -> Option<CargoGlobalOption> {
+    if matches!(arg, "--config" | "--color" | "--directory") {
+        return Some(CargoGlobalOption::TakesNextValue);
+    }
+    if arg.starts_with("--config=")
+        || arg.starts_with("--color=")
+        || arg.starts_with("--directory=")
+        || matches!(
+            arg,
+            "--verbose" | "--quiet" | "-q" | "--locked" | "--offline" | "--frozen"
+        )
+    {
+        return Some(CargoGlobalOption::Standalone);
+    }
+
+    let cluster = arg
+        .strip_prefix('-')
+        .filter(|cluster| !cluster.is_empty())?;
+    if cluster.starts_with('-') {
+        return None;
+    }
+
+    let mut shorts = cluster.chars().peekable();
+    while let Some(short) = shorts.next() {
+        match short {
+            'v' | 'q' => {}
+            'C' | 'Z' => {
+                return Some(if shorts.peek().is_some() {
+                    CargoGlobalOption::Standalone
+                } else {
+                    CargoGlobalOption::TakesNextValue
+                });
+            }
+            _ => return None,
+        }
+    }
+
+    Some(CargoGlobalOption::Standalone)
+}
+
 fn has_wrapper_help_or_version_request(args: &[String]) -> bool {
     args.iter()
         .take_while(|arg| arg.as_str() != "--")
@@ -1407,15 +1439,19 @@ fn build_command_with_dynamic_help() -> clap::Command {
     let prog = program_name();
 
     // Build dynamic help strings
-    let usage = format!("{prog} [+toolchain] <COMMAND> [OPTIONS]");
+    let usage = format!("{prog} [+toolchain] [CARGO_OPTIONS] <COMMAND> [OPTIONS]");
     let after_help = format!(
         "Use '{prog} <COMMAND> --help' for more information about a command.\n\n\
 TOOLCHAIN:\n    \
     If the first argument begins with +, it will be interpreted as a Rust toolchain\n    \
     name (such as +nightly, +stable, or +1.75.0). This follows the same convention\n    \
     as rustup and cargo.\n\n\
+CARGO OPTIONS:\n    \
+    Cargo global options can precede supported Cargo commands: -v, -q, --color,\n    \
+    -C, --locked, --offline, --frozen, --config, and -Z.\n\n\
 EXAMPLES:\n    \
     {prog} build -t x86_64-unknown-linux-musl\n    \
+    {prog} --config build.jobs=4 build\n    \
     {prog} +nightly build -t aarch64-unknown-linux-gnu --profile release\n    \
     {prog} build -t '*-linux-musl' --crt-static true\n    \
     {prog} test -t x86_64-unknown-linux-musl -- --nocapture"
@@ -1453,14 +1489,23 @@ EXAMPLES:\n    \
         let iphone_sdk_help = iphone_sdk_help.clone();
         let macos_sdk_help = macos_sdk_help.clone();
         cmd = cmd.mut_subcommand(*subcmd_name, |subcmd| {
-            subcmd
+            let subcmd = subcmd
                 .override_usage(format!(
                     "{prog} [+toolchain] {subcmd_name} [OPTIONS] [-- <PASSTHROUGH_ARGS>...]"
                 ))
                 .mut_arg("glibc_version", |arg| arg.long_help(glibc_help))
                 .mut_arg("freebsd_version", |arg| arg.long_help(freebsd_help))
                 .mut_arg("iphone_sdk_version", |arg| arg.long_help(iphone_sdk_help))
-                .mut_arg("macos_sdk_version", |arg| arg.long_help(macos_sdk_help))
+                .mut_arg("macos_sdk_version", |arg| arg.long_help(macos_sdk_help));
+
+            match *subcmd_name {
+                "test" => subcmd,
+                "bench" => subcmd.mut_arg("doc_tests", |arg| arg.hide(true)),
+                _ => subcmd
+                    .mut_arg("no_run", |arg| arg.hide(true))
+                    .mut_arg("no_fail_fast", |arg| arg.hide(true))
+                    .mut_arg("doc_tests", |arg| arg.hide(true)),
+            }
         });
     }
 
@@ -1484,6 +1529,7 @@ fn canonical_cargo_command_name(command_name: &str) -> Option<&'static str> {
         "test" | "t" => Some("test"),
         "bench" => Some("bench"),
         "clippy" => Some("clippy"),
+        "doc" | "d" => Some("doc"),
         _ => None,
     }
 }
@@ -1503,7 +1549,7 @@ fn parse_cargo_command_args(
     clap_args.push(BIN_NAME.to_string());
     clap_args.extend(processed_args);
 
-    let cmd = build_external_cargo_command_with_dynamic_help(display_name);
+    let cmd = build_external_cargo_command_with_dynamic_help(display_name, canonical_name);
     let cli = match cmd.try_get_matches_from(&clap_args) {
         Ok(matches) => ExternalCargoCli::from_arg_matches(&matches)
             .map_err(|e| CrossError::ClapError(e.to_string()))?,
@@ -1579,9 +1625,13 @@ fn preprocess_cargo_args(args: Vec<String>) -> Vec<String> {
             continue;
         }
 
-        if let Some(spec) = classify_known_short_arg(token, &short_args) {
+        if let Some(short_arg) = classify_known_short_arg(token, &short_args) {
             processed.push(token.clone());
-            pending_value = needs_following_value(token, spec);
+            pending_value = if short_arg.spec.takes_value && !short_arg.has_inline_value {
+                Some(short_arg.spec)
+            } else {
+                None
+            };
             index += 1;
             continue;
         }
@@ -1672,31 +1722,38 @@ fn classify_known_long_arg(
     long_args.get(name).copied()
 }
 
+struct KnownShortArg {
+    spec: KnownArgSpec,
+    has_inline_value: bool,
+}
+
 fn classify_known_short_arg(
     token: &str,
     short_args: &HashMap<char, KnownArgSpec>,
-) -> Option<KnownArgSpec> {
+) -> Option<KnownShortArg> {
     if !token.starts_with('-') || token.starts_with("--") || token == "-" {
         return None;
     }
 
     let rest = token.strip_prefix('-')?;
-    let mut chars = rest.chars();
-    let first = chars.next()?;
-    let spec = short_args.get(&first).copied()?;
+    let mut chars = rest.chars().peekable();
+    let mut first_spec = None;
 
-    if spec.takes_value {
-        return Some(spec);
+    while let Some(short) = chars.next() {
+        let spec = short_args.get(&short).copied()?;
+        first_spec.get_or_insert(spec);
+        if spec.takes_value {
+            return Some(KnownShortArg {
+                spec,
+                has_inline_value: chars.peek().is_some(),
+            });
+        }
     }
 
-    if rest
-        .chars()
-        .all(|short| short_args.get(&short).is_some_and(|arg| !arg.takes_value))
-    {
-        return Some(spec);
-    }
-
-    None
+    Some(KnownShortArg {
+        spec: first_spec?,
+        has_inline_value: false,
+    })
 }
 
 fn needs_following_value(token: &str, spec: KnownArgSpec) -> Option<KnownArgSpec> {
@@ -1750,21 +1807,33 @@ fn push_cargo_arg(processed: &mut Vec<String>, value: &str) {
     processed.push(value.to_string());
 }
 
-fn build_external_cargo_command_with_dynamic_help(command_name: &str) -> clap::Command {
+fn build_external_cargo_command_with_dynamic_help(
+    display_name: &str,
+    canonical_name: &str,
+) -> clap::Command {
     let prog = program_name();
     let after_help = format!(
-        "This command forwards to 'cargo {command_name}' after configuring the\n\
+        "This command forwards to 'cargo {canonical_name}' after configuring the\n\
 cross-compilation environment.\n\n\
 EXAMPLES:\n    \
-{prog} {command_name} -t x86_64-unknown-linux-musl\n    \
-{prog} {command_name} -t aarch64-unknown-linux-gnu -- --help"
+{prog} {display_name} -t x86_64-unknown-linux-musl\n    \
+{prog} {display_name} -t aarch64-unknown-linux-gnu -- --help"
     );
 
-    ExternalCargoCli::command()
+    let command = ExternalCargoCli::command()
         .override_usage(format!(
-            "{prog} [+toolchain] {command_name} [OPTIONS] [-- <PASSTHROUGH_ARGS>...]"
+            "{prog} [+toolchain] {display_name} [OPTIONS] [-- <PASSTHROUGH_ARGS>...]"
         ))
-        .after_help(after_help)
+        .after_help(after_help);
+
+    match canonical_name {
+        "test" | "t" => command,
+        "bench" => command.mut_arg("doc_tests", |arg| arg.hide(true)),
+        _ => command
+            .mut_arg("no_run", |arg| arg.hide(true))
+            .mut_arg("no_fail_fast", |arg| arg.hide(true))
+            .mut_arg("doc_tests", |arg| arg.hide(true)),
+    }
 }
 
 fn process_cli(cli: Cli, toolchain: Option<String>) -> Result<ParseResult> {
@@ -1828,6 +1897,10 @@ fn is_glob_pattern(s: &str) -> bool {
 
 /// Validate that a target triple only contains valid characters (a-z, 0-9, -, _)
 fn validate_target_triple(target: &str) -> Result<()> {
+    if config::is_custom_target_path(target) {
+        return Ok(());
+    }
+
     for c in target.chars() {
         if !c.is_ascii_lowercase() && !c.is_ascii_digit() && c != '-' && c != '_' {
             return Err(CrossError::InvalidTargetTriple {
@@ -1843,6 +1916,15 @@ fn validate_target_triple(target: &str) -> Result<()> {
 fn expand_target_list(targets: &[String]) -> Result<Vec<String>> {
     let mut result = Vec::new();
     for target in targets {
+        let target = target.trim();
+        if config::is_custom_target_path(target) {
+            validate_target_triple(target)?;
+            if !result.iter().any(|existing| existing == target) {
+                result.push(target.to_string());
+            }
+            continue;
+        }
+
         // Split by comma or newline to support multiple delimiters
         for part in target.split([',', '\n']) {
             let part = part.trim();
@@ -1875,14 +1957,385 @@ fn expand_target_list(targets: &[String]) -> Result<Vec<String>> {
     Ok(result)
 }
 
+fn configured_targets(args: &BuildArgs) -> Result<Vec<String>> {
+    let cargo_build_target = nonempty_env("CARGO_BUILD_TARGET");
+    configured_targets_with_env(args, cargo_build_target.as_deref())
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum ConfiguredTargets {
+    Scalar(String),
+    Array(Vec<String>),
+    Environment(String),
+}
+
+impl ConfiguredTargets {
+    fn into_vec(self) -> Vec<String> {
+        match self {
+            Self::Scalar(target) | Self::Environment(target) => vec![target],
+            Self::Array(targets) => targets,
+        }
+    }
+}
+
+fn configured_targets_with_env(
+    args: &BuildArgs,
+    cargo_build_target: Option<&str>,
+) -> Result<Vec<String>> {
+    let cwd = effective_cargo_cwd(args)?;
+    let mut targets = None;
+
+    for path in discovered_config_paths(&cwd) {
+        if let Some(config_targets) = target_from_config_file(&path)? {
+            targets = Some(merge_config_targets(targets, config_targets)?);
+        }
+    }
+
+    if let Some(target) = cargo_build_target {
+        targets = Some(merge_environment_target(
+            targets,
+            normalize_config_target(target, &cwd),
+        ));
+    }
+
+    for config_arg in &args.cargo_config {
+        if let Some(config_targets) = target_from_config_arg(config_arg, &cwd)? {
+            targets = Some(merge_config_targets(targets, config_targets)?);
+        }
+    }
+
+    Ok(targets.map(ConfiguredTargets::into_vec).unwrap_or_default())
+}
+
+fn merge_config_targets(
+    current: Option<ConfiguredTargets>,
+    incoming: ConfiguredTargets,
+) -> Result<ConfiguredTargets> {
+    match (current, incoming) {
+        (None, incoming) => Ok(incoming),
+        (Some(ConfiguredTargets::Scalar(_)), ConfiguredTargets::Scalar(target))
+        | (Some(ConfiguredTargets::Environment(_)), ConfiguredTargets::Scalar(target)) => {
+            Ok(ConfiguredTargets::Scalar(target))
+        }
+        (Some(ConfiguredTargets::Array(mut current)), ConfiguredTargets::Array(incoming)) => {
+            current.extend(incoming);
+            Ok(ConfiguredTargets::Array(current))
+        }
+        (Some(ConfiguredTargets::Environment(target)), ConfiguredTargets::Array(incoming)) => {
+            let mut targets = Vec::with_capacity(incoming.len() + 1);
+            targets.push(target);
+            targets.extend(incoming);
+            Ok(ConfiguredTargets::Array(targets))
+        }
+        (Some(ConfiguredTargets::Scalar(_)), ConfiguredTargets::Array(_)) => {
+            Err(CrossError::InvalidArgument(
+                "failed to merge Cargo build.target: expected string, found array".to_string(),
+            ))
+        }
+        (Some(ConfiguredTargets::Array(_)), ConfiguredTargets::Scalar(_)) => {
+            Err(CrossError::InvalidArgument(
+                "failed to merge Cargo build.target: expected array, found string".to_string(),
+            ))
+        }
+        (_, ConfiguredTargets::Environment(_)) => unreachable!("environment target is merged once"),
+    }
+}
+
+fn merge_environment_target(
+    current: Option<ConfiguredTargets>,
+    target: String,
+) -> ConfiguredTargets {
+    match current {
+        None => ConfiguredTargets::Environment(target),
+        Some(ConfiguredTargets::Scalar(_)) | Some(ConfiguredTargets::Environment(_)) => {
+            ConfiguredTargets::Scalar(target)
+        }
+        Some(ConfiguredTargets::Array(mut targets)) => {
+            targets.push(target);
+            ConfiguredTargets::Array(targets)
+        }
+    }
+}
+
+fn effective_cargo_cwd(args: &BuildArgs) -> Result<PathBuf> {
+    let current = std::env::current_dir().map_err(|source| CrossError::IoError {
+        message: "failed to determine current directory".to_string(),
+        source,
+    })?;
+    Ok(match &args.cargo_cwd {
+        Some(path) if path.is_absolute() => path.clone(),
+        Some(path) => current.join(path),
+        None => current,
+    })
+}
+
+fn discovered_config_paths(cwd: &Path) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+
+    if let Some(cargo_home) = cargo_home() {
+        if let Some(path) = config_file_in(&cargo_home) {
+            paths.push(path);
+        }
+    }
+
+    let mut ancestors: Vec<_> = cwd.ancestors().collect();
+    ancestors.reverse();
+    for ancestor in ancestors {
+        if let Some(path) = config_file_in(&ancestor.join(".cargo")) {
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
+        }
+    }
+
+    paths
+}
+
+fn cargo_home() -> Option<PathBuf> {
+    cargo_home_from_env(
+        nonempty_env("CARGO_HOME"),
+        nonempty_env("HOME"),
+        nonempty_env("USERPROFILE"),
+        cfg!(windows),
+    )
+}
+
+fn cargo_home_from_env(
+    cargo_home: Option<String>,
+    home: Option<String>,
+    user_profile: Option<String>,
+    windows: bool,
+) -> Option<PathBuf> {
+    cargo_home.map(PathBuf::from).or_else(|| {
+        let home = if windows { user_profile.or(home) } else { home };
+        home.map(|home| PathBuf::from(home).join(".cargo"))
+    })
+}
+
+fn config_file_in(directory: &Path) -> Option<PathBuf> {
+    let legacy = directory.join("config");
+    if legacy.is_file() {
+        return Some(legacy);
+    }
+
+    let toml = directory.join("config.toml");
+    toml.is_file().then_some(toml)
+}
+
+fn target_from_config_arg(config_arg: &str, cwd: &Path) -> Result<Option<ConfiguredTargets>> {
+    let path = Path::new(config_arg);
+    let resolved_path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        cwd.join(path)
+    };
+
+    if resolved_path.is_file() || !config_arg.contains('=') {
+        return target_from_config_file(&resolved_path);
+    }
+
+    let value: toml::Value = toml::from_str(config_arg).map_err(|error| {
+        CrossError::InvalidArgument(format!(
+            "invalid Cargo --config value '{config_arg}': {error}"
+        ))
+    })?;
+    target_from_config_value(&value, cwd, cwd, &mut Vec::new())
+}
+
+fn target_from_config_file(path: &Path) -> Result<Option<ConfiguredTargets>> {
+    target_from_config_file_recursive(path, &mut Vec::new())
+}
+
+fn target_from_config_file_recursive(
+    path: &Path,
+    include_stack: &mut Vec<PathBuf>,
+) -> Result<Option<ConfiguredTargets>> {
+    let resolved_path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    if include_stack.contains(&resolved_path) {
+        return Err(CrossError::InvalidArgument(format!(
+            "cyclic Cargo config include involving {}",
+            resolved_path.display()
+        )));
+    }
+    include_stack.push(resolved_path.clone());
+
+    let result = read_config_targets(&resolved_path, include_stack);
+    include_stack.pop();
+    result
+}
+
+fn read_config_targets(
+    path: &Path,
+    include_stack: &mut Vec<PathBuf>,
+) -> Result<Option<ConfiguredTargets>> {
+    let content = std::fs::read_to_string(path).map_err(|source| CrossError::IoError {
+        message: format!("failed to read Cargo config {}", path.display()),
+        source,
+    })?;
+    let value: toml::Value = toml::from_str(&content).map_err(|error| {
+        CrossError::InvalidArgument(format!("invalid Cargo config {}: {error}", path.display()))
+    })?;
+    target_from_config_value(
+        &value,
+        path.parent().unwrap_or_else(|| Path::new(".")),
+        &config_base_dir(path),
+        include_stack,
+    )
+}
+
+fn config_base_dir(path: &Path) -> PathBuf {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    parent.parent().unwrap_or(parent).to_path_buf()
+}
+
+#[derive(Debug)]
+struct ConfigInclude {
+    path: PathBuf,
+    optional: bool,
+}
+
+fn target_from_config_value(
+    value: &toml::Value,
+    include_base: &Path,
+    target_base: &Path,
+    include_stack: &mut Vec<PathBuf>,
+) -> Result<Option<ConfiguredTargets>> {
+    let mut targets = None;
+
+    for include in config_includes(value)? {
+        let include_path = if include.path.is_absolute() {
+            include.path
+        } else {
+            include_base.join(include.path)
+        };
+        if include.optional && !include_path.exists() {
+            continue;
+        }
+        if let Some(included_targets) =
+            target_from_config_file_recursive(&include_path, include_stack)?
+        {
+            targets = Some(merge_config_targets(targets, included_targets)?);
+        }
+    }
+
+    if let Some(own_targets) = target_from_toml(value, target_base)? {
+        targets = Some(merge_config_targets(targets, own_targets)?);
+    }
+
+    Ok(targets)
+}
+
+fn config_includes(value: &toml::Value) -> Result<Vec<ConfigInclude>> {
+    let Some(include) = value.get("include") else {
+        return Ok(Vec::new());
+    };
+    let Some(entries) = include.as_array() else {
+        return Err(CrossError::InvalidArgument(
+            "Cargo config include must be an array of strings or tables".to_string(),
+        ));
+    };
+
+    if entries.iter().all(toml::Value::is_str) {
+        return Ok(entries
+            .iter()
+            .filter_map(toml::Value::as_str)
+            .map(|path| ConfigInclude {
+                path: PathBuf::from(path),
+                optional: false,
+            })
+            .collect());
+    }
+    if !entries.iter().all(toml::Value::is_table) {
+        return Err(CrossError::InvalidArgument(
+            "Cargo config include must contain only strings or only tables".to_string(),
+        ));
+    }
+
+    entries
+        .iter()
+        .map(|entry| {
+            let table = entry.as_table().expect("validated as a table");
+            let path = table
+                .get("path")
+                .and_then(toml::Value::as_str)
+                .ok_or_else(|| {
+                    CrossError::InvalidArgument(
+                        "Cargo config include tables require a string path".to_string(),
+                    )
+                })?;
+            let optional = match table.get("optional") {
+                Some(value) => value.as_bool().ok_or_else(|| {
+                    CrossError::InvalidArgument(
+                        "Cargo config include optional value must be a boolean".to_string(),
+                    )
+                })?,
+                None => false,
+            };
+            Ok(ConfigInclude {
+                path: PathBuf::from(path),
+                optional,
+            })
+        })
+        .collect()
+}
+
+fn target_from_toml(value: &toml::Value, base: &Path) -> Result<Option<ConfiguredTargets>> {
+    let Some(target) = value.get("build").and_then(|build| build.get("target")) else {
+        return Ok(None);
+    };
+
+    let targets = match target {
+        toml::Value::String(target) => {
+            ConfiguredTargets::Scalar(normalize_config_target(target, base))
+        }
+        toml::Value::Array(targets) => ConfiguredTargets::Array(
+            targets
+                .iter()
+                .map(|target| {
+                    target
+                        .as_str()
+                        .map(|target| normalize_config_target(target, base))
+                        .ok_or_else(|| {
+                            CrossError::InvalidArgument(
+                                "Cargo build.target arrays must contain only strings".to_string(),
+                            )
+                        })
+                })
+                .collect::<Result<Vec<_>>>()?,
+        ),
+        _ => {
+            return Err(CrossError::InvalidArgument(
+                "Cargo build.target must be a string or an array of strings".to_string(),
+            ));
+        }
+    };
+
+    Ok(Some(targets))
+}
+
+fn normalize_config_target(target: &str, base: &Path) -> String {
+    let path = Path::new(target);
+    if config::is_custom_target_path(target) && path.is_relative() {
+        base.join(path).display().to_string()
+    } else {
+        target.to_string()
+    }
+}
+
+fn nonempty_env(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|value| !value.is_empty())
+}
+
 fn finalize_args(
     mut build_args: BuildArgs,
     command: Command,
     toolchain: Option<String>,
 ) -> Result<Args> {
+    validate_command_specific_args(&build_args, &command)?;
+
     // Handle --release flag: set profile to "release"
     if build_args.release {
-        build_args.profile = "release".to_string();
+        build_args.profile = Some("release".to_string());
     }
 
     // Handle build_std: empty string means disabled (from env var "false")
@@ -1914,6 +2367,22 @@ fn finalize_args(
     // Note: "host-tuple" is handled dynamically in execute_target
 
     Ok(args)
+}
+
+fn validate_command_specific_args(args: &BuildArgs, command: &Command) -> Result<()> {
+    if (args.no_run || args.no_fail_fast) && !matches!(command.as_str(), "test" | "bench") {
+        return Err(CrossError::InvalidArgument(format!(
+            "--no-run and --no-fail-fast are supported by test and bench, not {}",
+            command.as_str()
+        )));
+    }
+    if args.doc_tests && command.as_str() != "test" {
+        return Err(CrossError::InvalidArgument(format!(
+            "--doc is supported by test, not {}",
+            command.as_str()
+        )));
+    }
+    Ok(())
 }
 
 fn populate_env_arg_fallbacks(build_args: &mut BuildArgs) {
@@ -2084,7 +2553,7 @@ mod tests {
     fn test_parse_build_command() {
         let args = parse(&["cargo-cross", "build"]).unwrap();
         assert_eq!(args.command, Command::build());
-        assert_eq!(args.profile, "dev");
+        assert_eq!(args.profile, None);
     }
 
     #[test]
@@ -2128,6 +2597,12 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_doc_short_alias() {
+        let args = parse(&["cargo-cross", "d"]).unwrap();
+        assert_eq!(args.command, Command::new("doc"));
+    }
+
+    #[test]
     fn test_reject_non_build_like_external_cargo_command() {
         let result = parse(&["cargo-cross", "metadata"]);
         assert!(result.is_err());
@@ -2148,6 +2623,45 @@ mod tests {
         assert!(args.workspace);
         assert_eq!(args.cargo_args, vec!["--open".to_string()]);
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
+    }
+
+    #[test]
+    fn test_parse_test_specific_flags_and_filter() {
+        let args = parse(&[
+            "cargo-cross",
+            "test",
+            "--no-run",
+            "name_filter",
+            "--",
+            "--nocapture",
+        ])
+        .unwrap();
+
+        assert!(args.no_run);
+        assert_eq!(args.cargo_args, vec!["name_filter"]);
+        assert_eq!(args.passthrough_args, vec!["--nocapture"]);
+    }
+
+    #[test]
+    fn test_parse_bench_specific_flags() {
+        let args = parse(&[
+            "cargo-cross",
+            "bench",
+            "--no-run",
+            "--no-fail-fast",
+            "--unit-graph",
+        ])
+        .unwrap();
+
+        assert!(args.no_run);
+        assert!(args.no_fail_fast);
+        assert!(args.unit_graph);
+    }
+
+    #[test]
+    fn test_reject_test_specific_flags_for_build() {
+        let error = parse(&["cargo-cross", "build", "--no-run"]).unwrap_err();
+        assert!(error.to_string().contains("test and bench"));
     }
 
     #[test]
@@ -2265,6 +2779,12 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_custom_json_target_path() {
+        let args = parse(&["cargo-cross", "build", "--target", "targets/MyBoard.json"]).unwrap();
+        assert_eq!(args.targets, vec!["targets/MyBoard.json"]);
+    }
+
+    #[test]
     fn test_parse_verbose() {
         let args = parse(&["cargo-cross", "build", "-vvv"]).unwrap();
         assert_eq!(args.verbose_level, 3);
@@ -2324,7 +2844,37 @@ mod tests {
     #[test]
     fn test_parse_features() {
         let args = parse(&["cargo-cross", "build", "--features", "foo,bar"]).unwrap();
-        assert_eq!(args.features, Some("foo,bar".to_string()));
+        assert_eq!(args.features, vec!["foo,bar"]);
+    }
+
+    #[test]
+    fn test_parse_repeatable_cargo_selection_options() {
+        let args = parse(&[
+            "cargo-cross",
+            "build",
+            "-p",
+            "first",
+            "--package",
+            "second",
+            "-F",
+            "serde",
+            "--features",
+            "json",
+            "--bin",
+            "one",
+            "--bin",
+            "two",
+            "--example",
+            "example-one",
+            "--example",
+            "example-two",
+        ])
+        .unwrap();
+
+        assert_eq!(args.package, vec!["first", "second"]);
+        assert_eq!(args.features, vec!["serde", "json"]);
+        assert_eq!(args.bin_target, vec!["one", "two"]);
+        assert_eq!(args.example_target, vec!["example-one", "example-two"]);
     }
 
     #[test]
@@ -2336,7 +2886,7 @@ mod tests {
     #[test]
     fn test_parse_profile() {
         let args = parse(&["cargo-cross", "build", "--profile", "dev"]).unwrap();
-        assert_eq!(args.profile, "dev");
+        assert_eq!(args.profile.as_deref(), Some("dev"));
     }
 
     #[test]
@@ -2369,6 +2919,349 @@ mod tests {
     fn test_parse_config_flag() {
         let args = parse(&["cargo-cross", "build", "--config", "opt-level=3"]).unwrap();
         assert_eq!(args.cargo_config, vec!["opt-level=3"]);
+    }
+
+    #[test]
+    fn test_parse_config_before_command() {
+        let args = parse(&[
+            "cargo-cross",
+            "--config",
+            "build.jobs=4",
+            "--config=profile.release.lto=true",
+            "build",
+        ])
+        .unwrap();
+        assert_eq!(
+            args.cargo_config,
+            vec!["build.jobs=4", "profile.release.lto=true"]
+        );
+    }
+
+    #[test]
+    fn test_parse_cargo_global_options_before_command() {
+        let args = parse(&[
+            "cargo-cross",
+            "-Zunstable-options",
+            "--color=always",
+            "--locked",
+            "-vv",
+            "build",
+        ])
+        .unwrap();
+
+        assert_eq!(args.cargo_z_flags, vec!["unstable-options"]);
+        assert_eq!(args.color.as_deref(), Some("always"));
+        assert!(args.locked);
+        assert_eq!(args.verbose_level, 2);
+    }
+
+    #[test]
+    fn test_parse_compact_mixed_cargo_global_options() {
+        let args = parse(&["cargo-cross", "-vZunstable-options", "-vC.", "build"]).unwrap();
+
+        assert_eq!(args.verbose_level, 2);
+        assert_eq!(args.cargo_z_flags, vec!["unstable-options"]);
+        assert_eq!(args.cargo_cwd, Some(PathBuf::from(".")));
+    }
+
+    #[test]
+    fn test_parse_compact_global_option_with_separate_value() {
+        let args = parse(&["cargo-cross", "-vZ", "unstable-options", "build"]).unwrap();
+
+        assert_eq!(args.verbose_level, 1);
+        assert_eq!(args.cargo_z_flags, vec!["unstable-options"]);
+    }
+
+    #[test]
+    fn test_parse_config_before_external_cargo_command() {
+        let args = parse(&["cargo-cross", "--config", "build.jobs=4", "doc"]).unwrap();
+
+        assert_eq!(args.command, Command::new("doc"));
+        assert_eq!(args.cargo_config, vec!["build.jobs=4"]);
+    }
+
+    #[test]
+    fn test_config_target_is_used_for_toolchain_setup() {
+        let args = parse(&[
+            "cargo-cross",
+            "--config",
+            "build.target='aarch64-unknown-linux-gnu'",
+            "build",
+        ])
+        .unwrap();
+
+        assert_eq!(args.targets, vec!["aarch64-unknown-linux-gnu"]);
+        assert!(!args.no_cargo_target);
+    }
+
+    #[test]
+    fn test_config_target_arrays_are_merged() {
+        let args = parse(&[
+            "cargo-cross",
+            "--config",
+            "build.target=['x86_64-unknown-linux-musl']",
+            "--config",
+            "build.target=['aarch64-unknown-linux-musl']",
+            "build",
+        ])
+        .unwrap();
+
+        assert_eq!(
+            args.targets,
+            vec!["x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"]
+        );
+    }
+
+    #[test]
+    fn test_config_target_scalar_and_array_types_cannot_be_merged() {
+        let result = parse(&[
+            "cargo-cross",
+            "--config",
+            "build.target='aarch64-unknown-linux-gnu'",
+            "--config",
+            "build.target=['x86_64-unknown-linux-musl']",
+            "build",
+        ]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_explicit_target_overrides_config_target() {
+        let args = parse(&[
+            "cargo-cross",
+            "--config",
+            "build.target='aarch64-unknown-linux-gnu'",
+            "build",
+            "--target",
+            "x86_64-unknown-linux-musl",
+        ])
+        .unwrap();
+
+        assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
+    }
+
+    #[test]
+    fn test_cli_config_target_overrides_environment_target() {
+        let args = BuildArgs {
+            cargo_config: vec!["build.target='aarch64-unknown-linux-gnu'".to_string()],
+            ..BuildArgs::default_for_host()
+        };
+
+        let targets =
+            configured_targets_with_env(&args, Some("x86_64-unknown-linux-musl")).unwrap();
+        assert_eq!(targets, vec!["aarch64-unknown-linux-gnu"]);
+    }
+
+    #[test]
+    fn test_environment_target_merges_with_cli_config_array() {
+        let args = BuildArgs {
+            cargo_config: vec!["build.target=['aarch64-unknown-linux-musl']".to_string()],
+            ..BuildArgs::default_for_host()
+        };
+
+        let targets =
+            configured_targets_with_env(&args, Some("x86_64-unknown-linux-musl")).unwrap();
+        assert_eq!(
+            targets,
+            vec!["x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"]
+        );
+    }
+
+    #[test]
+    fn test_config_file_target_is_resolved() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "cargo-cross-config-target-test-{}",
+            std::process::id()
+        ));
+        let config_dir = temp_dir.join("cfg");
+        std::fs::create_dir_all(&config_dir).unwrap();
+        let config_path = config_dir.join("cross.toml");
+        std::fs::write(&config_path, "[build]\ntarget = 'custom/MyBoard.json'\n").unwrap();
+
+        let args = BuildArgs {
+            cargo_config: vec![config_path.display().to_string()],
+            cargo_cwd: Some(temp_dir.clone()),
+            ..BuildArgs::default_for_host()
+        };
+        let targets = configured_targets_with_env(&args, None).unwrap();
+
+        assert_eq!(
+            targets,
+            vec![std::fs::canonicalize(&temp_dir)
+                .unwrap()
+                .join("custom/MyBoard.json")
+                .display()
+                .to_string()]
+        );
+        std::fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    #[test]
+    fn test_config_includes_are_merged_recursively() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "cargo-cross-config-include-test-{}",
+            std::process::id()
+        ));
+        let config_dir = temp_dir.join(".cargo");
+        std::fs::create_dir_all(config_dir.join("nested")).unwrap();
+        std::fs::write(
+            config_dir.join("config.toml"),
+            "include = [\n\
+             { path = 'base.toml' },\n\
+             { path = 'missing.toml', optional = true },\n\
+             { path = 'nested/child.toml' },\n\
+             ]\n\
+             [build]\n\
+             target = ['aarch64-apple-ios']\n",
+        )
+        .unwrap();
+        std::fs::write(
+            config_dir.join("base.toml"),
+            "[build]\ntarget = ['x86_64-apple-darwin']\n",
+        )
+        .unwrap();
+        std::fs::write(
+            config_dir.join("nested/child.toml"),
+            "include = [{ path = '../grandchild.toml' }]\n\
+             [build]\n\
+             target = ['aarch64-apple-darwin']\n",
+        )
+        .unwrap();
+        std::fs::write(
+            config_dir.join("grandchild.toml"),
+            "[build]\ntarget = ['x86_64-apple-ios']\n",
+        )
+        .unwrap();
+
+        let targets = target_from_config_file(&config_dir.join("config.toml"))
+            .unwrap()
+            .unwrap()
+            .into_vec();
+        assert_eq!(
+            targets,
+            vec![
+                "x86_64-apple-darwin",
+                "x86_64-apple-ios",
+                "aarch64-apple-darwin",
+                "aarch64-apple-ios",
+            ]
+        );
+
+        std::fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    #[test]
+    fn test_config_include_cycles_are_rejected() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "cargo-cross-config-include-cycle-test-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let first = temp_dir.join("first.toml");
+        let second = temp_dir.join("second.toml");
+        std::fs::write(&first, "include = ['second.toml']\n").unwrap();
+        std::fs::write(&second, "include = ['first.toml']\n").unwrap();
+
+        assert!(target_from_config_file(&first).is_err());
+
+        std::fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    #[test]
+    fn test_nearest_discovered_config_and_environment_precedence() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "cargo-cross-config-hierarchy-test-{}",
+            std::process::id()
+        ));
+        let child = temp_dir.join("workspace");
+        std::fs::create_dir_all(temp_dir.join(".cargo")).unwrap();
+        std::fs::create_dir_all(child.join(".cargo")).unwrap();
+        std::fs::write(
+            temp_dir.join(".cargo/config.toml"),
+            "[build]\ntarget = 'aarch64-unknown-linux-gnu'\n",
+        )
+        .unwrap();
+        std::fs::write(
+            child.join(".cargo/config.toml"),
+            "[build]\ntarget = 'x86_64-unknown-linux-musl'\n",
+        )
+        .unwrap();
+
+        let args = BuildArgs {
+            cargo_cwd: Some(child),
+            ..BuildArgs::default_for_host()
+        };
+        assert_eq!(
+            configured_targets_with_env(&args, None).unwrap(),
+            vec!["x86_64-unknown-linux-musl"]
+        );
+        assert_eq!(
+            configured_targets_with_env(&args, Some("aarch64-unknown-linux-musl")).unwrap(),
+            vec!["aarch64-unknown-linux-musl"]
+        );
+
+        std::fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    #[test]
+    fn test_config_target_arrays_merge_across_all_sources() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "cargo-cross-config-array-hierarchy-test-{}",
+            std::process::id()
+        ));
+        let child = temp_dir.join("workspace");
+        std::fs::create_dir_all(temp_dir.join(".cargo")).unwrap();
+        std::fs::create_dir_all(child.join(".cargo")).unwrap();
+        std::fs::write(
+            temp_dir.join(".cargo/config.toml"),
+            "[build]\ntarget = ['x86_64-unknown-linux-musl']\n",
+        )
+        .unwrap();
+        std::fs::write(
+            child.join(".cargo/config.toml"),
+            "[build]\ntarget = ['aarch64-unknown-linux-musl']\n",
+        )
+        .unwrap();
+
+        let args = BuildArgs {
+            cargo_cwd: Some(child),
+            cargo_config: vec!["build.target=['armv7-unknown-linux-musleabihf']".to_string()],
+            ..BuildArgs::default_for_host()
+        };
+        assert_eq!(
+            configured_targets_with_env(&args, Some("aarch64-unknown-linux-gnu")).unwrap(),
+            vec![
+                "x86_64-unknown-linux-musl",
+                "aarch64-unknown-linux-musl",
+                "aarch64-unknown-linux-gnu",
+                "armv7-unknown-linux-musleabihf",
+            ]
+        );
+
+        std::fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    #[test]
+    fn test_cargo_home_uses_windows_user_profile() {
+        assert_eq!(
+            cargo_home_from_env(
+                None,
+                Some(r"C:\home".to_string()),
+                Some(r"C:\Users\cargo".to_string()),
+                true,
+            ),
+            Some(PathBuf::from(r"C:\Users\cargo").join(".cargo"))
+        );
+        assert_eq!(
+            cargo_home_from_env(
+                Some(r"D:\cargo-home".to_string()),
+                None,
+                Some(r"C:\Users\cargo".to_string()),
+                true,
+            ),
+            Some(PathBuf::from(r"D:\cargo-home"))
+        );
     }
 
     #[test]
@@ -2452,19 +3345,19 @@ mod tests {
     #[test]
     fn test_equals_syntax_profile() {
         let args = parse(&["cargo-cross", "build", "--profile=dev"]).unwrap();
-        assert_eq!(args.profile, "dev");
+        assert_eq!(args.profile.as_deref(), Some("dev"));
     }
 
     #[test]
     fn test_equals_syntax_features() {
         let args = parse(&["cargo-cross", "build", "--features=foo,bar"]).unwrap();
-        assert_eq!(args.features, Some("foo,bar".to_string()));
+        assert_eq!(args.features, vec!["foo,bar"]);
     }
 
     #[test]
     fn test_equals_syntax_short_features() {
         let args = parse(&["cargo-cross", "build", "-F=foo,bar"]).unwrap();
-        assert_eq!(args.features, Some("foo,bar".to_string()));
+        assert_eq!(args.features, vec!["foo,bar"]);
     }
 
     #[test]
@@ -2493,6 +3386,15 @@ mod tests {
             "--manifest-path=/path/to/Cargo.toml",
         ])
         .unwrap();
+        assert_eq!(
+            args.manifest_path,
+            Some(PathBuf::from("/path/to/Cargo.toml"))
+        );
+    }
+
+    #[test]
+    fn test_manifest_path_short_option() {
+        let args = parse(&["cargo-cross", "build", "-m", "/path/to/Cargo.toml"]).unwrap();
         assert_eq!(
             args.manifest_path,
             Some(PathBuf::from("/path/to/Cargo.toml"))
@@ -2565,18 +3467,9 @@ mod tests {
     }
 
     #[test]
-    fn test_equals_syntax_sccache_options() {
-        let args = parse(&[
-            "cargo-cross",
-            "build",
-            "--enable-sccache",
-            "--sccache-dir=/tmp/sccache",
-            "--sccache-cache-size=20G",
-        ])
-        .unwrap();
-        assert!(args.enable_sccache);
-        assert_eq!(args.sccache_dir, Some(PathBuf::from("/tmp/sccache")));
-        assert_eq!(args.sccache_cache_size, Some("20G".to_string()));
+    fn test_equals_syntax_rustc_wrapper() {
+        let args = parse(&["cargo-cross", "build", "--rustc-wrapper=/usr/bin/cachepot"]).unwrap();
+        assert_eq!(args.rustc_wrapper, Some(PathBuf::from("/usr/bin/cachepot")));
     }
 
     #[test]
@@ -2599,8 +3492,8 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
-        assert_eq!(args.profile, "release");
-        assert_eq!(args.features, Some("serde,json".to_string()));
+        assert_eq!(args.profile.as_deref(), Some("release"));
+        assert_eq!(args.features, vec!["serde,json"]);
         assert_eq!(args.jobs, Some("8".to_string()));
         assert_eq!(args.crt_static, Some(true));
         assert_eq!(args.build_std, Some("core,alloc".to_string()));
@@ -2670,7 +3563,7 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(args.crt_static, Some(false));
-        assert_eq!(args.features, Some("serde".to_string()));
+        assert_eq!(args.features, vec!["serde"]);
     }
 
     #[test]
@@ -2688,7 +3581,7 @@ mod tests {
         .unwrap();
         assert_eq!(args.crt_static, Some(true));
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
-        assert_eq!(args.profile, "release");
+        assert_eq!(args.profile.as_deref(), Some("release"));
     }
 
     #[test]
@@ -2724,9 +3617,9 @@ mod tests {
         .unwrap();
         assert_eq!(args.targets, vec!["aarch64-unknown-linux-musl"]);
         assert!(args.no_default_features);
-        assert_eq!(args.features, Some("serde,json".to_string()));
+        assert_eq!(args.features, vec!["serde,json"]);
         assert_eq!(args.crt_static, Some(true));
-        assert_eq!(args.profile, "release");
+        assert_eq!(args.profile.as_deref(), Some("release"));
         assert_eq!(args.verbose_level, 2);
     }
 
@@ -2746,9 +3639,9 @@ mod tests {
             "foo",
         ])
         .unwrap();
-        assert_eq!(args.profile, "dev");
+        assert_eq!(args.profile.as_deref(), Some("dev"));
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
-        assert_eq!(args.features, Some("foo".to_string()));
+        assert_eq!(args.features, vec!["foo"]);
     }
 
     #[test]
@@ -2769,8 +3662,8 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
-        assert_eq!(args.profile, "release");
-        assert_eq!(args.features, Some("foo".to_string()));
+        assert_eq!(args.profile.as_deref(), Some("release"));
+        assert_eq!(args.features, vec!["foo"]);
         assert!(args.no_default_features);
         assert_eq!(args.jobs, Some("4".to_string()));
         assert!(args.locked);
@@ -2998,7 +3891,7 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
-        assert_eq!(args.profile, "release");
+        assert_eq!(args.profile.as_deref(), Some("release"));
         assert_eq!(args.passthrough_args, vec!["--foo", "--bar"]);
     }
 
@@ -3104,7 +3997,7 @@ mod tests {
     fn test_requires_exclude_with_workspace() {
         let args = parse(&["cargo-cross", "build", "--workspace", "--exclude", "foo"]).unwrap();
         assert!(args.workspace);
-        assert_eq!(args.exclude, Some("foo".to_string()));
+        assert_eq!(args.exclude, vec!["foo"]);
     }
 
     #[test]
@@ -3197,10 +4090,10 @@ mod tests {
         assert_eq!(args.toolchain, Some("nightly".to_string()));
         assert_eq!(args.command, Command::build());
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
-        assert_eq!(args.profile, "release");
+        assert_eq!(args.profile.as_deref(), Some("release"));
         assert_eq!(args.crt_static, Some(true));
         assert!(args.no_default_features);
-        assert_eq!(args.features, Some("serde,json".to_string()));
+        assert_eq!(args.features, vec!["serde,json"]);
         assert_eq!(args.jobs, Some("8".to_string()));
         assert!(args.locked);
     }
@@ -3275,25 +4168,6 @@ mod tests {
     }
 
     #[test]
-    fn test_real_world_sccache_build() {
-        let args = parse(&[
-            "cargo-cross",
-            "build",
-            "-t",
-            "x86_64-unknown-linux-musl",
-            "--enable-sccache",
-            "--sccache-dir",
-            "/tmp/sccache",
-            "--sccache-cache-size",
-            "10G",
-        ])
-        .unwrap();
-        assert!(args.enable_sccache);
-        assert_eq!(args.sccache_dir, Some(PathBuf::from("/tmp/sccache")));
-        assert_eq!(args.sccache_cache_size, Some("10G".to_string()));
-    }
-
-    #[test]
     fn test_real_world_workspace_build() {
         let args = parse(&[
             "cargo-cross",
@@ -3308,7 +4182,7 @@ mod tests {
         ])
         .unwrap();
         assert!(args.workspace);
-        assert_eq!(args.exclude, Some("test-crate".to_string()));
+        assert_eq!(args.exclude, vec!["test-crate"]);
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
     }
 
@@ -3392,8 +4266,8 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
-        assert_eq!(args.profile, "release");
-        assert_eq!(args.features, Some("serde".to_string()));
+        assert_eq!(args.profile.as_deref(), Some("release"));
+        assert_eq!(args.features, vec!["serde"]);
         assert_eq!(args.crt_static, Some(true));
     }
 
@@ -3512,14 +4386,14 @@ mod tests {
     fn test_release_flag_short() {
         let args = parse(&["cargo-cross", "build", "-r"]).unwrap();
         assert!(args.release);
-        assert_eq!(args.profile, "release");
+        assert_eq!(args.profile.as_deref(), Some("release"));
     }
 
     #[test]
     fn test_release_flag_long() {
         let args = parse(&["cargo-cross", "build", "--release"]).unwrap();
         assert!(args.release);
-        assert_eq!(args.profile, "release");
+        assert_eq!(args.profile.as_deref(), Some("release"));
     }
 
     #[test]
@@ -3698,7 +4572,7 @@ mod tests {
     #[test]
     fn test_short_concat_features() {
         let args = parse(&["cargo-cross", "build", "-Ffoo,bar"]).unwrap();
-        assert_eq!(args.features, Some("foo,bar".to_string()));
+        assert_eq!(args.features, vec!["foo,bar"]);
     }
 
     #[test]
@@ -3710,7 +4584,7 @@ mod tests {
     #[test]
     fn test_short_concat_package() {
         let args = parse(&["cargo-cross", "build", "-pmypackage"]).unwrap();
-        assert_eq!(args.package, Some("mypackage".to_string()));
+        assert_eq!(args.package, vec!["mypackage"]);
     }
 
     #[test]
@@ -3743,9 +4617,9 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
-        assert_eq!(args.features, Some("foo,bar".to_string()));
+        assert_eq!(args.features, vec!["foo,bar"]);
         assert_eq!(args.jobs, Some("8".to_string()));
-        assert_eq!(args.package, Some("mypkg".to_string()));
+        assert_eq!(args.package, vec!["mypkg"]);
     }
 
     #[test]
@@ -3761,7 +4635,7 @@ mod tests {
         .unwrap();
         assert_eq!(args.jobs, Some("4".to_string()));
         assert_eq!(args.targets, vec!["x86_64-unknown-linux-musl"]);
-        assert_eq!(args.features, Some("bar".to_string()));
+        assert_eq!(args.features, vec!["bar"]);
     }
 
     // Tests for parse_env_args (shell-style argument parsing from env vars)

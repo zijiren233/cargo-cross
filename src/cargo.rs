@@ -2,7 +2,9 @@
 
 use crate::cli::Args;
 use crate::color;
-use crate::config::{get_target_config, HostPlatform, Os};
+use crate::config::{
+    get_target_config, is_custom_target_path, target_name_for_env, HostPlatform, Os,
+};
 use crate::env::{get_build_std_config, CMakeToolchain, CrossEnv};
 use crate::error::{run_command, run_command_output, CrossError, Result};
 use crate::platform::{
@@ -58,7 +60,7 @@ pub fn build_cargo_env(
     host: &HostPlatform,
     skip_target_arg: bool,
 ) -> Result<HashMap<String, String>> {
-    let target_lower = target.replace('-', "_");
+    let target_lower = target_name_for_env(target).replace('-', "_");
     let mut env = cross_env.build_env(target, host);
 
     maybe_add_cmake_toolchain_env(&mut env, target, args, cross_env, host, skip_target_arg)?;
@@ -75,11 +77,8 @@ pub fn build_cargo_env(
         env.insert("RUSTFLAGS".to_string(), rustflags);
     }
 
-    // Add sccache/rustc wrapper
+    // Add the configured rustc wrapper
     add_wrapper_env(&mut env, args);
-
-    // Add sccache options
-    add_sccache_env(&mut env, args);
 
     // Add CC crate environment
     add_cc_crate_env(&mut env, args);
@@ -203,42 +202,10 @@ fn add_host_config_env(env: &mut HashMap<String, String>) {
     );
 }
 
-/// Add wrapper environment (sccache or `rustc_wrapper`)
+/// Add the configured rustc wrapper environment.
 fn add_wrapper_env(env: &mut HashMap<String, String>, args: &Args) {
-    if args.enable_sccache {
-        env.insert("RUSTC_WRAPPER".to_string(), "sccache".to_string());
-    } else if let Some(ref wrapper) = args.rustc_wrapper {
+    if let Some(ref wrapper) = args.rustc_wrapper {
         env.insert("RUSTC_WRAPPER".to_string(), wrapper.display().to_string());
-    }
-}
-
-/// Add sccache environment variables
-fn add_sccache_env(env: &mut HashMap<String, String>, args: &Args) {
-    // First, pass through all SCCACHE_* environment variables from current environment
-    for (key, val) in std::env::vars() {
-        if key.starts_with("SCCACHE_") && !val.is_empty() {
-            env.insert(key, val);
-        }
-    }
-
-    // Then, override with args-based settings (args have higher priority than env vars)
-    if let Some(ref dir) = args.sccache_dir {
-        env.insert("SCCACHE_DIR".to_string(), dir.display().to_string());
-    }
-    if let Some(ref size) = args.sccache_cache_size {
-        env.insert("SCCACHE_CACHE_SIZE".to_string(), size.clone());
-    }
-    if let Some(ref timeout) = args.sccache_idle_timeout {
-        env.insert("SCCACHE_IDLE_TIMEOUT".to_string(), timeout.clone());
-    }
-    if let Some(ref log) = args.sccache_log {
-        env.insert("SCCACHE_LOG".to_string(), log.clone());
-    }
-    if args.sccache_no_daemon {
-        env.insert("SCCACHE_NO_DAEMON".to_string(), "1".to_string());
-    }
-    if args.sccache_direct {
-        env.insert("SCCACHE_DIRECT".to_string(), "true".to_string());
     }
 }
 
@@ -329,13 +296,13 @@ fn build_cargo_command(
         cmd.arg(format!("+{toolchain}"));
     }
 
-    // Command
-    cmd.arg(args.command.as_str());
-
     // Working directory
     if let Some(ref cwd) = args.cargo_cwd {
         cmd.arg("-C").arg(cwd);
     }
+
+    // Command
+    cmd.arg(args.command.as_str());
 
     // -Z flags
     for flag in &args.cargo_z_flags {
@@ -394,16 +361,18 @@ fn build_cargo_command(
 
 /// Add profile arguments
 fn add_profile_args(cmd: &mut TokioCommand, args: &Args) {
-    if args.profile == "release" {
-        cmd.arg("--release");
-    } else if args.profile != "debug" {
-        cmd.arg("--profile").arg(&args.profile);
+    if let Some(profile) = &args.profile {
+        if profile == "release" {
+            cmd.arg("--release");
+        } else {
+            cmd.arg("--profile").arg(profile);
+        }
     }
 }
 
 /// Add feature arguments
 fn add_feature_args(cmd: &mut TokioCommand, args: &Args) {
-    if let Some(ref features) = args.features {
+    for features in &args.features {
         cmd.arg("--features").arg(features);
     }
     if args.no_default_features {
@@ -416,16 +385,16 @@ fn add_feature_args(cmd: &mut TokioCommand, args: &Args) {
 
 /// Add package and target selection arguments
 fn add_package_args(cmd: &mut TokioCommand, args: &Args) {
-    if let Some(ref package) = args.package {
+    for package in &args.package {
         cmd.arg("--package").arg(package);
     }
     if args.workspace {
         cmd.arg("--workspace");
     }
-    if let Some(ref exclude) = args.exclude {
+    for exclude in &args.exclude {
         cmd.arg("--exclude").arg(exclude);
     }
-    if let Some(ref bin) = args.bin_target {
+    for bin in &args.bin_target {
         cmd.arg("--bin").arg(bin);
     }
     if args.build_bins {
@@ -434,19 +403,19 @@ fn add_package_args(cmd: &mut TokioCommand, args: &Args) {
     if args.build_lib {
         cmd.arg("--lib");
     }
-    if let Some(ref example) = args.example_target {
+    for example in &args.example_target {
         cmd.arg("--example").arg(example);
     }
     if args.build_examples {
         cmd.arg("--examples");
     }
-    if let Some(ref test) = args.test_target {
+    for test in &args.test_target {
         cmd.arg("--test").arg(test);
     }
     if args.build_tests {
         cmd.arg("--tests");
     }
-    if let Some(ref bench) = args.bench_target {
+    for bench in &args.bench_target {
         cmd.arg("--bench").arg(bench);
     }
     if args.build_benches {
@@ -505,6 +474,9 @@ fn add_output_args(cmd: &mut TokioCommand, args: &Args) {
     if args.build_plan {
         cmd.arg("--build-plan");
     }
+    if args.unit_graph {
+        cmd.arg("--unit-graph");
+    }
     if let Some(ref timings) = args.timings {
         if timings == "true" {
             cmd.arg("--timings");
@@ -553,6 +525,15 @@ fn add_build_config_args(cmd: &mut TokioCommand, args: &Args) {
     if let Some(ref artifact_dir) = args.artifact_dir {
         cmd.arg("--artifact-dir").arg(artifact_dir);
     }
+    if args.no_run {
+        cmd.arg("--no-run");
+    }
+    if args.no_fail_fast {
+        cmd.arg("--no-fail-fast");
+    }
+    if args.doc_tests {
+        cmd.arg("--doc");
+    }
 }
 
 /// Helper to append a flag to a space-separated string
@@ -583,6 +564,10 @@ fn print_env_vars(env: &HashMap<String, String>) {
 /// Install Rust target if needed
 /// Returns Ok(true) if build-std is required, Ok(false) otherwise
 pub async fn ensure_target_installed(target: &str, toolchain: Option<&str>) -> Result<bool> {
+    if is_custom_target_path(target) {
+        return Ok(false);
+    }
+
     // Check if target is installed
     let mut cmd = TokioCommand::new("rustup");
     cmd.arg("target").arg("list").arg("--installed");
@@ -666,11 +651,11 @@ pub async fn ensure_rust_src(target: &str, toolchain: Option<&str>) -> Result<()
     ));
 
     let mut cmd = TokioCommand::new("rustup");
-    cmd.arg("component")
-        .arg("add")
-        .arg("rust-src")
-        .arg("--target")
-        .arg(target);
+    cmd.arg("component").arg("add").arg("rust-src");
+
+    if !is_custom_target_path(target) {
+        cmd.arg("--target").arg(target);
+    }
 
     if let Some(tc) = toolchain {
         cmd.arg("--toolchain").arg(tc);
@@ -692,6 +677,145 @@ mod tests {
     use crate::env::CrossEnv;
     use crate::platform::render_cmake_toolchain_file;
     use std::path::{Path, PathBuf};
+
+    fn rendered_cargo_command(command: Command, build: BuildArgs) -> String {
+        let args = Args {
+            toolchain: None,
+            command,
+            targets: vec!["x86_64-unknown-linux-gnu".to_string()],
+            no_cargo_target: true,
+            init_runner: false,
+            cross_make_version: "test".to_string(),
+            cross_compiler_dir: std::env::temp_dir(),
+            build,
+        };
+        let command =
+            build_cargo_command("x86_64-unknown-linux-gnu", &args, &CrossEnv::new(), true);
+        format_command_from_cmd(&command)
+    }
+
+    #[test]
+    fn test_default_profile_is_left_to_cargo() {
+        for command in [Command::build(), Command::test(), Command::bench()] {
+            let rendered = rendered_cargo_command(command, BuildArgs::default_for_host());
+            assert!(!rendered.contains("--profile"));
+            assert!(!rendered.contains("--release"));
+        }
+    }
+
+    #[test]
+    fn test_explicit_profile_is_forwarded() {
+        let rendered = rendered_cargo_command(
+            Command::test(),
+            BuildArgs {
+                profile: Some("custom".to_string()),
+                ..BuildArgs::default_for_host()
+            },
+        );
+        assert!(rendered.contains("--profile custom"));
+    }
+
+    #[test]
+    fn test_cargo_directory_precedes_subcommand() {
+        let rendered = rendered_cargo_command(
+            Command::build(),
+            BuildArgs {
+                cargo_cwd: Some(PathBuf::from("workspace")),
+                ..BuildArgs::default_for_host()
+            },
+        );
+
+        assert!(rendered.starts_with("cargo -C workspace build"));
+    }
+
+    #[test]
+    fn test_repeatable_selection_options_are_forwarded() {
+        let rendered = rendered_cargo_command(
+            Command::build(),
+            BuildArgs {
+                package: vec!["first".to_string(), "second".to_string()],
+                features: vec!["serde".to_string(), "json".to_string()],
+                bin_target: vec!["one".to_string(), "two".to_string()],
+                ..BuildArgs::default_for_host()
+            },
+        );
+        assert!(rendered.contains("--package first --package second"));
+        assert!(rendered.contains("--features serde --features json"));
+        assert!(rendered.contains("--bin one --bin two"));
+    }
+
+    #[test]
+    fn test_test_specific_options_are_forwarded() {
+        let rendered = rendered_cargo_command(
+            Command::test(),
+            BuildArgs {
+                no_run: true,
+                no_fail_fast: true,
+                doc_tests: true,
+                unit_graph: true,
+                ..BuildArgs::default_for_host()
+            },
+        );
+        assert!(rendered.contains("--unit-graph"));
+        assert!(rendered.contains("--no-run"));
+        assert!(rendered.contains("--no-fail-fast"));
+        assert!(rendered.contains("--doc"));
+    }
+
+    #[test]
+    fn test_configured_rustc_wrapper_is_added_to_environment() {
+        let args = Args {
+            toolchain: None,
+            command: Command::build(),
+            targets: vec!["x86_64-unknown-linux-gnu".to_string()],
+            no_cargo_target: true,
+            init_runner: false,
+            cross_make_version: "test".to_string(),
+            cross_compiler_dir: std::env::temp_dir(),
+            build: BuildArgs {
+                rustc_wrapper: Some(PathBuf::from("/usr/bin/cachepot")),
+                ..BuildArgs::default_for_host()
+            },
+        };
+        let mut env = HashMap::new();
+
+        add_wrapper_env(&mut env, &args);
+
+        assert_eq!(
+            env.get("RUSTC_WRAPPER").map(String::as_str),
+            Some("/usr/bin/cachepot")
+        );
+    }
+
+    #[test]
+    fn test_custom_target_uses_file_stem_for_cargo_environment() {
+        let args = Args {
+            toolchain: None,
+            command: Command::build(),
+            targets: vec!["targets/MyBoard.json".to_string()],
+            no_cargo_target: false,
+            init_runner: false,
+            cross_make_version: "test".to_string(),
+            cross_compiler_dir: std::env::temp_dir(),
+            build: BuildArgs::default_for_host(),
+        };
+        let mut cross_env = CrossEnv::new();
+        cross_env.set_linker("custom-linker");
+        let env = build_cargo_env(
+            "targets/MyBoard.json",
+            &args,
+            &cross_env,
+            &HostPlatform::detect(),
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(
+            env.get("CARGO_TARGET_MYBOARD_LINKER").map(String::as_str),
+            Some("custom-linker")
+        );
+        assert!(!env.keys().any(|key| key.contains(".JSON")));
+    }
 
     #[test]
     fn test_append_flag_empty() {

@@ -30,7 +30,8 @@ indicatif = "0.18"
 # Use regex-lite for faster compile (smaller regex engine, same API for basic usage)
 regex-lite = "0.1"
 globset = { version = "0.4", default-features = false }
-shlex = "1"
+shlex = "2"
+toml = "1.1"
 # Path slash conversion for CMake compatibility on Windows
 path-slash = "0.2"
 

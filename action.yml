@@ -19,7 +19,7 @@ inputs:
     required: false
     default: ""
   profile:
-    description: "Build profile (debug or release)"
+    description: "Cargo build profile name"
     required: false
     default: "release"
   features:
@@ -127,54 +127,8 @@ inputs:
     description: "C++ standard library to link against (cc crate)"
     required: false
   rustc-wrapper:
-    description: "Compiler wrapper for caching tools like sccache, ccache, etc."
+    description: "Wrapper executable Cargo invokes for rustc processes"
     required: false
-  enable-sccache:
-    description: "Enable sccache for compilation caching (automatically sets rustc-wrapper)"
-    required: false
-    default: "false"
-  sccache-dir:
-    description: "Sccache local cache directory"
-    required: false
-  sccache-cache-size:
-    description: "Maximum sccache cache size (e.g., 2G, 10G)"
-    required: false
-  sccache-idle-timeout:
-    description: "Sccache daemon idle timeout in seconds (0 for permanent)"
-    required: false
-  sccache-log:
-    description: "Sccache log level (error, warn, info, debug, trace)"
-    required: false
-  sccache-no-daemon:
-    description: "Disable sccache background daemon"
-    required: false
-    default: "false"
-  sccache-direct:
-    description: "Enable sccache preprocessor caching"
-    required: false
-    default: "false"
-  sccache-s3-bucket:
-    description: "S3 bucket name for sccache storage"
-    required: false
-  sccache-s3-endpoint:
-    description: "S3 endpoint for sccache (e.g., for R2, MinIO)"
-    required: false
-  sccache-s3-region:
-    description: "S3 region for sccache"
-    required: false
-  sccache-redis-endpoint:
-    description: "Redis endpoint URL for sccache"
-    required: false
-  sccache-gcs-bucket:
-    description: "Google Cloud Storage bucket for sccache"
-    required: false
-  sccache-azure-connection-string:
-    description: "Azure storage connection string for sccache"
-    required: false
-  sccache-gha-enabled:
-    description: "Enable GitHub Actions cache backend for sccache"
-    required: false
-    default: "false"
   cc-no-defaults:
     description: "Disable default cc crate compiler flags (sets CRATE_CC_NO_DEFAULTS)"
     required: false
@@ -383,7 +337,7 @@ runs:
     - name: Restore cargo-cross cache
       if: inputs.skip-cache != 'true'
       id: cargo-cross-cache
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6
       with:
         path: |
           ~/.cargo/bin/cargo-cross
@@ -401,7 +355,7 @@ runs:
 
     - name: Save cargo-cross cache
       if: inputs.skip-cache != 'true' && steps.cargo-cross-cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6
       with:
         path: |
           ~/.cargo/bin/cargo-cross
@@ -477,21 +431,6 @@ runs:
         CXXFLAGS: ${{ inputs.cxxflags }}
         CXXSTDLIB: ${{ inputs.cxxstdlib }}
         RUSTC_WRAPPER: ${{ inputs.rustc-wrapper }}
-        ENABLE_SCCACHE: ${{ inputs.enable-sccache == 'true' && 'true' || '' }}
-        SCCACHE_DIR: ${{ inputs.sccache-dir }}
-        SCCACHE_CACHE_SIZE: ${{ inputs.sccache-cache-size }}
-        SCCACHE_IDLE_TIMEOUT: ${{ inputs.sccache-idle-timeout }}
-        SCCACHE_LOG: ${{ inputs.sccache-log }}
-        SCCACHE_NO_DAEMON: ${{ inputs.sccache-no-daemon == 'true' && '1' || '' }}
-        SCCACHE_DIRECT: ${{ inputs.sccache-direct == 'true' && 'true' || '' }}
-        SCCACHE_BUCKET: ${{ inputs.sccache-s3-bucket }}
-        SCCACHE_ENDPOINT: ${{ inputs.sccache-s3-endpoint }}
-        SCCACHE_REGION: ${{ inputs.sccache-s3-region }}
-        SCCACHE_REDIS_ENDPOINT: ${{ inputs.sccache-redis-endpoint }}
-        SCCACHE_GCS_BUCKET: ${{ inputs.sccache-gcs-bucket }}
-        SCCACHE_AZURE_CONNECTION_STRING: ${{ inputs.sccache-azure-connection-string }}
-        SCCACHE_GHA_CACHE_TO: ${{ inputs.sccache-gha-enabled == 'true' && github.ref || '' }}
-        SCCACHE_GHA_CACHE_FROM: ${{ inputs.sccache-gha-enabled == 'true' && format('{0},{1}', github.ref, github.base_ref) || '' }}
         CRATE_CC_NO_DEFAULTS: ${{ inputs.cc-no-defaults == 'true' && '1' || '' }}
         CC_SHELL_ESCAPED_FLAGS: ${{ inputs.cc-shell-escaped-flags == 'true' && '1' || '' }}
         CC_ENABLE_DEBUG_OUTPUT: ${{ inputs.cc-enable-debug == 'true' && '1' || '' }}

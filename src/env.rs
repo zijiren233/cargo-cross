@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::config::HostPlatform;
+use crate::config::{target_name_for_env, HostPlatform};
 
 /// CMake toolchain configuration strategy
 #[derive(Debug, Clone)]
@@ -149,8 +149,9 @@ impl CrossEnv {
 
         // Target name variants for environment variables
         // CC crate uses lowercase (CC_<target>), Cargo uses uppercase (CARGO_TARGET_<TARGET>_*)
-        let target_lower = target.replace('-', "_");
-        let target_upper = target.to_uppercase().replace('-', "_");
+        let target_name = target_name_for_env(target);
+        let target_lower = target_name.replace('-', "_");
+        let target_upper = target_name.to_uppercase().replace('-', "_");
 
         // Set target-specific CC/CXX/AR variables for the cc crate.
         if let Some(ref cc) = self.cc {

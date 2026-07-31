@@ -33,7 +33,8 @@ cargo install --path .
 
 After installation, you can use `cargo cross` command:
 
-Local CLI invocations default to the `dev` profile, matching Cargo. The GitHub Action keeps using the `release` profile by default.
+Local CLI invocations use Cargo's command-specific default profile: `dev` for build/check/run,
+`test` for test, and `bench` for bench. The GitHub Action keeps using the `release` profile by default.
 
 ```bash
 # Show help
@@ -409,7 +410,7 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `crt-st
 |-------|-------------|---------|
 | `command` | Command to execute (`build`, `check`, `clippy`, `run`, `test`, `bench`, `doc`, `fix`, `rustc`, `rustdoc`, `setup`, `exec`) | `build` |
 | `targets` | Newline-separated list of Rust target triples (comma-separated also supported) | Host target |
-| `profile` | Build profile (`debug` or `release`) | `release` |
+| `profile` | Cargo build profile name | `release` |
 | `features` | Comma-separated list of features to activate | |
 | `no-default-features` | Do not activate default features | `false` |
 | `all-features` | Activate all available features | `false` |

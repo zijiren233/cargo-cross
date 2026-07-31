@@ -1,6 +1,7 @@
 //! Target configuration database for cargo-cross
 
 use std::collections::HashMap;
+use std::path::Path;
 
 /// Supported glibc versions
 pub const SUPPORTED_GLIBC_VERSIONS: &[&str] = &[
@@ -448,6 +449,26 @@ pub fn get_target_config(target: &str) -> Option<&'static TargetConfig> {
     TARGETS.get(target)
 }
 
+/// Return whether a target argument points to a custom JSON target specification.
+#[must_use]
+pub fn is_custom_target_path(target: &str) -> bool {
+    Path::new(target).extension().and_then(|ext| ext.to_str()) == Some("json")
+}
+
+/// Cargo derives target-specific environment variable names from a custom target's file stem.
+#[must_use]
+pub fn target_name_for_env(target: &str) -> &str {
+    if is_custom_target_path(target) {
+        Path::new(target)
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .filter(|stem| !stem.is_empty())
+            .unwrap_or(target)
+    } else {
+        target
+    }
+}
+
 /// Get all supported targets
 pub fn all_targets() -> impl Iterator<Item = &'static str> {
     TARGETS.keys().copied()
@@ -633,6 +654,16 @@ mod tests {
     fn test_target_lookup() {
         assert!(get_target_config("x86_64-unknown-linux-musl").is_some());
         assert!(get_target_config("invalid-target").is_none());
+    }
+
+    #[test]
+    fn test_custom_target_environment_name_uses_file_stem() {
+        assert!(is_custom_target_path("targets/MyBoard.json"));
+        assert_eq!(target_name_for_env("targets/MyBoard.json"), "MyBoard");
+        assert_eq!(
+            target_name_for_env("aarch64-unknown-linux-gnu"),
+            "aarch64-unknown-linux-gnu"
+        );
     }
 
     #[test]

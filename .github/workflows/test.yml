@@ -67,7 +67,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install nasm (Linux)
         if: runner.os == 'Linux'
@@ -146,7 +146,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install nasm (Windows)
         uses: ilammy/setup-nasm@v1
@@ -199,7 +199,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install nasm
         run: sudo apt-get update && sudo apt-get install -y nasm
