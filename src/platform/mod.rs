@@ -546,7 +546,15 @@ pub async fn find_file_by_pattern(dir: &Path, pattern: &str) -> Option<PathBuf> 
     let mut entries = tokio::fs::read_dir(dir).await.ok()?;
     while let Ok(Some(entry)) = entries.next_entry().await {
         let name = entry.file_name();
-        if matcher.is_match(&*name.to_string_lossy()) {
+        let name_str = name.to_string_lossy();
+        if matcher.is_match(&*name_str) {
+            // osxcross >= 0.2.8 ships cmake launcher wrappers (e.g.
+            // *-cmake-clang, *-cmake-ld) that also match "*-clang" style
+            // patterns but are not compilers; skip them so the real
+            // toolchain binary is picked regardless of directory order.
+            if name_str.contains("-cmake") {
+                continue;
+            }
             return Some(entry.path());
         }
     }
