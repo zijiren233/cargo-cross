@@ -94,7 +94,7 @@ async fn setup_osxcross(
         }
     };
 
-    let osxcross_version = "v0.2.6";
+    let osxcross_version = "v0.2.8";
     let macos_sdk_suffix = args.macos_sdk_version.replace('.', "-");
     let osxcross_dir = args.cross_compiler_dir.join(format!(
         "osxcross-{macos_sdk_suffix}-{host_arch_name}-{osxcross_version}"

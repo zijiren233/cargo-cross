@@ -117,7 +117,7 @@ async fn setup_ioscross(
         }
     };
 
-    let cctools_version = "v0.1.9";
+    let cctools_version = "v0.1.10";
     let iphone_sdk_suffix = args.iphone_sdk_version.replace('.', "-");
 
     let mut cross_compiler_name = format!("ios-{arch_prefix}-cross");

@@ -423,10 +423,10 @@ GNU libc targets produce **dynamically linked binaries by default**. Use `crt-st
 | `cross-compiler-dir` | Directory to store cross compilers | |
 | `ndk-version` | Android NDK version (e.g., r27d, r29) | `r27d` (LTS) |
 | `glibc-version` | Glibc version for GNU targets (e.g., 2.31, 2.42) | (default) |
-| `iphone-sdk-version` | iPhone SDK version for iOS targets (non-macOS: bundled SDKs, macOS: installed Xcode SDK) | (default 26.2) |
+| `iphone-sdk-version` | iPhone SDK version for iOS targets (non-macOS: bundled SDKs, macOS: installed Xcode SDK) | (default 26.5) |
 | `iphone-sdk-path` | Override iPhoneOS SDK path for device targets (skips version lookup, native macOS only) | |
 | `iphone-simulator-sdk-path` | Override iPhoneSimulator SDK path for simulator targets (skips version lookup, native macOS only) | |
-| `macos-sdk-version` | macOS SDK version for Darwin targets (non-macOS: bundled SDKs, macOS: installed Xcode SDK) | (default 26.2) |
+| `macos-sdk-version` | macOS SDK version for Darwin targets (non-macOS: bundled SDKs, macOS: installed Xcode SDK) | (default 26.5) |
 | `macos-sdk-path` | Override macOS SDK path directly (skips version lookup, native macOS only) | |
 | `freebsd-version` | FreeBSD version for FreeBSD targets (13, 14, or 15) | `13` |
 | `qemu-version` | QEMU version for user-mode emulation (e.g., v10.2.0) | `v10.2.0` |
@@ -604,16 +604,16 @@ You can specify a specific iPhone SDK version using the `iphone-sdk-version` par
       aarch64-apple-ios-sim
     iphone-sdk-version: "17.5"
 
-# Leave empty or use default (26.2)
+# Leave empty or use default (26.5)
 - name: Build with default iPhone SDK
   uses: zijiren233/cargo-cross@v1
   with:
     command: build
     targets: aarch64-apple-ios
-    # iphone-sdk-version not specified - uses default 26.2
+    # iphone-sdk-version not specified - uses default 26.5
 ```
 
-Supported iPhone SDK versions: 17.0, 17.2, 17.4, 17.5, 18.0, 18.1, 18.2, 18.4, 18.5, 26.0, 26.1, 26.2 (default)
+Supported iPhone SDK versions: 17.0, 17.2, 17.4, 17.5, 18.0, 18.1, 18.2, 18.4, 18.5, 26.0, 26.1, 26.2, 26.4, 26.5 (default)
 
 ### Custom macOS SDK Version
 
@@ -641,16 +641,16 @@ You can specify a specific macOS SDK version using the `macos-sdk-version` param
       aarch64-apple-darwin
     macos-sdk-version: "14.0"
 
-# Leave empty or use default (26.2)
+# Leave empty or use default (26.5)
 - name: Build with default macOS SDK
   uses: zijiren233/cargo-cross@v1
   with:
     command: build
     targets: aarch64-apple-darwin
-    # macos-sdk-version not specified - uses default 26.2
+    # macos-sdk-version not specified - uses default 26.5
 ```
 
-Supported macOS SDK versions (for non-macOS cross-compilation): 14.0, 14.2, 14.4, 14.5, 15.0, 15.1, 15.2, 15.4, 15.5, 26.0, 26.1, 26.2 (default)
+Supported macOS SDK versions (for non-macOS cross-compilation): 14, 14.0, 14.2, 14.4, 14.5, 15, 15.0, 15.1, 15.2, 15.4, 15.5, 26, 26.0, 26.1, 26.2, 26.4, 26.5 (default)
 
 On macOS, any SDK version installed via Xcode can be used.
 
@@ -945,7 +945,9 @@ For iOS targets, use `iphone-sdk-version` parameter to select the SDK version. O
 | 18.5 | iOS 18.5 SDK |
 | 26.0 | iOS 26.0 SDK |
 | 26.1 | iOS 26.1 SDK |
-| 26.2 | iOS 26.2 SDK (default) |
+| 26.2 | iOS 26.2 SDK |
+| 26.4 | iOS 26.4 SDK |
+| 26.5 | iOS 26.5 SDK (default) |
 
 On macOS, any SDK version installed via Xcode can be used. If the specified version is not found, the system default SDK will be used with a warning.
 
@@ -966,7 +968,9 @@ For macOS (Darwin) targets, use `macos-sdk-version` parameter to select the SDK 
 | 15.5 | macOS 15.5 SDK |
 | 26.0 | macOS 26.0 SDK |
 | 26.1 | macOS 26.1 SDK |
-| 26.2 | macOS 26.2 SDK (default) |
+| 26.2 | macOS 26.2 SDK |
+| 26.4 | macOS 26.4 SDK |
+| 26.5 | macOS 26.5 SDK (default) |
 
 On macOS, any SDK version installed via Xcode can be used.
 

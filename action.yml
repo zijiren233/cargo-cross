@@ -69,7 +69,7 @@ inputs:
     description: "Glibc version for GNU targets (e.g., 2.31, 2.42). Leave empty for default version"
     required: false
   iphone-sdk-version:
-    description: "iPhone SDK version for iOS targets (e.g., 17.0, 18.2, 26.2). On non-macOS uses bundled SDKs, on macOS uses installed Xcode SDK. Leave empty for default version (26.2)"
+    description: "iPhone SDK version for iOS targets (e.g., 17.0, 18.2, 26.5). On non-macOS uses bundled SDKs, on macOS uses installed Xcode SDK. Leave empty for default version (26.5)"
     required: false
   iphone-sdk-path:
     description: "Override iPhoneOS SDK path for device targets (skips version lookup). Only for native macOS builds"
@@ -78,7 +78,7 @@ inputs:
     description: "Override iPhoneSimulator SDK path for simulator targets (skips version lookup). Only for native macOS builds"
     required: false
   macos-sdk-version:
-    description: "macOS SDK version for Darwin targets (e.g., 14.0, 15.2, 26.2). On non-macOS uses bundled SDKs, on macOS uses installed Xcode SDK. Leave empty for default version (26.2)"
+    description: "macOS SDK version for Darwin targets (e.g., 14.0, 15.2, 26.5). On non-macOS uses bundled SDKs, on macOS uses installed Xcode SDK. Leave empty for default version (26.5)"
     required: false
   macos-sdk-path:
     description: "Override macOS SDK path directly (skips version lookup). Only for native macOS builds"

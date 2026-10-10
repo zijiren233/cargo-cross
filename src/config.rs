@@ -15,18 +15,20 @@ pub const DEFAULT_GLIBC_VERSION: &str = "";
 /// Supported iPhone SDK versions (for Linux cross-compilation)
 pub const SUPPORTED_IPHONE_SDK_VERSIONS: &[&str] = &[
     "17.0", "17.2", "17.4", "17.5", "18.0", "18.1", "18.2", "18.4", "18.5", "26.0", "26.1", "26.2",
+    "26.4", "26.5",
 ];
 
 /// Default iPhone SDK version
-pub const DEFAULT_IPHONE_SDK_VERSION: &str = "26.2";
+pub const DEFAULT_IPHONE_SDK_VERSION: &str = "26.5";
 
 /// Supported macOS SDK versions (for Linux cross-compilation)
 pub const SUPPORTED_MACOS_SDK_VERSIONS: &[&str] = &[
-    "14.0", "14.2", "14.4", "14.5", "15.0", "15.1", "15.2", "15.4", "15.5", "26.0", "26.1", "26.2",
+    "14", "14.0", "14.2", "14.4", "14.5", "15", "15.0", "15.1", "15.2", "15.4", "15.5", "26",
+    "26.0", "26.1", "26.2", "26.4", "26.5",
 ];
 
 /// Default macOS SDK version
-pub const DEFAULT_MACOS_SDK_VERSION: &str = "26.2";
+pub const DEFAULT_MACOS_SDK_VERSION: &str = "26.5";
 
 /// Supported FreeBSD versions
 pub const SUPPORTED_FREEBSD_VERSIONS: &[&str] = &["13", "14", "15"];
